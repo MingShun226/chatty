@@ -95,8 +95,8 @@ const ImagesSection = () => {
   const toggleFavoriteMutation = useToggleFavorite();
   const { refresh: refreshImages } = useRefreshImages();
 
-  // Default provider for img2img - using nano-banana-pro for better quality
-  const DEFAULT_PROVIDER: AIProvider = 'kie-nano-banana-pro';
+  // Default provider for img2img - using nano-banana-edit which is designed for img2img
+  const DEFAULT_PROVIDER: AIProvider = 'kie-nano-banana-edit';
 
   // Size multipliers for different quality settings
   const getSizeMultiplier = (size: '1K' | '2K' | '4K'): number => {
