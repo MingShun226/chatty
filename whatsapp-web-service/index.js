@@ -392,16 +392,28 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
     }
 
     // Get products for this chatbot
-    const { data: products } = await supabase
-      .from('products')
+    const { data: products, error: productsError } = await supabase
+      .from('chatbot_products')
       .select('*')
       .eq('chatbot_id', chatbotId)
 
+    if (productsError) {
+      console.error('Error fetching products:', productsError)
+    } else {
+      console.log(`Fetched ${products?.length || 0} products for chatbot ${chatbotId}`)
+    }
+
     // Get knowledge base for this chatbot
-    const { data: knowledgeBase } = await supabase
-      .from('knowledge_base')
+    const { data: knowledgeBase, error: knowledgeError } = await supabase
+      .from('avatar_knowledge_files')
       .select('*')
-      .eq('chatbot_id', chatbotId)
+      .eq('avatar_id', chatbotId)
+
+    if (knowledgeError) {
+      console.error('Error fetching knowledge base:', knowledgeError)
+    } else {
+      console.log(`Fetched ${knowledgeBase?.length || 0} knowledge base files for chatbot ${chatbotId}`)
+    }
 
     // Get conversation history for this user
     const { data: conversationHistory } = await supabase
