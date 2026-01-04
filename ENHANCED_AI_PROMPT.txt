@@ -110,7 +110,7 @@ Example 5: Sending a knowledge base document
   "images": [],
   "documents": [
     {
-      "url": "https://storage.supabase.co/.../Product_Catalog_2024.pdf",
+      "filePath": "9248b32f-2015-4afb-a0a3-25aa8755dc35/dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3/1766683557455-Product_Catalog_2024.pdf",
       "fileName": "Product Catalog 2024.pdf",
       "caption": "Complete Product Catalog - Updated January 2024"
     }
@@ -128,7 +128,7 @@ Example 6: Sending both image and document
   ],
   "documents": [
     {
-      "url": "https://storage.com/iphone15_manual.pdf",
+      "filePath": "9248b32f-2015-4afb-a0a3-25aa8755dc35/dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3/1766683557455-User_Manual.pdf",
       "fileName": "iPhone 15 Pro Max User Manual.pdf",
       "caption": "Complete user guide and specifications"
     }
@@ -178,7 +178,7 @@ When you see knowledge base files in the KNOWLEDGE BASE section, you can send th
 Knowledge base format example:
 "### Product Catalog.pdf
 [Extracted content here...]
-[File URL: https://storage.supabase.co/.../Product_Catalog.pdf]"
+[File Path: 9248b32f-2015-4afb-a0a3-25aa8755dc35/dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3/1766683557455-Product_Catalog.pdf]"
 
 To send a document:
 {
@@ -186,7 +186,7 @@ To send a document:
   "images": [],
   "documents": [
     {
-      "url": "https://storage.supabase.co/.../Product_Catalog.pdf",
+      "filePath": "9248b32f-2015-4afb-a0a3-25aa8755dc35/dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3/1766683557455-Product_Catalog.pdf",
       "fileName": "Product Catalog.pdf",
       "caption": "Complete Product Catalog 2024"
     }
@@ -203,10 +203,13 @@ Supported document types:
 
 Document object format:
 {
-  "url": "https://...",           // Required: Document URL
-  "fileName": "Catalog.pdf",      // Required: File name with extension
-  "caption": "Description"        // Optional: Caption for the document
+  "filePath": "userId/avatarId/timestamp-filename.pdf",  // Required: File path from [File Path: ...]
+  "fileName": "Catalog.pdf",                              // Required: File name with extension
+  "caption": "Description"                                // Optional: Caption for the document
 }
+
+IMPORTANT: Extract the file path from [File Path: ...] in the knowledge base content.
+The filePath should be EXACTLY as shown (e.g., "9248b32f.../dfaf5a3e.../1766683557455-Catalog.pdf").
 
 When to send documents:
 ✅ Customer asks for "catalog", "brochure", "manual", "price list"

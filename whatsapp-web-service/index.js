@@ -762,10 +762,29 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
       console.log(`Sending ${documents.length} document(s)...`)
       for (const docData of documents) {
         try {
-          // docData must be object with {url, fileName, caption (optional)}
-          const documentUrl = docData.url
           const fileName = docData.fileName || docData.filename || 'document.pdf'
           const caption = docData.caption || ''
+          let documentUrl = docData.url
+
+          // If filePath is provided instead of URL, generate signed URL
+          if (docData.filePath && !documentUrl) {
+            console.log(`Generating signed URL for file: ${docData.filePath}`)
+            const { data: signedUrlData, error: signedError } = await supabase.storage
+              .from('knowledge-base')
+              .createSignedUrl(docData.filePath, 3600) // 1 hour expiry
+
+            if (signedError) {
+              console.error('Error generating signed URL:', signedError)
+              throw new Error(`Failed to generate URL for ${fileName}: ${signedError.message}`)
+            }
+
+            documentUrl = signedUrlData.signedUrl
+            console.log(`Signed URL generated successfully`)
+          }
+
+          if (!documentUrl) {
+            throw new Error(`No URL or filePath provided for document: ${fileName}`)
+          }
 
           await sendWhatsAppDocument(sock, fromNumber, documentUrl, fileName, caption)
 
@@ -781,7 +800,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
               to_number: fromNumber,
               direction: 'outbound',
               message_type: 'document',
-              content: `${fileName}: ${documentUrl}`,
+              content: `${fileName}: ${docData.filePath || documentUrl}`,
               timestamp: new Date().toISOString()
             })
         } catch (docErr) {
