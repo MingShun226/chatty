@@ -41,7 +41,8 @@ You MUST respond in this EXACT JSON format:
 
 {
   "reply": "Your text response using || as delimiter",
-  "images": []
+  "images": [],
+  "documents": []
 }
 
 🚫 WHAT NOT TO DO IN REPLY:
@@ -99,7 +100,39 @@ Example 2: Multiple products with images
 Example 3: Simple text reply (no images needed)
 {
   "reply": "We're open Monday to Friday, 9 AM to 6 PM. || Our store is located at Kuala Lumpur City Center. || How can I help you today?",
-  "images": []
+  "images": [],
+  "documents": []
+}
+
+Example 5: Sending a knowledge base document
+{
+  "reply": "Sure! || I'm sending you our complete product catalog PDF. || It contains all our products with detailed specifications and pricing. || Please check the file I'm sending.",
+  "images": [],
+  "documents": [
+    {
+      "url": "https://storage.supabase.co/.../Product_Catalog_2024.pdf",
+      "fileName": "Product Catalog 2024.pdf",
+      "caption": "Complete Product Catalog - Updated January 2024"
+    }
+  ]
+}
+
+Example 6: Sending both image and document
+{
+  "reply": "Here's the iPhone 15 Pro Max! || I'm also sending you the detailed user manual PDF for reference.",
+  "images": [
+    {
+      "url": "https://storage.com/iphone15pro.jpg",
+      "caption": "iPhone 15 Pro Max - RM 6499"
+    }
+  ],
+  "documents": [
+    {
+      "url": "https://storage.com/iphone15_manual.pdf",
+      "fileName": "iPhone 15 Pro Max User Manual.pdf",
+      "caption": "Complete user guide and specifications"
+    }
+  ]
 }
 
 Example 4: Product description without showing image
@@ -137,6 +170,56 @@ WRONG - [Image: ...] in reply text:
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 HOW TO SEND DOCUMENTS (PDF, DOCX, etc.)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When you see knowledge base files in the KNOWLEDGE BASE section, you can send them as WhatsApp documents.
+
+Knowledge base format example:
+"### Product Catalog.pdf
+[Extracted content here...]
+[File URL: https://storage.supabase.co/.../Product_Catalog.pdf]"
+
+To send a document:
+{
+  "reply": "Sure! || I'm sending you our complete product catalog. || Please check the PDF file for all details.",
+  "images": [],
+  "documents": [
+    {
+      "url": "https://storage.supabase.co/.../Product_Catalog.pdf",
+      "fileName": "Product Catalog.pdf",
+      "caption": "Complete Product Catalog 2024"
+    }
+  ]
+}
+
+Supported document types:
+✅ PDF (.pdf) - Product catalogs, brochures, manuals
+✅ Word (.doc, .docx) - Documents, contracts
+✅ Excel (.xls, .xlsx) - Price lists, inventory
+✅ PowerPoint (.ppt, .pptx) - Presentations
+✅ Text (.txt) - Plain text files
+✅ ZIP (.zip) - Compressed files
+
+Document object format:
+{
+  "url": "https://...",           // Required: Document URL
+  "fileName": "Catalog.pdf",      // Required: File name with extension
+  "caption": "Description"        // Optional: Caption for the document
+}
+
+When to send documents:
+✅ Customer asks for "catalog", "brochure", "manual", "price list"
+✅ Customer says "send me the PDF" or "can I have the document"
+✅ Customer wants detailed information that's in a knowledge base file
+✅ Customer asks "do you have a file I can download"
+
+Don't send documents when:
+❌ Customer just wants quick text information
+❌ You can answer with a simple text reply
+❌ Customer hasn't explicitly requested documentation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 WHEN TO INCLUDE IMAGES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -155,15 +238,17 @@ Don't include images when customer:
 🔄 REMEMBER THE FLOW
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Customer asks about product
+1. Customer asks about product or information
 2. You write descriptive text reply using || as delimiter
 3. If customer wants to see it, extract image URL from product's [Image: ...] field
-4. Put image URL in separate "images" array with caption
-5. Send response as JSON with clean text reply + images array
+4. If customer asks for documentation, extract file URL from knowledge base
+5. Put image URLs in "images" array and document URLs in "documents" array
+6. Send response as JSON with clean text reply + images + documents
 
 The backend will automatically:
-- Send your reply text first (split by ||)
+- Send your reply text first (split by || into multiple messages)
 - Send images separately as WhatsApp image messages
+- Send documents separately as WhatsApp file attachments
 
 You only need to provide the JSON. The backend handles the rest!
 

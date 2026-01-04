@@ -360,6 +360,58 @@ async function sendWhatsAppImage(sock, toNumber, imageUrl, caption = '') {
 }
 
 /**
+ * Send WhatsApp document message (PDF, DOCX, XLSX, etc.)
+ * @param {object} sock - WhatsApp socket
+ * @param {string} toNumber - Recipient number
+ * @param {string} documentUrl - Document URL
+ * @param {string} fileName - File name with extension (e.g., "Product Catalog.pdf")
+ * @param {string} caption - Optional caption for the document
+ */
+async function sendWhatsAppDocument(sock, toNumber, documentUrl, fileName, caption = '') {
+  try {
+    console.log(`Sending document to ${toNumber}: ${fileName}`)
+
+    // Show uploading indicator
+    await sock.sendPresenceUpdate('composing', toNumber)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    // Determine mimetype from file extension
+    const extension = fileName.split('.').pop().toLowerCase()
+    const mimeTypes = {
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'txt': 'text/plain',
+      'csv': 'text/csv',
+      'zip': 'application/zip',
+      'rar': 'application/x-rar-compressed'
+    }
+
+    const mimetype = mimeTypes[extension] || 'application/octet-stream'
+
+    // Send document
+    await sock.sendMessage(toNumber, {
+      document: { url: documentUrl },
+      fileName: fileName,
+      mimetype: mimetype,
+      caption: caption || undefined
+    })
+
+    // Clear presence
+    await sock.sendPresenceUpdate('paused', toNumber)
+
+    console.log(`Document sent successfully: ${fileName}`)
+  } catch (err) {
+    console.error('Error sending WhatsApp document:', err)
+    throw err
+  }
+}
+
+/**
  * Send WhatsApp message with typing indicator and message splitting
  * @param {object} sock - WhatsApp socket
  * @param {string} toNumber - Recipient number
@@ -541,6 +593,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
 
     let reply
     let images = []
+    let documents = []
 
     if (n8nWebhookUrl) {
       // Call n8n webhook with full context
@@ -622,6 +675,12 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
         console.log(`n8n response includes ${images.length} image(s)`)
       }
 
+      // Extract documents if present (new feature)
+      documents = data?.documents || []
+      if (documents.length > 0) {
+        console.log(`n8n response includes ${documents.length} document(s)`)
+      }
+
       // Update n8n last used timestamp
       await supabase
         .from('avatars')
@@ -653,6 +712,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
       const result = await response.json()
       reply = result.reply
       images = [] // Edge function doesn't support images yet
+      documents = [] // Edge function doesn't support documents yet
     }
 
     // Get WhatsApp settings from chatbot configuration
@@ -693,6 +753,39 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
             })
         } catch (imgErr) {
           console.error('Error sending image:', imgErr)
+        }
+      }
+    }
+
+    // Send documents if present (PDF, DOCX, etc.)
+    if (documents && documents.length > 0) {
+      console.log(`Sending ${documents.length} document(s)...`)
+      for (const docData of documents) {
+        try {
+          // docData must be object with {url, fileName, caption (optional)}
+          const documentUrl = docData.url
+          const fileName = docData.fileName || docData.filename || 'document.pdf'
+          const caption = docData.caption || ''
+
+          await sendWhatsAppDocument(sock, fromNumber, documentUrl, fileName, caption)
+
+          // Store document message in database
+          const sessionUuid = await getSessionIdFromDb(sessionId)
+          await supabase
+            .from('whatsapp_web_messages')
+            .insert({
+              session_id: sessionUuid,
+              chatbot_id: chatbotId,
+              message_id: `out_doc_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+              from_number: sock.user?.id || '',
+              to_number: fromNumber,
+              direction: 'outbound',
+              message_type: 'document',
+              content: `${fileName}: ${documentUrl}`,
+              timestamp: new Date().toISOString()
+            })
+        } catch (docErr) {
+          console.error('Error sending document:', docErr)
         }
       }
     }
