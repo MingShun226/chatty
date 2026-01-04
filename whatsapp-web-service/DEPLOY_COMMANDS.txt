@@ -1,0 +1,120 @@
+===========================================
+🚂 RAILWAY DEPLOYMENT - COPY & PASTE THESE COMMANDS
+===========================================
+
+STEP 1: Navigate to folder
+---------------------------
+cd "c:\Users\USER\OneDrive\Desktop\AvatarLab\whatsapp-web-service"
+
+
+STEP 2: Login to Railway
+---------------------------
+railway login
+
+(Browser will open - sign up/login with GitHub or email)
+
+
+STEP 3: Initialize Railway project
+---------------------------
+railway init
+
+When asked:
+- Project name: whatsapp-web-service
+- Choose: Empty project
+
+
+STEP 4: Set environment variables (COPY THESE EXACTLY!)
+---------------------------
+railway variables set SUPABASE_URL="https://xatrtqdgghanwdujyhkq.supabase.co"
+
+railway variables set SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODk2MTUzMSwiZXhwIjoyMDc0NTM3NTMxfQ.ASvx3a7hkXOq8eTfhqBT6mpTsaVYzaRjqkdJtUl5z0o"
+
+railway variables set PORT=3001
+
+
+STEP 5: Deploy to Railway
+---------------------------
+railway up
+
+(Wait 2-3 minutes for deployment to complete)
+
+
+STEP 6: Get your Railway URL
+---------------------------
+railway domain
+
+COPY THE URL - you'll need it for your frontend!
+Example: https://whatsapp-web-service-production-xxxx.up.railway.app
+
+
+STEP 7: View logs (optional)
+---------------------------
+railway logs
+
+
+STEP 8: Open Railway dashboard (optional)
+---------------------------
+railway open
+
+
+===========================================
+✅ AFTER DEPLOYMENT - UPDATE FRONTEND
+===========================================
+
+Your Railway URL will be something like:
+https://whatsapp-web-service-production-xxxx.up.railway.app
+
+You need to:
+1. Update Vercel environment variables with this URL
+2. Or update your local .env with this URL
+3. Redeploy your frontend
+
+
+===========================================
+💰 COST TRACKING
+===========================================
+
+Expected monthly cost: $7-8
+- Base: $5/month
+- Usage: ~$2-3/month
+
+Check usage at: railway open → Usage tab
+
+
+===========================================
+🔄 FUTURE DEPLOYMENTS
+===========================================
+
+After making code changes:
+
+cd "c:\Users\USER\OneDrive\Desktop\AvatarLab\whatsapp-web-service"
+railway up
+
+
+===========================================
+📚 MORE INFO
+===========================================
+
+Full guide: See RAILWAY_DEPLOYMENT.md
+Railway docs: https://docs.railway.app
+
+
+===========================================
+🆘 TROUBLESHOOTING
+===========================================
+
+If deployment fails:
+1. Check logs: railway logs
+2. Check status: railway status
+3. Restart: railway restart
+
+If WhatsApp disconnects:
+- Reconnect by scanning QR code again
+- Sessions don't persist across deployments
+
+
+===========================================
+READY TO DEPLOY! 🚀
+===========================================
+
+Start with STEP 1 above!

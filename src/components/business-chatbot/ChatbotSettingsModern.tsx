@@ -18,13 +18,10 @@ import {
   Save,
   Plus,
   X,
-  Loader2,
-  MessageCircle
+  Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { WhatsAppWebConnectionModal } from '../whatsapp/WhatsAppWebConnectionModal';
-import { N8nConfigurationCard } from '../n8n/N8nConfigurationCard';
 
 interface ChatbotSettingsModernProps {
   chatbot: any;
@@ -34,8 +31,6 @@ interface ChatbotSettingsModernProps {
 export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsModernProps) {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [whatsappSession, setWhatsappSession] = useState<any>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -61,32 +56,8 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
         response_guidelines: Array.isArray(chatbot.response_guidelines) ? chatbot.response_guidelines : [],
       });
       setHasChanges(false);
-
-      // Fetch WhatsApp session status
-      fetchWhatsAppSession();
     }
   }, [chatbot]);
-
-  const fetchWhatsAppSession = async () => {
-    if (!chatbot?.id) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('whatsapp_web_sessions')
-        .select('*')
-        .eq('chatbot_id', chatbot.id)
-        .eq('status', 'connected')
-        .maybeSingle();
-
-      if (!error && data) {
-        setWhatsappSession(data);
-      } else {
-        setWhatsappSession(null);
-      }
-    } catch (err) {
-      console.error('Error fetching WhatsApp session:', err);
-    }
-  };
 
   const handleSave = async () => {
     try {
@@ -351,98 +322,6 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
           )}
         </div>
       </div>
-
-      {/* WhatsApp Integration */}
-      <div className="space-y-4 border-t pt-6">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1">
-            <MessageCircle className="h-5 w-5 text-green-600" />
-            WhatsApp Integration
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Connect your WhatsApp account to receive and respond to messages
-          </p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
-          {whatsappSession ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
-                    <MessageCircle className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">WhatsApp Connected</p>
-                    <p className="text-sm text-gray-600">
-                      {whatsappSession.phone_number || 'Phone number connected'}
-                    </p>
-                    {whatsappSession.connected_at && (
-                      <p className="text-xs text-gray-500">
-                        Connected {new Date(whatsappSession.connected_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setShowWhatsAppModal(true)}
-                  variant="outline"
-                  size="sm"
-                >
-                  Manage
-                </Button>
-              </div>
-              <div className="bg-green-100 border border-green-300 rounded-md p-3">
-                <p className="text-sm text-green-800">
-                  ✓ Your chatbot is now receiving WhatsApp messages and can reply automatically!
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                  <MessageCircle className="h-6 w-6 text-gray-500" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">WhatsApp Not Connected</p>
-                  <p className="text-sm text-gray-600">
-                    Connect your WhatsApp to enable messaging
-                  </p>
-                </div>
-              </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
-                <p className="text-xs text-yellow-800">
-                  <strong>Note:</strong> This is an unofficial integration using QR code authentication.
-                  Your account may be banned by WhatsApp if detected. Use at your own risk.
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowWhatsAppModal(true)}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-                size="lg"
-              >
-                <MessageCircle className="h-5 w-5 mr-2" />
-                Connect WhatsApp
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* n8n Integration - SaaS Multi-Tenant */}
-      <N8nConfigurationCard chatbot={chatbot} onUpdate={onUpdate} />
-
-      {/* WhatsApp Connection Modal */}
-      <WhatsAppWebConnectionModal
-        isOpen={showWhatsAppModal}
-        onClose={() => {
-          setShowWhatsAppModal(false);
-          fetchWhatsAppSession(); // Refresh session status when modal closes
-        }}
-        chatbotId={chatbot.id}
-        chatbotName={chatbot.name}
-      />
 
       {/* Save Button - Bottom */}
       {hasChanges && (

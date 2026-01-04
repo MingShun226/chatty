@@ -187,6 +187,12 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
 
           console.log(`Message received on session ${sessionId}: ${fromNumber}`)
 
+          // Skip empty messages (system/sync messages during connection)
+          if (!messageText || messageText.trim() === '') {
+            console.log('Skipping empty message (likely system/sync message)')
+            return
+          }
+
           // Store message in database
           const { error } = await supabase
             .from('whatsapp_web_messages')
@@ -244,6 +250,128 @@ async function getSessionIdFromDb(sessionIdString) {
     .single()
 
   return data?.id
+}
+
+/**
+ * Split long message into chunks using custom delimiter or sentence boundaries
+ * @param {string} text - Message text to split
+ * @param {string|null} delimiter - Custom delimiter (e.g., "||") or null for auto-split
+ * @param {number} maxLength - Maximum length per chunk (default: 1500)
+ */
+function splitMessage(text, delimiter = null, maxLength = 1500) {
+  // If custom delimiter is specified, split by delimiter first
+  if (delimiter && text.includes(delimiter)) {
+    const parts = text.split(delimiter).map(part => part.trim()).filter(part => part.length > 0)
+
+    // Further split parts that exceed maxLength
+    const chunks = []
+    for (const part of parts) {
+      if (part.length <= maxLength) {
+        chunks.push(part)
+      } else {
+        // Part too long, split by sentences
+        chunks.push(...splitBySentences(part, maxLength))
+      }
+    }
+    return chunks
+  }
+
+  // No delimiter or delimiter not found, use automatic sentence splitting
+  if (text.length <= maxLength) {
+    return [text]
+  }
+
+  return splitBySentences(text, maxLength)
+}
+
+/**
+ * Split text by sentence boundaries
+ */
+function splitBySentences(text, maxLength = 1500) {
+  const chunks = []
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]
+  let currentChunk = ''
+
+  for (const sentence of sentences) {
+    if ((currentChunk + sentence).length > maxLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk.trim())
+        currentChunk = sentence
+      } else {
+        // Single sentence is too long, split by words
+        const words = sentence.split(' ')
+        let wordChunk = ''
+        for (const word of words) {
+          if ((wordChunk + word + ' ').length > maxLength) {
+            chunks.push(wordChunk.trim())
+            wordChunk = word + ' '
+          } else {
+            wordChunk += word + ' '
+          }
+        }
+        if (wordChunk) chunks.push(wordChunk.trim())
+      }
+    } else {
+      currentChunk += sentence
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk.trim())
+  }
+
+  return chunks
+}
+
+/**
+ * Send WhatsApp message with typing indicator and message splitting
+ * @param {object} sock - WhatsApp socket
+ * @param {string} toNumber - Recipient number
+ * @param {string} text - Message text
+ * @param {string|null} delimiter - Custom delimiter for splitting (e.g., "||")
+ * @param {number} wpm - Typing speed in words per minute (default: 200)
+ */
+async function sendWhatsAppMessage(sock, toNumber, text, delimiter = null, wpm = 200) {
+  try {
+    // Split long messages
+    const messageChunks = splitMessage(text, delimiter)
+
+    for (let i = 0; i < messageChunks.length; i++) {
+      const chunk = messageChunks[i]
+
+      // Show typing indicator
+      await sock.sendPresenceUpdate('composing', toNumber)
+
+      // Calculate realistic typing delay based on WPM
+      // Formula: (words / WPM) * 60000ms + small buffer
+      const wordCount = chunk.split(/\s+/).length
+      const typingDelayMs = (wordCount / wpm) * 60000
+
+      // Add small random variation (±10%) for more natural feel
+      const variation = typingDelayMs * 0.1 * (Math.random() * 2 - 1)
+      const finalDelay = Math.min(Math.max(typingDelayMs + variation, 800), 5000) // Min 800ms, max 5s
+
+      console.log(`Typing ${wordCount} words at ${wpm} WPM: ${Math.round(finalDelay)}ms delay`)
+      await new Promise(resolve => setTimeout(resolve, finalDelay))
+
+      // Send the message
+      await sock.sendMessage(toNumber, { text: chunk })
+
+      // Pause briefly between chunks
+      if (i < messageChunks.length - 1) {
+        await sock.sendPresenceUpdate('paused', toNumber)
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+
+    // Clear typing indicator
+    await sock.sendPresenceUpdate('paused', toNumber)
+
+    return messageChunks
+  } catch (err) {
+    console.error('Error sending WhatsApp message:', err)
+    throw err
+  }
 }
 
 /**
@@ -332,9 +460,20 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
       }
 
       const result = await response.json()
-      reply = result.reply || result.response || result.message
+      console.log('Full n8n response:', JSON.stringify(result, null, 2))
 
-      console.log('n8n response received:', reply)
+      // n8n returns array format: [{"reply": "..."}]
+      // Extract first item if array
+      const data = Array.isArray(result) ? result[0] : result
+
+      reply = data?.reply || data?.response || data?.message
+
+      console.log('Extracted reply:', reply)
+
+      if (!reply) {
+        console.error('Warning: No reply found in n8n response. Full response:', result)
+        reply = 'Sorry, I could not generate a response.'
+      }
 
       // Update n8n last used timestamp
       await supabase
@@ -368,25 +507,34 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
       reply = result.reply
     }
 
-    // Send reply via WhatsApp
-    await sock.sendMessage(fromNumber, { text: reply })
+    // Get WhatsApp settings from chatbot configuration
+    const messageDelimiter = chatbot.whatsapp_message_delimiter || null
+    const typingWPM = chatbot.whatsapp_typing_wpm || 200
 
-    // Store outbound message
-    await supabase
-      .from('whatsapp_web_messages')
-      .insert({
-        session_id: (await getSessionIdFromDb(sessionId)),
-        chatbot_id: chatbotId,
-        message_id: `out_${Date.now()}`,
-        from_number: sock.user?.id || '',
-        to_number: fromNumber,
-        direction: 'outbound',
-        message_type: 'text',
-        content: reply,
-        timestamp: new Date().toISOString()
-      })
+    console.log(`WhatsApp settings - Delimiter: ${messageDelimiter || 'auto'}, Typing speed: ${typingWPM} WPM`)
 
-    console.log('Reply sent successfully')
+    // Send reply via WhatsApp with typing indicator and message splitting
+    const sentChunks = await sendWhatsAppMessage(sock, fromNumber, reply, messageDelimiter, typingWPM)
+
+    // Store outbound message(s)
+    const sessionUuid = await getSessionIdFromDb(sessionId)
+    for (const chunk of sentChunks) {
+      await supabase
+        .from('whatsapp_web_messages')
+        .insert({
+          session_id: sessionUuid,
+          chatbot_id: chatbotId,
+          message_id: `out_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+          from_number: sock.user?.id || '',
+          to_number: fromNumber,
+          direction: 'outbound',
+          message_type: 'text',
+          content: chunk,
+          timestamp: new Date().toISOString()
+        })
+    }
+
+    console.log(`Reply sent successfully (${sentChunks.length} message${sentChunks.length > 1 ? 's' : ''})`)
   } catch (err) {
     console.error('Error processing inbound message:', err)
   }

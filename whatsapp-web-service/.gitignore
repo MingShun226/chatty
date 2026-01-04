@@ -8,6 +8,7 @@ node_modules/
 # WhatsApp Web Session Data
 .wwebjs_auth/
 .wwebjs_cache/
+.baileys_auth/
 
 # Logs
 *.log

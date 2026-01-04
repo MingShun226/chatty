@@ -1,0 +1,422 @@
+{
+  "name": "WhatsApp Chatbot - AI Agent (AvatarLab)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "={{ $parameter.webhookPath || 'whatsapp-chatbot' }}",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cf83073d-d00b-4c30-b82f-c03f6495d121",
+      "name": "Webhook - WhatsApp Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -528,
+        272
+      ],
+      "webhookId": "whatsapp-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract WhatsApp webhook data and prepare for AI Agent\nconst inputData = $input.first().json;\n\nconsole.log('=== WhatsApp Webhook Data ===');\nconsole.log('Keys received:', Object.keys(inputData));\n\n// Extract main fields\nconst message = inputData.message || inputData.body?.message || 'Hello';\nconst fromNumber = inputData.from_number || inputData.body?.from_number || 'unknown';\nconst chatbot = inputData.chatbot || inputData.body?.chatbot || {};\nconst products = inputData.products || inputData.body?.products || [];\nconst knowledgeBase = inputData.knowledge_base || inputData.body?.knowledge_base || [];\nconst conversationHistory = inputData.conversation_history || inputData.body?.conversation_history || [];\n\nconsole.log('Message:', message);\nconsole.log('From:', fromNumber);\nconsole.log('Chatbot:', chatbot.name);\nconsole.log('Products:', products.length);\nconsole.log('KB:', knowledgeBase.length);\nconsole.log('History:', conversationHistory.length);\n\n// Format conversation history\nconst formattedHistory = conversationHistory.map(msg => {\n  const role = msg.direction === 'inbound' ? 'User' : 'Assistant';\n  const time = new Date(msg.timestamp).toLocaleTimeString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });\n  return `[${time}] ${role}: ${msg.content}`;\n}).join('\\n');\n\n// Format products\nconst productsList = products.map(p => \n  `- ${p.name} (RM ${p.price})${p.description ? `: ${p.description}` : ''}${p.stock !== undefined ? ` [Stock: ${p.stock}]` : ''}`\n).join('\\n');\n\n// Format knowledge base\nconst kbArticles = knowledgeBase.map(k => \n  `### ${k.title}\\n${k.content}`\n).join('\\n\\n');\n\n// Create contact object for session\nconst contact = {\n  id: fromNumber.replace(/[^0-9]/g, ''),\n  phone: fromNumber,\n  name: fromNumber\n};\n\n// Return formatted data for AI Agent\nreturn {\n  json: {\n    // AI Agent expects chatInput field\n    chatInput: message,\n    \n    // Contact info for session management\n    contact: contact,\n    phone: fromNumber,\n    \n    // Chatbot configuration\n    chatbotConfig: {\n      id: chatbot.id,\n      name: chatbot.name || 'Assistant',\n      company: chatbot.company_name || '',\n      industry: chatbot.industry || '',\n      systemPrompt: chatbot.system_prompt || `You are a helpful AI assistant.`,\n      businessContext: chatbot.business_context || '',\n      complianceRules: chatbot.compliance_rules || [],\n      responseGuidelines: chatbot.response_guidelines || []\n    },\n    \n    // Context data\n    products: products,\n    productsList: productsList,\n    knowledgeBase: knowledgeBase,\n    kbArticles: kbArticles,\n    conversationHistory: formattedHistory,\n    \n    // Metadata\n    timestamp: new Date().toISOString(),\n    messageType: 'text',\n    sessionId: `whatsapp_${contact.id}_${Date.now()}`,\n    \n    // Debug\n    debug: {\n      hasProducts: products.length > 0,\n      hasKB: knowledgeBase.length > 0,\n      hasHistory: conversationHistory.length > 0,\n      source: 'whatsapp_webhook'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        272
+      ],
+      "id": "a91f2762-a283-4a7c-989c-969596385c76",
+      "name": "Extract WhatsApp Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatInput",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "systemPrompt",
+              "name": "systemPrompt",
+              "value": "={{ $json.chatbotConfig.systemPrompt }}",
+              "type": "string"
+            },
+            {
+              "id": "businessContext",
+              "name": "businessContext",
+              "value": "={{ $json.chatbotConfig.businessContext }}",
+              "type": "string"
+            },
+            {
+              "id": "products",
+              "name": "products",
+              "value": "={{ $json.productsList }}",
+              "type": "string"
+            },
+            {
+              "id": "knowledgeBase",
+              "name": "knowledgeBase",
+              "value": "={{ $json.kbArticles }}",
+              "type": "string"
+            },
+            {
+              "id": "conversationHistory",
+              "name": "conversationHistory",
+              "value": "={{ $json.conversationHistory }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "7a1c7165-3837-4000-a58d-a4c62da2415a",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -80,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Current date and time: {{ $now.toISO() }}\nToday in Malaysia (GMT+8): {{ $now.setZone('Asia/Kuala_Lumpur').toFormat('yyyy-MM-dd HH:mm') }}\n\n{{ $json.systemPrompt }}\n\n🏢 BUSINESS CONTEXT:\n{{ $json.businessContext }}\n\n{{ $json.products ? '📦 AVAILABLE PRODUCTS:\\n' + $json.products : '' }}\n\n{{ $json.knowledgeBase ? '📚 KNOWLEDGE BASE:\\n' + $json.knowledgeBase : '' }}\n\n{{ $json.chatbotConfig?.complianceRules?.length > 0 ? '⚠️ COMPLIANCE RULES:\\n' + $json.chatbotConfig.complianceRules.map(r => '- ' + r).join('\\n') : '' }}\n\n{{ $json.chatbotConfig?.responseGuidelines?.length > 0 ? '✅ RESPONSE GUIDELINES:\\n' + $json.chatbotConfig.responseGuidelines.map(g => '- ' + g).join('\\n') : '' }}\n\n💬 RECENT CONVERSATION:\n{{ $json.conversationHistory || 'This is the start of the conversation.' }}\n\nIMPORTANT INSTRUCTIONS:\n- You are chatting via WhatsApp\n- Keep responses concise and mobile-friendly\n- Use emojis sparingly and only when appropriate\n- If discussing products, use the product information provided\n- If customer asks questions, check the knowledge base first\n- Follow ALL compliance rules strictly\n- Apply all response guidelines in your communication\n- Be helpful, professional, and friendly"
+        }
+      },
+      "id": "f1e45ed4-1368-4c6a-9352-ff43fbeb9dca",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        320,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.7
+        }
+      },
+      "id": "e7b55091-a40c-4b92-bedc-f8595d4f1926",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        512
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format AI Agent output for WhatsApp webhook response\nconst inputData = $input.first().json;\n\nconsole.log('=== Formatting AI Response ===');\nconsole.log('Input keys:', Object.keys(inputData));\n\n// Extract AI response - try multiple possible fields\nlet aiResponse = '';\n\nif (inputData.output) {\n  aiResponse = inputData.output;\n} else if (inputData.text) {\n  aiResponse = inputData.text;\n} else if (inputData.response) {\n  aiResponse = inputData.response;\n} else if (inputData.content) {\n  aiResponse = inputData.content;\n} else if (typeof inputData === 'string') {\n  aiResponse = inputData;\n} else {\n  // Fallback: stringify the whole object\n  aiResponse = 'I\\'m sorry, I\\'m having trouble generating a response right now. Please try again.';\n  console.log('Warning: Could not extract AI response from:', inputData);\n}\n\n// Clean up response\naiResponse = String(aiResponse).trim();\n\nconsole.log('AI Response:', aiResponse.substring(0, 100) + '...');\nconsole.log('Response length:', aiResponse.length);\n\n// Return in the format expected by WhatsApp service\nreturn {\n  json: {\n    reply: aiResponse\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        272
+      ],
+      "id": "21320a0b-d13d-4489-928f-fe32f2af72f3",
+      "name": "Format for WhatsApp"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "24bb2d7d-fb26-4877-97aa-5b785bde6510",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        976,
+        272
+      ]
+    }
+  ],
+  "pinData": {
+    "Webhook - WhatsApp Message": [
+      {
+        "json": {
+          "headers": {
+            "host": "creatiqai.app.n8n.cloud",
+            "user-agent": "node",
+            "content-length": "4484",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "*",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "162.220.232.174",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "9b89d2f547f6c8ce-SJC",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "162.220.232.174, 104.22.20.175",
+            "x-forwarded-host": "creatiqai.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-90-644db48b77-df44d",
+            "x-is-trusted": "yes",
+            "x-real-ip": "162.220.232.174"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "message": "hihi~~~",
+            "from_number": "60165230268@s.whatsapp.net",
+            "chatbot": {
+              "id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+              "name": "Wendy",
+              "company_name": "ABC Electronics",
+              "industry": "customer_service",
+              "system_prompt": "You are Wendy. You are from US. Your primary language is English. Always respond in character, maintaining your personality and background throughout the conversation.",
+              "business_context": "You are a helpful customer support assistant for ABC Electronics. Your role is to answer customer questions quickly and professionally. Always be polite, patient, and empathetic.",
+              "compliance_rules": [
+                "Never promise refunds without checking company policy",
+                "Escalate billing disputes to human staff immediately",
+                "Protect customer privacy - never share personal information",
+                "If unsure, say \"Let me check with our team\" rather than guessing"
+              ],
+              "response_guidelines": [
+                "Acknowledge customer concern with empathy",
+                "Provide clear step-by-step solutions",
+                "Use simple, easy-to-understand language",
+                "End with \"Is there anything else I can help you with?\"",
+                "Keep responses under 3 paragraphs"
+              ]
+            },
+            "products": [],
+            "knowledge_base": [],
+            "conversation_history": [
+              {
+                "id": "d32bf542-556f-4eb1-9087-16ccbe31a155",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3EB088758CF43CC45E96B5",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:34@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "hihi~~~",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T09:49:05+00:00",
+                "created_at": "2026-01-04T09:49:05.559755+00:00"
+              },
+              {
+                "id": "e1035c85-679f-4f56-9293-cbf0d8302934",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3AA8D944D5AC65205496",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:33@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "hi",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T09:40:37+00:00",
+                "created_at": "2026-01-04T09:40:37.711347+00:00"
+              },
+              {
+                "id": "de36fbea-16c8-48c5-b78e-2b9a8257decb",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3AE3148E5323D4406FFF",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:33@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "hi",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T09:40:13+00:00",
+                "created_at": "2026-01-04T09:40:14.153304+00:00"
+              },
+              {
+                "id": "fc6b915b-d091-41af-bba4-e5a69d01b624",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3AA5D37C14DA92E0F93E",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:33@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "hi",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T09:38:13+00:00",
+                "created_at": "2026-01-04T09:38:14.36535+00:00"
+              },
+              {
+                "id": "69491cdd-e164-41e8-a2d2-3bb8a7f075fd",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3EB049A1B1115DE314A11E",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:32@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "HI",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T09:18:50+00:00",
+                "created_at": "2026-01-04T09:18:52.699968+00:00"
+              },
+              {
+                "id": "78f6c5d8-f7de-48d6-b1f0-299fc7b1ffd3",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3EB0F1476304535B2B3A9D",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:31@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "halo",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T08:20:12+00:00",
+                "created_at": "2026-01-04T08:20:12.663116+00:00"
+              },
+              {
+                "id": "522b9fc1-8f21-4dba-9d88-371a72ed22af",
+                "session_id": "36c8c13c-ced1-4f91-b988-6fe5abd5a678",
+                "chatbot_id": "dfaf5a3e-1033-4e0f-bf4c-65217d68bfb3",
+                "message_id": "3EB0FC6CB6DCC737D23728",
+                "from_number": "60165230268@s.whatsapp.net",
+                "to_number": "60165334085:31@s.whatsapp.net",
+                "direction": "inbound",
+                "message_type": "text",
+                "content": "halo",
+                "media_url": null,
+                "status": "sent",
+                "error_message": null,
+                "timestamp": "2026-01-04T08:14:30+00:00",
+                "created_at": "2026-01-04T08:14:31.269868+00:00"
+              }
+            ]
+          },
+          "webhookUrl": "https://creatiqai.app.n8n.cloud/webhook/whatsapp-chatbot",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook - WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract WhatsApp Data": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format for WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0d4d54dc-056f-4319-a6c6-75fdb61c54bb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2634913f2f63564c82ce4655d9f40e1dc9c1a1fed88b38602578fc73f31e2a9f"
+  },
+  "id": "SChJCXGEIZDLgVox",
+  "tags": []
+}
