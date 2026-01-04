@@ -589,9 +589,25 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
 
       // n8n returns array format: [{"reply": "..."}]
       // Extract first item if array
-      const data = Array.isArray(result) ? result[0] : result
+      let data = Array.isArray(result) ? result[0] : result
 
-      reply = data?.reply || data?.response || data?.message
+      // Check if the data is a JSON string and parse it
+      if (typeof data === 'string') {
+        try {
+          console.log('Response is a string, attempting to parse as JSON...')
+          data = JSON.parse(data)
+        } catch (e) {
+          console.log('Failed to parse as JSON, using raw string')
+        }
+      }
+
+      // Extract reply - could be in reply, response, message, output, or text field
+      reply = data?.reply || data?.response || data?.message || data?.output || data?.text
+
+      // If reply is still undefined but data is a string, use the string directly
+      if (!reply && typeof data === 'string') {
+        reply = data
+      }
 
       console.log('Extracted reply:', reply)
 
