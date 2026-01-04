@@ -1,0 +1,293 @@
+{
+  "common": {
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "update": "更新",
+    "back": "返回",
+    "next": "下一步",
+    "finish": "完成",
+    "skip": "跳过",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "confirm": "确认",
+    "yes": "是",
+    "no": "否",
+    "search": "搜索",
+    "filter": "筛选",
+    "upload": "上传",
+    "download": "下载",
+    "close": "关闭"
+  },
+
+  "nav": {
+    "dashboard": "仪表板",
+    "myChatbots": "我的聊天机器人",
+    "createChatbot": "创建聊天机器人",
+    "chatbotStudio": "聊天机器人工作室",
+    "settings": "设置",
+    "pricing": "价格",
+    "help": "帮助"
+  },
+
+  "home": {
+    "hero": {
+      "title": "5分钟内构建您的商业聊天机器人",
+      "subtitle": "以英语、马来语和中文24/7处理客户咨询。连接到WhatsApp、您的网站或任何平台。",
+      "getStarted": "免费开始",
+      "viewDemo": "查看演示"
+    },
+    "features": {
+      "title": "为什么选择 ChatBiz？",
+      "fastSetup": {
+        "title": "快速设置",
+        "description": "3步向导，5分钟完成"
+      },
+      "malaysiaFocused": {
+        "title": "专注马来西亚",
+        "description": "适合马来西亚商业文化的模板"
+      },
+      "multiLanguage": {
+        "title": "多语言",
+        "description": "支持英语、马来语、普通话"
+      },
+      "affordable": {
+        "title": "实惠价格",
+        "description": "1个聊天机器人每月仅需RM99"
+      }
+    }
+  },
+
+  "wizard": {
+    "title": "创建您的聊天机器人",
+    "step1": "选择行业",
+    "step2": "基本信息",
+    "step3": "上传知识和产品",
+
+    "step1Title": "选择您的行业",
+    "step1Subtitle": "选择最适合您业务的模板",
+
+    "step2Title": "基本信息",
+    "step2Subtitle": "告诉我们您的业务",
+
+    "step3Title": "上传知识和产品",
+    "step3Subtitle": "上传文档和产品（可选）",
+
+    "complete": "设置完成！",
+    "testYourChatbot": "测试您的聊天机器人"
+  },
+
+  "industries": {
+    "customer_service": {
+      "name": "客户服务",
+      "description": "处理常见问题、故障排除和客户咨询",
+      "forLabel": "适用于：支持、常见问题、故障排除"
+    },
+    "ecommerce": {
+      "name": "电子商务商店",
+      "description": "产品推荐、订单跟踪和销售",
+      "forLabel": "适用于：产品销售、推荐、订单"
+    },
+    "real_estate": {
+      "name": "房地产",
+      "description": "房产咨询、看房安排和潜在客户资格审查",
+      "forLabel": "适用于：房产咨询、看房、潜在客户"
+    },
+    "appointment": {
+      "name": "预约预订",
+      "description": "安排预约、检查可用性并发送提醒",
+      "forLabel": "适用于：诊所、沙龙、咨询"
+    }
+  },
+
+  "basicInfo": {
+    "chatbotName": "聊天机器人名称",
+    "chatbotNamePlaceholder": "例如：客户支持机器人、商店助手",
+    "companyName": "公司名称",
+    "companyNamePlaceholder": "例如：ABC电子、Kedai Ramli",
+    "businessDescription": "业务描述",
+    "businessDescriptionPlaceholder": "用2-3句话描述您的业务...",
+    "businessDescriptionHelper": "这有助于聊天机器人了解您的业务背景",
+    "primaryLanguage": "主要语言",
+    "supportedLanguages": "支持多种语言",
+    "tone": "对话语调",
+    "tones": {
+      "formal": "正式（银行、法律）",
+      "friendly": "友好（大多数企业）",
+      "casual": "随意（初创企业、餐饮）"
+    }
+  },
+
+  "knowledgeUpload": {
+    "knowledgeBase": "知识库",
+    "knowledgeBaseOptional": "知识库（可选）",
+    "knowledgeBaseDescription": "上传聊天机器人参考文档",
+    "recommended": "推荐",
+    "uploadPDF": "上传PDF/Word",
+    "writeText": "编写文本",
+    "filesUploaded": "已上传文件",
+    "products": "产品",
+    "productsOptional": "产品（可选）",
+    "productsDescription": "电子商务：上传产品列表",
+    "uploadExcel": "上传Excel",
+    "downloadTemplate": "下载模板",
+    "addManually": "手动添加产品",
+    "productsUploaded": "已上传产品",
+    "tip": "提示：您可以稍后在聊天机器人工作室中添加更多"
+  },
+
+  "products": {
+    "title": "产品画廊",
+    "addNew": "添加新产品",
+    "bulkUpload": "上传Excel",
+    "exportCSV": "导出CSV",
+    "search": "搜索产品...",
+    "filterByCategory": "按类别筛选",
+    "sku": "SKU",
+    "productName": "产品名称",
+    "description": "描述",
+    "price": "价格（马币）",
+    "category": "类别",
+    "stock": "库存",
+    "images": "图片",
+    "inStock": "有货",
+    "outOfStock": "缺货",
+    "lowStock": "库存不足",
+    "uploadImage": "上传图片",
+    "enterImageURL": "输入图片URL",
+    "tags": "标签（逗号分隔）",
+    "saveProduct": "保存产品",
+    "deleteProduct": "删除产品",
+    "confirmDelete": "确定要删除此产品吗？"
+  },
+
+  "excel": {
+    "title": "通过Excel上传产品",
+    "step1": "下载模板",
+    "step2": "填写您的产品",
+    "step2Description": "在Excel文件中填写您的产品数据",
+    "step3": "上传文件",
+    "chooseFile": "选择Excel文件",
+    "preview": "预览（前5行）",
+    "totalRows": "总行数",
+    "valid": "有效",
+    "issues": "问题",
+    "issuesFound": "发现问题",
+    "importOptions": "导入选项",
+    "skipErrors": "跳过有错误的行（导入{{count}}个产品）",
+    "fixFirst": "先修复错误（推荐）",
+    "downloadErrorReport": "下载错误报告",
+    "importProducts": "导入产品",
+    "importing": "导入中...",
+    "importSuccess": "导入成功！",
+    "importSummary": "导入摘要",
+    "totalProcessed": "已处理总行数",
+    "successfullyImported": "成功导入",
+    "failed": "失败（错误）",
+    "timeTaken": "耗时",
+    "viewProducts": "查看导入的产品"
+  },
+
+  "chatbot": {
+    "name": "聊天机器人",
+    "chatbots": "聊天机器人",
+    "status": "状态",
+    "active": "活动",
+    "inactive": "不活动",
+    "industry": "行业",
+    "created": "创建时间",
+    "messages": "消息",
+    "configure": "配置",
+    "test": "测试",
+    "analytics": "分析",
+    "integrate": "集成",
+    "delete": "删除聊天机器人",
+    "confirmDelete": "确定要删除此聊天机器人吗？",
+    "businessContext": "业务背景",
+    "complianceRules": "合规规则",
+    "responseGuidelines": "响应指南",
+    "knowledgeBase": "知识库",
+    "productGallery": "产品画廊",
+    "settings": "聊天机器人设置"
+  },
+
+  "pricing": {
+    "title": "选择您的计划",
+    "monthly": "月付",
+    "annually": "年付",
+    "freeTrial": "免费7天试用",
+    "noCreditCard": "无需信用卡",
+    "choosePlan": "选择计划",
+    "contactSales": "联系销售",
+    "starter": {
+      "name": "入门版",
+      "price": "RM99",
+      "features": [
+        "1个聊天机器人",
+        "每月1,000条消息",
+        "知识库",
+        "100个产品",
+        "WhatsApp集成",
+        "网站小部件",
+        "电子邮件支持"
+      ]
+    },
+    "business": {
+      "name": "商业版",
+      "price": "RM199",
+      "features": [
+        "最多3个聊天机器人",
+        "每月5,000条消息",
+        "知识库",
+        "1,000个产品",
+        "WhatsApp集成",
+        "网站小部件",
+        "微调",
+        "优先支持"
+      ]
+    },
+    "enterprise": {
+      "name": "企业版",
+      "price": "RM599",
+      "features": [
+        "无限聊天机器人",
+        "每月50,000条消息",
+        "知识库",
+        "无限产品",
+        "WhatsApp集成",
+        "网站小部件",
+        "微调",
+        "定制培训",
+        "专属支持",
+        "定制品牌",
+        "API访问"
+      ]
+    }
+  },
+
+  "testChat": {
+    "title": "测试聊天",
+    "placeholder": "输入您的消息...",
+    "send": "发送",
+    "clear": "清除聊天",
+    "model": "AI模型",
+    "settings": "聊天设置"
+  },
+
+  "messages": {
+    "chatbotCreated": "聊天机器人创建成功！",
+    "chatbotUpdated": "聊天机器人更新成功！",
+    "chatbotDeleted": "聊天机器人删除成功！",
+    "productAdded": "产品添加成功！",
+    "productUpdated": "产品更新成功！",
+    "productDeleted": "产品删除成功！",
+    "fileUploaded": "文件上传成功！",
+    "errorOccurred": "发生错误。请重试。",
+    "fillRequired": "请填写所有必填字段",
+    "invalidEmail": "无效的电子邮件地址",
+    "invalidPhone": "无效的电话号码"
+  }
+}

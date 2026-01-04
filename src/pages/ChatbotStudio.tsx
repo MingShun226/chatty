@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '@/components/dashboard/Sidebar';
-import ChatbotSection from '@/components/dashboard/sections/ChatbotSectionClean';
+import ChatbotSectionBusinessIntegrated from '@/components/dashboard/sections/ChatbotSectionBusinessIntegrated';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
 
@@ -36,8 +36,8 @@ const ChatbotStudio = () => {
       />
 
       <main className={`${isCollapsed ? 'ml-16' : 'ml-56'} overflow-auto transition-all duration-300`}>
-        <div className="p-6 max-w-none">
-          <ChatbotSection />
+        <div className="p-8 max-w-7xl mx-auto">
+          <ChatbotSectionBusinessIntegrated />
         </div>
       </main>
     </div>

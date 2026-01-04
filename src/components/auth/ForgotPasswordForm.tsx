@@ -102,8 +102,8 @@ const ForgotPasswordForm = ({ onBackToLogin }: ForgotPasswordFormProps) => {
             <div className="w-6 h-6 bg-white rounded-full"></div>
           </div>
         </div>
-        <h1 className="text-2xl font-bold">AvatarHub</h1>
-        <p className="text-muted-foreground">Your AI Avatar Station</p>
+        <h1 className="text-2xl font-bold">Chatty</h1>
+        <p className="text-muted-foreground">AI Business Chatbots</p>
       </div>
 
       <div className="space-y-4">

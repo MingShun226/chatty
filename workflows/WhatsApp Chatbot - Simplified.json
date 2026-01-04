@@ -1,0 +1,151 @@
+{
+  "name": "WhatsApp Chatbot - AvatarLab Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-chatbot",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook - WhatsApp Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "whatsapp-chatbot"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and prepare data from WhatsApp webhook\nconst inputData = $input.first().json;\n\nconsole.log('=== WhatsApp Webhook Received ===');\nconsole.log('Message:', inputData.message);\nconsole.log('From:', inputData.from_number);\nconsole.log('Chatbot:', inputData.chatbot?.name);\n\n// Extract main data\nconst message = inputData.message || 'Hello';\nconst fromNumber = inputData.from_number || 'unknown';\nconst chatbot = inputData.chatbot || {};\nconst products = inputData.products || [];\nconst knowledgeBase = inputData.knowledge_base || [];\nconst conversationHistory = inputData.conversation_history || [];\n\n// Format conversation history for AI context\nconst formattedHistory = conversationHistory.map(msg => {\n  const role = msg.direction === 'inbound' ? 'User' : 'Assistant';\n  return `${role}: ${msg.content}`;\n}).join('\\n');\n\n// Format products for context\nconst productContext = products.length > 0 \n  ? `\\n\\n📦 Available Products:\\n${products.map(p => \n      `- ${p.name} (RM ${p.price}) - ${p.description}${p.stock ? ` [Stock: ${p.stock}]` : ''}`\n    ).join('\\n')}`\n  : '';\n\n// Format knowledge base\nconst kbContext = knowledgeBase.length > 0\n  ? `\\n\\n📚 Knowledge Base:\\n${knowledgeBase.map(k => \n      `### ${k.title}\\n${k.content}`\n    ).join('\\n\\n')}`\n  : '';\n\n// Build comprehensive system prompt\nconst baseSystemPrompt = chatbot.system_prompt || `You are ${chatbot.name || 'a helpful assistant'}, an AI assistant for ${chatbot.company_name || 'our company'}.`;\nconst businessContext = chatbot.business_context || '';\nconst complianceRules = chatbot.compliance_rules?.length > 0\n  ? `\\n\\n⚠️ Compliance Rules:\\n${chatbot.compliance_rules.map(r => `- ${r}`).join('\\n')}`\n  : '';\nconst responseGuidelines = chatbot.response_guidelines?.length > 0\n  ? `\\n\\n✅ Response Guidelines:\\n${chatbot.response_guidelines.map(g => `- ${g}`).join('\\n')}`\n  : '';\n\nconst fullSystemPrompt = `${baseSystemPrompt}\n\n🏢 Business Context:\n${businessContext}${productContext}${kbContext}${complianceRules}${responseGuidelines}\n\n💬 Conversation Context:\nYou are chatting with: ${fromNumber}\nConversation History:\n${formattedHistory || 'This is the start of the conversation.'}\n\nIMPORTANT:\n- Be helpful, friendly, and professional\n- Use the products and knowledge base information to answer questions\n- Follow all compliance rules strictly\n- Apply the response guidelines in your communication\n- Keep responses concise and relevant to WhatsApp chat format`;\n\n// Build user message with current context\nconst userMessage = message;\n\nconsole.log('=== Context Prepared ===');\nconsole.log('Products count:', products.length);\nconsole.log('Knowledge base count:', knowledgeBase.length);\nconsole.log('History messages:', conversationHistory.length);\n\nreturn {\n  json: {\n    // Core message data\n    message: userMessage,\n    from_number: fromNumber,\n    \n    // AI context\n    system_prompt: fullSystemPrompt,\n    user_message: userMessage,\n    \n    // Original data (for reference)\n    chatbot: chatbot,\n    products: products,\n    knowledge_base: knowledgeBase,\n    conversation_history: conversationHistory,\n    \n    // Metadata\n    timestamp: new Date().toISOString(),\n    chatbot_id: chatbot.id,\n    chatbot_name: chatbot.name,\n    \n    // Debug info\n    debug: {\n      hasProducts: products.length > 0,\n      hasKnowledgeBase: knowledgeBase.length > 0,\n      hasHistory: conversationHistory.length > 0,\n      messageLength: userMessage.length\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300],
+      "id": "prepare-context",
+      "name": "Prepare AI Context"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "systemMessage": "={{ $json.system_prompt }}",
+          "temperature": 0.7,
+          "maxTokens": 500
+        }
+      },
+      "id": "openai-chat",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [690, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate AI response using OpenAI\nconst inputData = $input.first().json;\nconst userMessage = inputData.user_message || inputData.message;\nconst systemPrompt = inputData.system_prompt;\n\nconsole.log('=== Calling OpenAI ===');\nconsole.log('User message:', userMessage);\n\n// Note: In n8n, you would use the OpenAI Chat Model node\n// This code node is a placeholder for the flow\n// The actual AI call happens in the OpenAI Chat Model node\n\nreturn {\n  json: {\n    user_message: userMessage,\n    system_prompt: systemPrompt,\n    ready_for_ai: true\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300],
+      "id": "call-ai",
+      "name": "Call AI"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "reply",
+              "name": "reply",
+              "value": "={{ $json.response || $json.output || $json.text || $json.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"reply\": $json.reply } }}"
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1350, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Context": {
+      "main": [
+        [
+          {
+            "node": "Call AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call AI": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-04T07:00:00.000Z",
+  "versionId": "1",
+  "active": false
+}

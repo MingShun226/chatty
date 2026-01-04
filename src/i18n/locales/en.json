@@ -1,0 +1,359 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "creating": "Creating...",
+    "update": "Update",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "skip": "Skip",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "search": "Search",
+    "filter": "Filter",
+    "upload": "Upload",
+    "download": "Download",
+    "close": "Close",
+    "tryAgain": "Try Again",
+    "more": "more"
+  },
+
+  "nav": {
+    "dashboard": "Dashboard",
+    "myChatbots": "My Chatbots",
+    "createChatbot": "Create Chatbot",
+    "chatbotStudio": "Chatbot Studio",
+    "settings": "Settings",
+    "pricing": "Pricing",
+    "help": "Help"
+  },
+
+  "home": {
+    "hero": {
+      "title": "Build Your Business Chatbot in 5 Minutes",
+      "subtitle": "Handle customer inquiries 24/7 in English, Malay & Chinese. Connect to WhatsApp, your website, or any platform.",
+      "getStarted": "Get Started Free",
+      "viewDemo": "View Demo"
+    },
+    "features": {
+      "title": "Why Choose ChatBiz?",
+      "fastSetup": {
+        "title": "Fast Setup",
+        "description": "3-step wizard, done in 5 minutes"
+      },
+      "malaysiaFocused": {
+        "title": "Malaysia-Focused",
+        "description": "Templates for Malaysian business culture"
+      },
+      "multiLanguage": {
+        "title": "Multi-Language",
+        "description": "English, Bahasa Malaysia, Mandarin support"
+      },
+      "affordable": {
+        "title": "Affordable",
+        "description": "From RM99/month for 1 chatbot"
+      }
+    }
+  },
+
+  "wizard": {
+    "title": "Create Your Chatbot",
+    "subtitle": "Set up your business chatbot in 3 easy steps",
+    "step1": "Choose Industry",
+    "step2": "Basic Information",
+    "step3": "Upload Knowledge & Products",
+    "step1Desc": "Select your industry template",
+    "step2Desc": "Fill in your business details",
+    "step3Desc": "Add knowledge base and products",
+
+    "step1Title": "Choose Your Industry",
+    "step1Description": "Select the template that best matches your business",
+    "step2Title": "Basic Information",
+    "step2Description": "Tell us about your business",
+    "step3Title": "Upload Knowledge & Products",
+    "step3Description": "Upload your business knowledge and product catalog (optional)",
+
+    "loadingTemplates": "Loading industry templates...",
+    "noTemplatesFound": "No templates found",
+    "checkDatabaseMigration": "Make sure you've run the database migration",
+    "sampleGreeting": "Sample greeting",
+    "selectedTemplateDetails": "Selected Template Details",
+    "complianceRules": "Compliance Rules",
+    "responseGuidelines": "Response Guidelines",
+    "templateApplied": "Industry Template Applied",
+    "templateAppliedDesc": "Your chatbot will follow the industry best practices and compliance rules from the selected template",
+
+    "chatbotName": "Chatbot Name",
+    "chatbotNamePlaceholder": "e.g., Customer Support Bot, Shop Assistant",
+    "chatbotNameHelp": "Choose a friendly name for your chatbot",
+    "companyName": "Company Name",
+    "companyNamePlaceholder": "e.g., ABC Electronics, Kedai Ramli",
+    "businessDescription": "Business Description",
+    "businessDescriptionPlaceholder": "Describe what your business does, products/services you offer, and key information customers should know...",
+    "businessDescriptionHelp": "This helps the chatbot understand your business context and provide better responses",
+    "supportedLanguages": "Supported Languages",
+    "supportedLanguagesHelp": "Select all languages your chatbot should support",
+    "defaultLanguage": "Default Language",
+    "defaultLanguageHelp": "The primary language for your chatbot",
+
+    "knowledgeBase": "Knowledge Base Documents",
+    "uploadKnowledgeFiles": "Upload business documents, FAQs, policies, or any reference material",
+    "supportedFormats": "Supported formats",
+    "selectFiles": "Select Files",
+    "uploadedFiles": "Uploaded Files",
+    "knowledgeOptional": "Knowledge base is optional",
+    "knowledgeOptionalDesc": "You can add documents later in the Chatbot Studio. Start with basic chatbot first.",
+
+    "productCatalog": "Product Catalog (Excel)",
+    "uploadProductExcel": "Upload your product catalog as an Excel file",
+    "excelFormat": "Supported formats",
+    "selectExcelFile": "Select Excel File",
+    "excelTemplateAvailable": "Need an Excel template?",
+    "excelTemplateDesc": "Download our template with the correct format for product uploads (SKU, Name, Price, etc.)",
+    "downloadTemplate": "Download Excel Template",
+    "requiredColumns": "Required columns in Excel",
+    "uniqueProductCode": "Unique product code",
+    "productName": "Product name",
+    "productDescription": "Product description",
+    "productPrice": "Price in MYR",
+    "productCategory": "Product category",
+    "stockQuantity": "Stock quantity",
+    "productImage": "Image URL",
+    "optional": "optional",
+
+    "readyToCreate": "Ready to Create",
+    "industry": "Industry",
+    "languages": "Languages",
+    "knowledgeFiles": "Knowledge Files",
+    "files": "files",
+    "uploaded": "Uploaded",
+    "notUploaded": "Not uploaded",
+
+    "createChatbot": "Create Chatbot",
+    "pleaseCompleteAllSteps": "Please complete all required fields",
+    "chatbotCreatedSuccess": "Chatbot created successfully! Redirecting to Chatbot Studio...",
+    "chatbotCreationFailed": "Failed to create chatbot. Please try again.",
+
+    "complete": "Setup Complete!",
+    "testYourChatbot": "Test Your Chatbot"
+  },
+
+  "industries": {
+    "customer_service": {
+      "name": "Customer Service",
+      "description": "Handle FAQs, troubleshooting, and customer inquiries",
+      "forLabel": "For: Support, FAQ, Troubleshooting"
+    },
+    "ecommerce": {
+      "name": "E-commerce Shop",
+      "description": "Product recommendations, order tracking, and sales",
+      "forLabel": "For: Product sales, Recommendations, Orders"
+    },
+    "real_estate": {
+      "name": "Real Estate",
+      "description": "Property inquiries, viewing schedules, and lead qualification",
+      "forLabel": "For: Property inquiry, Showings, Leads"
+    },
+    "appointment": {
+      "name": "Appointment Booking",
+      "description": "Schedule appointments, check availability, and send reminders",
+      "forLabel": "For: Clinic, Salon, Consultation"
+    }
+  },
+
+  "basicInfo": {
+    "chatbotName": "Chatbot Name",
+    "chatbotNamePlaceholder": "e.g., Customer Support Bot, Shop Assistant",
+    "companyName": "Company Name",
+    "companyNamePlaceholder": "e.g., ABC Electronics, Kedai Ramli",
+    "businessDescription": "Business Description",
+    "businessDescriptionPlaceholder": "Describe your business in 2-3 sentences...",
+    "businessDescriptionHelper": "This helps the chatbot understand your business context",
+    "primaryLanguage": "Primary Language",
+    "supportedLanguages": "Support Multiple Languages",
+    "tone": "Conversation Tone",
+    "tones": {
+      "formal": "Formal (Bank, Legal)",
+      "friendly": "Friendly (Most businesses)",
+      "casual": "Casual (Startup, F&B)"
+    }
+  },
+
+  "knowledgeUpload": {
+    "knowledgeBase": "Knowledge Base",
+    "knowledgeBaseOptional": "Knowledge Base (Optional)",
+    "knowledgeBaseDescription": "Upload documents for chatbot to reference",
+    "recommended": "Recommended",
+    "uploadPDF": "Upload PDF/Word",
+    "writeText": "Write Text",
+    "filesUploaded": "Files uploaded",
+    "products": "Products",
+    "productsOptional": "Products (Optional)",
+    "productsDescription": "For e-commerce: Upload product list",
+    "uploadExcel": "Upload Excel",
+    "downloadTemplate": "Download template",
+    "addManually": "Add Product Manually",
+    "productsUploaded": "Products uploaded",
+    "tip": "Tip: You can add more later in Chatbot Studio"
+  },
+
+  "products": {
+    "title": "Product Gallery",
+    "addNew": "Add New Product",
+    "bulkUpload": "Upload Excel",
+    "exportCSV": "Export CSV",
+    "search": "Search products...",
+    "filterByCategory": "Filter by Category",
+    "sku": "SKU",
+    "productName": "Product Name",
+    "description": "Description",
+    "price": "Price (MYR)",
+    "category": "Category",
+    "stock": "Stock",
+    "images": "Images",
+    "inStock": "In Stock",
+    "outOfStock": "Out of Stock",
+    "lowStock": "Low Stock",
+    "uploadImage": "Upload Image",
+    "enterImageURL": "Enter Image URL",
+    "tags": "Tags (comma separated)",
+    "saveProduct": "Save Product",
+    "deleteProduct": "Delete Product",
+    "confirmDelete": "Are you sure you want to delete this product?"
+  },
+
+  "excel": {
+    "title": "Upload Products via Excel",
+    "step1": "Download Template",
+    "step2": "Fill in Your Products",
+    "step2Description": "Fill in the Excel file with your product data",
+    "step3": "Upload File",
+    "chooseFile": "Choose Excel File",
+    "preview": "Preview (First 5 rows)",
+    "totalRows": "Total rows",
+    "valid": "Valid",
+    "issues": "Issues",
+    "issuesFound": "Issues Found",
+    "importOptions": "Import Options",
+    "skipErrors": "Skip rows with errors (import {{count}} products)",
+    "fixFirst": "Fix errors first (recommended)",
+    "downloadErrorReport": "Download Error Report",
+    "importProducts": "Import Products",
+    "importing": "Importing...",
+    "importSuccess": "Import Successful!",
+    "importSummary": "Import Summary",
+    "totalProcessed": "Total Rows Processed",
+    "successfullyImported": "Successfully Imported",
+    "failed": "Failed (errors)",
+    "timeTaken": "Time taken",
+    "viewProducts": "View Imported Products"
+  },
+
+  "chatbot": {
+    "name": "Chatbot",
+    "chatbots": "Chatbots",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "industry": "Industry",
+    "created": "Created",
+    "messages": "Messages",
+    "configure": "Configure",
+    "test": "Test",
+    "analytics": "Analytics",
+    "integrate": "Integrate",
+    "delete": "Delete Chatbot",
+    "confirmDelete": "Are you sure you want to delete this chatbot?",
+    "businessContext": "Business Context",
+    "complianceRules": "Compliance Rules",
+    "responseGuidelines": "Response Guidelines",
+    "knowledgeBase": "Knowledge Base",
+    "productGallery": "Product Gallery",
+    "settings": "Chatbot Settings"
+  },
+
+  "pricing": {
+    "title": "Choose Your Plan",
+    "monthly": "Monthly",
+    "annually": "Annually",
+    "freeTrial": "Free 7-day trial",
+    "noCreditCard": "No credit card required",
+    "choosePlan": "Choose Plan",
+    "contactSales": "Contact Sales",
+    "starter": {
+      "name": "Starter",
+      "price": "RM99",
+      "features": [
+        "1 Chatbot",
+        "1,000 messages/month",
+        "Knowledge Base",
+        "100 products",
+        "WhatsApp integration",
+        "Website widget",
+        "Email support"
+      ]
+    },
+    "business": {
+      "name": "Business",
+      "price": "RM199",
+      "features": [
+        "Up to 3 Chatbots",
+        "5,000 messages/month",
+        "Knowledge Base",
+        "1,000 products",
+        "WhatsApp integration",
+        "Website widget",
+        "Fine-tuning",
+        "Priority support"
+      ]
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "RM599",
+      "features": [
+        "Unlimited Chatbots",
+        "50,000 messages/month",
+        "Knowledge Base",
+        "Unlimited products",
+        "WhatsApp integration",
+        "Website widget",
+        "Fine-tuning",
+        "Custom training",
+        "Dedicated support",
+        "Custom branding",
+        "API access"
+      ]
+    }
+  },
+
+  "testChat": {
+    "title": "Test Chat",
+    "placeholder": "Type your message...",
+    "send": "Send",
+    "clear": "Clear Chat",
+    "model": "AI Model",
+    "settings": "Chat Settings"
+  },
+
+  "messages": {
+    "chatbotCreated": "Chatbot created successfully!",
+    "chatbotUpdated": "Chatbot updated successfully!",
+    "chatbotDeleted": "Chatbot deleted successfully!",
+    "productAdded": "Product added successfully!",
+    "productUpdated": "Product updated successfully!",
+    "productDeleted": "Product deleted successfully!",
+    "fileUploaded": "File uploaded successfully!",
+    "errorOccurred": "An error occurred. Please try again.",
+    "fillRequired": "Please fill in all required fields",
+    "invalidEmail": "Invalid email address",
+    "invalidPhone": "Invalid phone number"
+  }
+}

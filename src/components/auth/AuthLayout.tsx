@@ -23,19 +23,19 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
         <div className="relative z-10 flex flex-col justify-between h-full p-8">
           {/* Top Section - Logo/Brand */}
           <div className="text-white">
-            <h1 className="text-2xl font-bold mb-1">AvatarHub</h1>
-            <p className="text-sm opacity-90">Your AI Avatar Station</p>
+            <h1 className="text-2xl font-bold mb-1">Chatty</h1>
+            <p className="text-sm opacity-90">AI Business Chatbots</p>
           </div>
-          
+
           {/* Bottom Section - Main Bio */}
           <div className="text-white space-y-4">
             <h2 className="text-3xl font-bold leading-tight">
-              One Station<br />
-              AI Avatar Platform
+              Intelligent Chatbots<br />
+              For Your Business
             </h2>
             <p className="text-base opacity-80 max-w-md">
-              Build your perfect AI avatar with advanced language, voice, and personality training. 
-              Create your digital twin with unprecedented control.
+              Create smart business chatbots with product catalogs, knowledge bases,
+              and industry-specific templates. Automate customer support effortlessly.
             </p>
           </div>
         </div>

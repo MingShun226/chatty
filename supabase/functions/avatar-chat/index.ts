@@ -41,24 +41,62 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Verify API key and get permissions
-    const { data: keyData, error: keyError } = await supabase
-      .rpc('verify_platform_api_key', { p_api_key: apiKey })
-      .single()
+    let userId: string
+    let keyData: any = null
 
-    if (keyError || !keyData || !keyData.is_valid) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or inactive API key' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    // Handle test mode authentication
+    if (apiKey === 'test-mode') {
+      // For test mode, use the authorization header to get the user
+      const authHeader = req.headers.get('authorization')
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Test mode requires authorization header' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
-    // Check if 'chat' scope is granted
-    if (!keyData.scopes.includes('chat')) {
-      return new Response(
-        JSON.stringify({ error: 'API key does not have chat permission' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      // Verify the session token
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid session token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      userId = user.id
+      // Set keyData for test mode (no avatar_id restriction)
+      keyData = {
+        user_id: userId,
+        avatar_id: null,
+        scopes: ['chat'],
+        key_id: 'test-mode'
+      }
+    } else {
+      // Verify API key and get permissions
+      const { data: verifiedKeyData, error: keyError } = await supabase
+        .rpc('verify_platform_api_key', { p_api_key: apiKey })
+        .single()
+
+      if (keyError || !verifiedKeyData || !verifiedKeyData.is_valid) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid or inactive API key' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check if 'chat' scope is granted
+      if (!verifiedKeyData.scopes.includes('chat')) {
+        return new Response(
+          JSON.stringify({ error: 'API key does not have chat permission' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      keyData = verifiedKeyData
+      userId = keyData.user_id
     }
 
     // Parse request body
@@ -79,8 +117,6 @@ serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    const userId = keyData.user_id
 
     // Get avatar configuration
     const { data: avatar, error: avatarError } = await supabase
@@ -130,9 +166,10 @@ serve(async (req) => {
       .order('memory_date', { ascending: false })
       .limit(10)
 
-    // Build system prompt
-    let systemPrompt = `You are ${avatar.name}, an AI avatar with a unique personality.`
+    // Build comprehensive system prompt for business chatbot
+    let systemPrompt = `You are ${avatar.name}, an AI chatbot.`
 
+    // Use active prompt version if available
     if (promptVersion) {
       systemPrompt = promptVersion.system_prompt
 
@@ -143,10 +180,38 @@ serve(async (req) => {
       if (promptVersion.behavior_rules?.length > 0) {
         systemPrompt += `\n\nBehavior guidelines: ${promptVersion.behavior_rules.join(' ')}`
       }
+
+      if (promptVersion.compliance_rules?.length > 0) {
+        systemPrompt += `\n\nCompliance rules (MUST FOLLOW):\n${promptVersion.compliance_rules.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n')}`
+      }
+
+      if (promptVersion.response_guidelines?.length > 0) {
+        systemPrompt += `\n\nResponse guidelines:\n${promptVersion.response_guidelines.map((g: string, i: number) => `${i + 1}. ${g}`).join('\n')}`
+      }
     } else {
-      if (avatar.backstory) {
+      // Fallback to avatar settings
+      if (avatar.business_context) {
+        systemPrompt += `\n\n**BUSINESS CONTEXT:**\n${avatar.business_context}`
+      } else if (avatar.backstory) {
         systemPrompt += `\n\nYour backstory: ${avatar.backstory}`
       }
+
+      if (avatar.company_name) {
+        systemPrompt += `\n\nCompany: ${avatar.company_name}`
+      }
+
+      if (avatar.industry) {
+        systemPrompt += `\nIndustry: ${avatar.industry}`
+      }
+
+      if (avatar.compliance_rules?.length > 0) {
+        systemPrompt += `\n\nCompliance rules (MUST FOLLOW):\n${avatar.compliance_rules.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n')}`
+      }
+
+      if (avatar.response_guidelines?.length > 0) {
+        systemPrompt += `\n\nResponse guidelines:\n${avatar.response_guidelines.map((g: string, i: number) => `${i + 1}. ${g}`).join('\n')}`
+      }
+
       if (avatar.personality_traits?.length > 0) {
         systemPrompt += `\n\nYour personality traits: ${avatar.personality_traits.join(', ')}`
       }
@@ -170,7 +235,7 @@ serve(async (req) => {
       systemPrompt += '\n=== END MEMORIES ===\n'
     }
 
-    systemPrompt += `\n\nUser's current question: "${message}"\n\nStay in character and respond as ${avatar.name} would.`
+    systemPrompt += `\n\nUser's current question: "${message}"\n\nRespond professionally and helpfully. Use the available tools to access product information, search the knowledge base, or get any data you need from the database.`
 
     // Get OpenAI API key
     const { data: apiKeyData } = await supabase
@@ -193,6 +258,82 @@ serve(async (req) => {
     // Decrypt API key (simple base64 decode - match your encryption)
     const openaiApiKey = atob(apiKeyData.api_key_encrypted)
 
+    // Define tools/functions the AI can call
+    const tools = [
+      {
+        type: 'function',
+        function: {
+          name: 'search_products',
+          description: 'Search for products by name, category, SKU, or description. Returns matching products with all details including images.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Search query - can be product name, category, SKU, or any keyword'
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of products to return (default: 10)',
+                default: 10
+              }
+            },
+            required: ['query']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_product_by_id',
+          description: 'Get detailed information about a specific product by its ID, including image URL.',
+          parameters: {
+            type: 'object',
+            properties: {
+              product_id: {
+                type: 'string',
+                description: 'The unique ID of the product'
+              }
+            },
+            required: ['product_id']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_product_categories',
+          description: 'Get a list of all available product categories.',
+          parameters: {
+            type: 'object',
+            properties: {}
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_products_by_category',
+          description: 'Get all products in a specific category.',
+          parameters: {
+            type: 'object',
+            properties: {
+              category: {
+                type: 'string',
+                description: 'The category name'
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of products to return (default: 20)',
+                default: 20
+              }
+            },
+            required: ['category']
+          }
+        }
+      }
+    ]
+
     // Prepare messages for OpenAI
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -200,8 +341,8 @@ serve(async (req) => {
       { role: 'user', content: message }
     ]
 
-    // Call OpenAI API
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call OpenAI API with function calling
+    let openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -210,6 +351,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: avatar.fine_tuned_model_id || model,
         messages,
+        tools,
+        tool_choice: 'auto',
         max_tokens: model.includes('gpt-4o-mini') ? 2000 : 1000,
         temperature: 0.7
       })
@@ -220,8 +363,122 @@ serve(async (req) => {
       throw new Error(errorData.error?.message || 'OpenAI API error')
     }
 
-    const openaiData = await openaiResponse.json()
-    const assistantMessage = openaiData.choices[0].message.content
+    let openaiData = await openaiResponse.json()
+    let assistantMessage = openaiData.choices[0].message
+
+    // Handle function calls
+    while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      // Add assistant message with tool calls to conversation
+      messages.push(assistantMessage)
+
+      // Execute each tool call
+      for (const toolCall of assistantMessage.tool_calls) {
+        const functionName = toolCall.function.name
+        const functionArgs = JSON.parse(toolCall.function.arguments)
+
+        let functionResult: any = {}
+
+        try {
+          // Execute the appropriate function
+          if (functionName === 'search_products') {
+            const { query, limit = 10 } = functionArgs
+            const { data: products } = await supabase
+              .from('chatbot_products')
+              .select('*')
+              .eq('chatbot_id', avatar_id)
+              .or(`product_name.ilike.%${query}%,category.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%`)
+              .order('created_at', { ascending: false })
+              .limit(limit)
+
+            functionResult = {
+              success: true,
+              products: products || [],
+              count: products?.length || 0
+            }
+          } else if (functionName === 'get_product_by_id') {
+            const { product_id } = functionArgs
+            const { data: product } = await supabase
+              .from('chatbot_products')
+              .select('*')
+              .eq('id', product_id)
+              .eq('chatbot_id', avatar_id)
+              .single()
+
+            functionResult = {
+              success: !!product,
+              product: product || null
+            }
+          } else if (functionName === 'list_product_categories') {
+            const { data: products } = await supabase
+              .from('chatbot_products')
+              .select('category')
+              .eq('chatbot_id', avatar_id)
+              .not('category', 'is', null)
+
+            const categories = [...new Set(products?.map(p => p.category).filter(Boolean))]
+            functionResult = {
+              success: true,
+              categories,
+              count: categories.length
+            }
+          } else if (functionName === 'get_products_by_category') {
+            const { category, limit = 20 } = functionArgs
+            const { data: products } = await supabase
+              .from('chatbot_products')
+              .select('*')
+              .eq('chatbot_id', avatar_id)
+              .eq('category', category)
+              .order('created_at', { ascending: false })
+              .limit(limit)
+
+            functionResult = {
+              success: true,
+              products: products || [],
+              count: products?.length || 0
+            }
+          }
+        } catch (error: any) {
+          functionResult = {
+            success: false,
+            error: error.message
+          }
+        }
+
+        // Add function result to messages
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(functionResult)
+        })
+      }
+
+      // Call OpenAI again with function results
+      openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+          model: avatar.fine_tuned_model_id || model,
+          messages,
+          tools,
+          tool_choice: 'auto',
+          max_tokens: model.includes('gpt-4o-mini') ? 2000 : 1000,
+          temperature: 0.7
+        })
+      })
+
+      if (!openaiResponse.ok) {
+        const errorData = await openaiResponse.json()
+        throw new Error(errorData.error?.message || 'OpenAI API error')
+      }
+
+      openaiData = await openaiResponse.json()
+      assistantMessage = openaiData.choices[0].message
+    }
+
+    const finalResponse = assistantMessage.content
 
     // Log the request
     await supabase.from('api_request_logs').insert({
@@ -242,7 +499,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         avatar_id,
-        message: assistantMessage,
+        message: finalResponse,
         metadata: {
           model: avatar.fine_tuned_model_id || model,
           knowledge_chunks_used: ragChunks?.length || 0,

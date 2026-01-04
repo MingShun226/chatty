@@ -1,0 +1,209 @@
+{
+  "name": "WhatsApp Chatbot - AI Agent Template",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-chatbot",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook - WhatsApp Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "whatsapp-chatbot"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "message",
+              "name": "message",
+              "value": "={{ $json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "from_number",
+              "name": "from_number",
+              "value": "={{ $json.from_number }}",
+              "type": "string"
+            },
+            {
+              "id": "chatbot_name",
+              "name": "chatbot_name",
+              "value": "={{ $json.chatbot.name }}",
+              "type": "string"
+            },
+            {
+              "id": "system_prompt",
+              "name": "system_prompt",
+              "value": "={{ $json.chatbot.system_prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "business_context",
+              "name": "business_context",
+              "value": "={{ $json.chatbot.business_context }}",
+              "type": "string"
+            },
+            {
+              "id": "products",
+              "name": "products",
+              "value": "={{ $json.products }}",
+              "type": "array"
+            },
+            {
+              "id": "knowledge_base",
+              "name": "knowledge_base",
+              "value": "={{ $json.knowledge_base }}",
+              "type": "array"
+            },
+            {
+              "id": "conversation_history",
+              "name": "conversation_history",
+              "value": "={{ $json.conversation_history }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-data",
+      "name": "Extract Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format conversation history for AI\nconst history = $input.item.json.conversation_history || [];\nconst formattedHistory = history.map(msg => {\n  const role = msg.direction === 'inbound' ? 'user' : 'assistant';\n  return `${role}: ${msg.content}`;\n}).join('\\n');\n\n// Format products for context\nconst products = $input.item.json.products || [];\nconst productContext = products.length > 0 \n  ? `\\n\\nAvailable Products:\\n${products.map(p => \n      `- ${p.name} ($${p.price}) - ${p.description} (Stock: ${p.stock || 'N/A'})`\n    ).join('\\n')}`\n  : '';\n\n// Format knowledge base\nconst kb = $input.item.json.knowledge_base || [];\nconst kbContext = kb.length > 0\n  ? `\\n\\nKnowledge Base:\\n${kb.map(k => \n      `### ${k.title}\\n${k.content}`\n    ).join('\\n\\n')}`\n  : '';\n\n// Build full system prompt\nconst systemPrompt = $input.item.json.system_prompt || 'You are a helpful AI assistant.';\nconst businessContext = $input.item.json.business_context || '';\n\nconst fullSystemPrompt = `${systemPrompt}\n\n${businessContext}${productContext}${kbContext}`;\n\n// Build user message with history\nconst currentMessage = $input.item.json.message;\nconst userMessageWithHistory = formattedHistory \n  ? `${formattedHistory}\\n\\nuser: ${currentMessage}`\n  : currentMessage;\n\nreturn {\n  json: {\n    system_prompt: fullSystemPrompt,\n    user_message: userMessageWithHistory,\n    current_message_only: currentMessage,\n    from_number: $input.item.json.from_number\n  }\n};"
+      },
+      "id": "prepare-ai-context",
+      "name": "Prepare AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "systemMessage": "={{ $json.system_prompt }}",
+          "temperature": 0.7,
+          "maxTokens": 500
+        },
+        "text": "={{ $json.user_message }}"
+      },
+      "id": "openai-chat",
+      "name": "OpenAI Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [910, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "reply",
+              "name": "reply",
+              "value": "={{ $json.response || $json.output || $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"reply\": $json.reply } }}"
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1350, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Extract Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Context": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-04T06:00:00.000Z",
+  "versionId": "1"
+}

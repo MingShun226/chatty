@@ -17,6 +17,17 @@ import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import CreateAvatar from '@/pages/CreateAvatar';
 import APIKeys from '@/pages/APIKeys';
+import TestChatbotSetup from '@/pages/TestChatbotSetup';
+import { ChatbotCreationWizard } from '@/components/chatbot-creation/ChatbotCreationWizard';
+
+// Chatbot sub-pages
+import ChatbotSettings from '@/pages/chatbot/ChatbotSettings';
+import ChatbotProducts from '@/pages/chatbot/ChatbotProducts';
+import ChatbotKnowledge from '@/pages/chatbot/ChatbotKnowledge';
+import ChatbotPromptEngineer from '@/pages/chatbot/ChatbotPromptEngineer';
+import ChatbotModelTraining from '@/pages/chatbot/ChatbotModelTraining';
+import WhatsAppIntegration from '@/pages/chatbot/WhatsAppIntegration';
+import ChatbotTest from '@/pages/chatbot/ChatbotTest';
 
 // Admin imports
 import { AdminRoute } from '@/components/admin/AdminRoute';
@@ -104,6 +115,37 @@ function App() {
             path="/chatbot-studio"
             element={user ? <ChatbotStudio /> : <Navigate to="/auth" />}
           />
+
+          {/* Chatbot Sub-Pages */}
+          <Route
+            path="/chatbot/settings"
+            element={user ? <ChatbotSettings /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/products"
+            element={user ? <ChatbotProducts /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/knowledge"
+            element={user ? <ChatbotKnowledge /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/prompt-engineer"
+            element={user ? <ChatbotPromptEngineer /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/model-training"
+            element={user ? <ChatbotModelTraining /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/whatsapp"
+            element={user ? <WhatsAppIntegration /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/test"
+            element={user ? <ChatbotTest /> : <Navigate to="/auth" />}
+          />
+
           <Route
             path="/images-studio"
             element={user ? <ImagesStudio /> : <Navigate to="/auth" />}
@@ -123,6 +165,14 @@ function App() {
           <Route
             path="/api-keys"
             element={user ? <APIKeys /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/test-chatbot-setup"
+            element={user ? <TestChatbotSetup /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/create-chatbot"
+            element={user ? <ChatbotCreationWizard /> : <Navigate to="/auth" />}
           />
 
           {/* Admin Routes */}

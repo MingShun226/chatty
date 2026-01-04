@@ -31,28 +31,28 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   const quickActions = [
     {
-      title: 'Create Avatar',
-      description: 'Design a new AI avatar',
+      title: 'Create Business Chatbot',
+      description: 'Create a new chatbot for your business',
       icon: Plus,
-      onClick: () => navigate('/create-avatar')
+      onClick: () => navigate('/chatbot-studio?create=true')
     },
     {
-      title: 'My Avatars',
-      description: 'View and manage avatars',
-      icon: Users,
-      onClick: () => navigate('/my-avatars')
-    },
-    {
-      title: 'Chatbot Training',
-      description: 'Train and test your bots',
+      title: 'My Chatbots',
+      description: 'View and manage your chatbots',
       icon: Bot,
       onClick: () => navigate('/chatbot-studio')
     },
     {
-      title: 'Settings',
-      description: 'Account and preferences',
+      title: 'API Keys',
+      description: 'Manage your API credentials',
       icon: Settings,
-      onClick: () => navigate('/settings')
+      onClick: () => navigate('/api-keys')
+    },
+    {
+      title: 'Billing',
+      description: 'Plans and billing',
+      icon: Settings,
+      onClick: () => navigate('/billing')
     }
   ];
 
@@ -89,11 +89,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       <div className="text-center space-y-4 py-8">
         <div className="flex items-center justify-center gap-2 mb-4">
           <Sparkles className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Welcome to AI Avatar Creator</h1>
+          <h1 className="text-3xl font-bold">Welcome to Chatty</h1>
         </div>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Create, customize, and deploy intelligent AI avatars with unique personalities, 
-          backstories, and conversational abilities.
+          Create and manage intelligent business chatbots with product catalogs,
+          knowledge bases, and industry-specific templates.
         </p>
         {userProfile?.name && (
           <Badge variant="secondary" className="text-base px-4 py-2">
@@ -162,7 +162,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             Getting Started
           </CardTitle>
           <CardDescription className="text-blue-700">
-            New to AI Avatar Creator? Follow these steps to create your first avatar.
+            New to the platform? Follow these steps to create your first business chatbot.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -171,27 +171,27 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mx-auto font-semibold">
                 1
               </div>
-              <h4 className="font-medium text-blue-900">Create Avatar</h4>
-              <p className="text-sm text-blue-700">Design your AI persona with unique traits</p>
+              <h4 className="font-medium text-blue-900">Create Chatbot</h4>
+              <p className="text-sm text-blue-700">Select industry and configure your business chatbot</p>
             </div>
             <div className="text-center space-y-2">
               <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mx-auto font-semibold">
                 2
               </div>
-              <h4 className="font-medium text-blue-900">Train & Test</h4>
-              <p className="text-sm text-blue-700">Customize behavior and responses</p>
+              <h4 className="font-medium text-blue-900">Add Products</h4>
+              <p className="text-sm text-blue-700">Upload your product catalog and knowledge base</p>
             </div>
             <div className="text-center space-y-2">
               <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mx-auto font-semibold">
                 3
               </div>
-              <h4 className="font-medium text-blue-900">Deploy</h4>
-              <p className="text-sm text-blue-700">Share your avatar with the world</p>
+              <h4 className="font-medium text-blue-900">Test & Deploy</h4>
+              <p className="text-sm text-blue-700">Test conversations and integrate with your website</p>
             </div>
           </div>
           <div className="flex justify-center">
-            <Button onClick={() => navigate('/create-avatar')} className="bg-blue-600 hover:bg-blue-700">
-              Create Your First Avatar
+            <Button onClick={() => navigate('/chatbot-studio?create=true')} className="bg-blue-600 hover:bg-blue-700">
+              Create Your First Business Chatbot
             </Button>
           </div>
         </CardContent>

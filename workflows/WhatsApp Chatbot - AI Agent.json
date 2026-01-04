@@ -1,0 +1,220 @@
+{
+  "name": "WhatsApp Chatbot - AI Agent (AvatarLab)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "={{ $parameter.webhookPath || 'whatsapp-chatbot' }}",
+        "options": {}
+      },
+      "id": "35451450-c85a-46b3-a55a-dd4281598a2d",
+      "name": "Webhook - WhatsApp Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [-2000, -160],
+      "webhookId": "whatsapp-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract WhatsApp webhook data and prepare for AI Agent\nconst inputData = $input.first().json;\n\nconsole.log('=== WhatsApp Webhook Data ===');\nconsole.log('Keys received:', Object.keys(inputData));\n\n// Extract main fields\nconst message = inputData.message || inputData.body?.message || 'Hello';\nconst fromNumber = inputData.from_number || inputData.body?.from_number || 'unknown';\nconst chatbot = inputData.chatbot || inputData.body?.chatbot || {};\nconst products = inputData.products || inputData.body?.products || [];\nconst knowledgeBase = inputData.knowledge_base || inputData.body?.knowledge_base || [];\nconst conversationHistory = inputData.conversation_history || inputData.body?.conversation_history || [];\n\nconsole.log('Message:', message);\nconsole.log('From:', fromNumber);\nconsole.log('Chatbot:', chatbot.name);\nconsole.log('Products:', products.length);\nconsole.log('KB:', knowledgeBase.length);\nconsole.log('History:', conversationHistory.length);\n\n// Format conversation history\nconst formattedHistory = conversationHistory.map(msg => {\n  const role = msg.direction === 'inbound' ? 'User' : 'Assistant';\n  const time = new Date(msg.timestamp).toLocaleTimeString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });\n  return `[${time}] ${role}: ${msg.content}`;\n}).join('\\n');\n\n// Format products\nconst productsList = products.map(p => \n  `- ${p.name} (RM ${p.price})${p.description ? `: ${p.description}` : ''}${p.stock !== undefined ? ` [Stock: ${p.stock}]` : ''}`\n).join('\\n');\n\n// Format knowledge base\nconst kbArticles = knowledgeBase.map(k => \n  `### ${k.title}\\n${k.content}`\n).join('\\n\\n');\n\n// Create contact object for session\nconst contact = {\n  id: fromNumber.replace(/[^0-9]/g, ''),\n  phone: fromNumber,\n  name: fromNumber\n};\n\n// Return formatted data for AI Agent\nreturn {\n  json: {\n    // AI Agent expects chatInput field\n    chatInput: message,\n    \n    // Contact info for session management\n    contact: contact,\n    phone: fromNumber,\n    \n    // Chatbot configuration\n    chatbotConfig: {\n      id: chatbot.id,\n      name: chatbot.name || 'Assistant',\n      company: chatbot.company_name || '',\n      industry: chatbot.industry || '',\n      systemPrompt: chatbot.system_prompt || `You are a helpful AI assistant.`,\n      businessContext: chatbot.business_context || '',\n      complianceRules: chatbot.compliance_rules || [],\n      responseGuidelines: chatbot.response_guidelines || []\n    },\n    \n    // Context data\n    products: products,\n    productsList: productsList,\n    knowledgeBase: knowledgeBase,\n    kbArticles: kbArticles,\n    conversationHistory: formattedHistory,\n    \n    // Metadata\n    timestamp: new Date().toISOString(),\n    messageType: 'text',\n    sessionId: `whatsapp_${contact.id}_${Date.now()}`,\n    \n    // Debug\n    debug: {\n      hasProducts: products.length > 0,\n      hasKB: knowledgeBase.length > 0,\n      hasHistory: conversationHistory.length > 0,\n      source: 'whatsapp_webhook'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1776, -160],
+      "id": "extract-webhook-data",
+      "name": "Extract WhatsApp Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatInput",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "systemPrompt",
+              "name": "systemPrompt",
+              "value": "={{ $json.chatbotConfig.systemPrompt }}",
+              "type": "string"
+            },
+            {
+              "id": "businessContext",
+              "name": "businessContext",
+              "value": "={{ $json.chatbotConfig.businessContext }}",
+              "type": "string"
+            },
+            {
+              "id": "products",
+              "name": "products",
+              "value": "={{ $json.productsList }}",
+              "type": "string"
+            },
+            {
+              "id": "knowledgeBase",
+              "name": "knowledgeBase",
+              "value": "={{ $json.kbArticles }}",
+              "type": "string"
+            },
+            {
+              "id": "conversationHistory",
+              "name": "conversationHistory",
+              "value": "={{ $json.conversationHistory }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8ce0e1d1-ce8a-4722-8c8b-fe86697ecdce",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1296, 112]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Current date and time: {{ $now.toISO() }}\nToday in Malaysia (GMT+8): {{ $now.setZone('Asia/Kuala_Lumpur').toFormat('yyyy-MM-dd HH:mm') }}\n\n{{ $json.systemPrompt }}\n\n🏢 BUSINESS CONTEXT:\n{{ $json.businessContext }}\n\n{{ $json.products ? '📦 AVAILABLE PRODUCTS:\\n' + $json.products : '' }}\n\n{{ $json.knowledgeBase ? '📚 KNOWLEDGE BASE:\\n' + $json.knowledgeBase : '' }}\n\n{{ $json.chatbotConfig?.complianceRules?.length > 0 ? '⚠️ COMPLIANCE RULES:\\n' + $json.chatbotConfig.complianceRules.map(r => '- ' + r).join('\\n') : '' }}\n\n{{ $json.chatbotConfig?.responseGuidelines?.length > 0 ? '✅ RESPONSE GUIDELINES:\\n' + $json.chatbotConfig.responseGuidelines.map(g => '- ' + g).join('\\n') : '' }}\n\n💬 RECENT CONVERSATION:\n{{ $json.conversationHistory || 'This is the start of the conversation.' }}\n\nIMPORTANT INSTRUCTIONS:\n- You are chatting via WhatsApp\n- Keep responses concise and mobile-friendly\n- Use emojis sparingly and only when appropriate\n- If discussing products, use the product information provided\n- If customer asks questions, check the knowledge base first\n- Follow ALL compliance rules strictly\n- Apply all response guidelines in your communication\n- Be helpful, professional, and friendly"
+        }
+      },
+      "id": "8989709d-20de-4c4f-8fbd-7d3ccad4cb60",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [-896, 112]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 500
+        }
+      },
+      "id": "7caab215-54ef-410c-a206-a1ac841a277e",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [-1120, 352],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format AI Agent output for WhatsApp webhook response\nconst inputData = $input.first().json;\n\nconsole.log('=== Formatting AI Response ===');\nconsole.log('Input keys:', Object.keys(inputData));\n\n// Extract AI response - try multiple possible fields\nlet aiResponse = '';\n\nif (inputData.output) {\n  aiResponse = inputData.output;\n} else if (inputData.text) {\n  aiResponse = inputData.text;\n} else if (inputData.response) {\n  aiResponse = inputData.response;\n} else if (inputData.content) {\n  aiResponse = inputData.content;\n} else if (typeof inputData === 'string') {\n  aiResponse = inputData;\n} else {\n  // Fallback: stringify the whole object\n  aiResponse = 'I\\'m sorry, I\\'m having trouble generating a response right now. Please try again.';\n  console.log('Warning: Could not extract AI response from:', inputData);\n}\n\n// Clean up response\naiResponse = String(aiResponse).trim();\n\nconsole.log('AI Response:', aiResponse.substring(0, 100) + '...');\nconsole.log('Response length:', aiResponse.length);\n\n// Return in the format expected by WhatsApp service\nreturn {\n  json: {\n    reply: aiResponse\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-496, 112],
+      "id": "format-for-whatsapp",
+      "name": "Format for WhatsApp"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [-240, 112]
+    }
+  ],
+  "connections": {
+    "Webhook - WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract WhatsApp Data": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format for WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-04T07:00:00.000Z",
+  "versionId": "1",
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

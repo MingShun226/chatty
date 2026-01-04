@@ -38,7 +38,16 @@
       "WebFetch(domain:veo3api.com)",
       "Bash(npx supabase:*)",
       "WebFetch(domain:flexprice.io)",
-      "WebFetch(domain:dev.to)"
+      "WebFetch(domain:dev.to)",
+      "Bash(grep:*)",
+      "Bash(npm start)",
+      "Bash(timeout 5 tail:*)",
+      "Bash(ls:*)",
+      "Bash(npx puppeteer:*)",
+      "Bash(node install.js:*)",
+      "Bash(timeout:*)",
+      "Bash(cat:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

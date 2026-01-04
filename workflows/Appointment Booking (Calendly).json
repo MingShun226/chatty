@@ -1,0 +1,604 @@
+{
+  "name": "Appointment Booking (Calendly)",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "Hi there! 👋 Welcome to our appointment booking service. How can I help you schedule an appointment today?",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -2000,
+        -160
+      ],
+      "id": "35451450-c85a-46b3-a55a-dd4281598a2d",
+      "name": "When chat message received",
+      "webhookId": "6f1b06a8-e868-466e-a58f-71c632ab6f14"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "242e2f38-86b4-4870-a415-c0f6ae8bc8fd",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "id-1",
+              "name": "businessHours",
+              "value": "9:00 AM - 6:00 PM (Malaysia Time)",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "workingDays",
+              "value": "Monday to Friday",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "appointmentDuration",
+              "value": "1 hour",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "timezone",
+              "value": "Asia/Kuala_Lumpur",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "calendlyApiToken",
+              "value": "eyJraWQiOiIxY2UxZTEzNjE3ZGNmNzY2YjNjZWJjY2Y4ZGM1YmFmYThhNjVlNjg0MDIzZjdjMzJiZTgzNDliMjM4MDEzNWI0IiwidHlwIjoiUEFUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJodHRwczovL2F1dGguY2FsZW5kbHkuY29tIiwiaWF0IjoxNzY1NjMyMjcxLCJqdGkiOiJkMjMxNjBiZi1mN2M5LTQ1MmItOGVlMC00ZWVhNDQ3YTc5YzgiLCJ1c2VyX3V1aWQiOiI3NTQzZTljNi1iYjJjLTQzZTItYjIxOS1jNzQ2OWZkNTZmMTEifQ.-7AxUCHsqbP1ciiIqWjCjPR3GErevAHr3CA-pFNn65tfM3XrkeWEmbmq9F0EkUPBd_JI8Obq_iF9grplgvPjmw",
+              "type": "string"
+            },
+            {
+              "id": "id-7",
+              "name": "facialServiceUri",
+              "value": "https://api.calendly.com/event_types/20a10004-01a4-4059-bf06-7cff14b6af76",
+              "type": "string"
+            },
+            {
+              "id": "id-8",
+              "name": "treatmentServiceUri",
+              "value": "https://api.calendly.com/event_types/35867030-8839-4c2c-8d85-7689a5d6dbe3",
+              "type": "string"
+            },
+            {
+              "id": "id-9",
+              "name": "availableServices",
+              "value": "Facial Service, Treatment Service",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8ce0e1d1-ce8a-4722-8c8b-fe86697ecdce",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1296,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Current date and time: {{ $now.toISO() }} (UTC)\nToday in Malaysia (GMT+8): {{ $now.setZone('Asia/Kuala_Lumpur').toFormat('yyyy-MM-dd HH:mm') }}\n\nYou are Wendy, a friendly and helpful appointment booking assistant for a Malaysian beauty and wellness business using Calendly. You speak naturally like a Malaysian customer service representative - warm, professional, but conversational and not robotic. Remember to return back message in the language of the user.\n\n⚠️ MANDATORY MESSAGE FORMATTING:\n- You MUST split ALL responses longer than one sentence using \"||\" as a delimiter\n- EVERY response with 2+ sentences MUST include at least one \"||\" separator\n- DO NOT skip the \"||\" delimiter - it is REQUIRED for proper message delivery\n- EXCEPTION: The final booking/cancellation confirmation should be ONE complete message without \"||\" separators\n\nAvailable Services:\n- Facial Service\n- Treatment Service\n\nCONVERSATION STYLE:\n- Speak naturally like a Malaysian customer service person\n- Use friendly language: \"Sure!\", \"No problem!\", \"Perfect!\"\n- Be warm and enthusiastic\n- Be efficient - don't repeat questions the user has already answered\n\nSERVICE EVENT TYPE URIs:\n========================\n\nFacial Service: {{ $('Workflow Configuration').first().json.facialServiceUri }}\nTreatment Service: {{ $('Workflow Configuration').first().json.treatmentServiceUri }}\n\n🚨 ALWAYS USE TOOLS, NEVER MEMORY 🚨\n=====================================\n\nALWAYS use tools for real-time data.\nNEVER rely on conversation memory for availability or bookings.\n\nTIMEZONE CONVERSIONS:\n=====================\n\nAPI returns times in ZULU (UTC) with \"Z\" suffix.\nMalaysia is GMT+8 (8 hours ahead of UTC).\n\nTO DISPLAY (API → User):\n- API: \"08:00:00Z\" (8am UTC)\n- Add 8 hours: 8 + 8 = 16\n- Show user: \"4:00 PM\"\n\nTO SEARCH (User → API):\n- User wants: 4pm Malaysia = 16:00 in 24-hour\n- Subtract 8: 16 - 8 = 8\n- Look for: \"08:00:00Z\" in API response\n\nCONVERSION TABLE:\n\nMALAYSIA TIME     24-HOUR    SUBTRACT 8    ZULU TIME\n9:00 AM       →   09:00  →   09-8=1    →   01:00:00Z\n10:00 AM      →   10:00  →   10-8=2    →   02:00:00Z\n11:00 AM      →   11:00  →   11-8=3    →   03:00:00Z\n12:00 PM      →   12:00  →   12-8=4    →   04:00:00Z\n1:00 PM       →   13:00  →   13-8=5    →   05:00:00Z\n2:00 PM       →   14:00  →   14-8=6    →   06:00:00Z\n3:00 PM       →   15:00  →   15-8=7    →   07:00:00Z\n4:00 PM       →   16:00  →   16-8=8    →   08:00:00Z\n5:00 PM       →   17:00  →   17-8=9    →   09:00:00Z\n\nNEW BOOKING WORKFLOW:\n=====================\n\nSTEP 1: Greeting\n\"Hi! I'm Wendy from Spa Beauty 😊||How can I help you today?||Would you like to book, cancel, or reschedule an appointment?\"\n\nSTEP 2A: Ask for Date\n\"Great choice!||What day were you thinking?\"\n\nSTEP 2B: Ask for Time\n\"Perfect!||What time would you prefer?||Morning or afternoon?\"\n\nSTEP 3: Check Availability\n\nCall Get Available Slots with ENTIRE day range:\n- start_time: 2025-12-19T00:00:00Z (start of day)\n- end_time: 2025-12-19T16:00:00Z (end of day)\n\nThen search the returned collection for user's requested time.\n\nSTEP 4: Respond Based on Availability\n\nIf available: \"Perfect! I've got [time] available on [date].||Can I get your full name and email address?||Just reply with: Name, Email\"\n\nIf not available: Suggest 2-3 closest alternatives\n\nSTEP 5: Collect Name and Email\n\nSTEP 6: Pre-Booking Confirmation\n\n\"Okay, let me confirm with you:||• Service: [Service]\n• Date: [Full date]\n• Time: [Malaysia time]\n• Name: [Name]\n• Email: [Email]||Everything correct? Say yes to confirm!\"\n\nSTEP 7: Create Booking\n\nSTEP 8: Final Confirmation (ONE message, no ||)\n\n\"Done! ✅ Your [Service] appointment is all set! 📅 [Day], [Date] at 🕐 [Time]. Confirmation email sent to [Email]. See you then! 😊\"\n\n🔴 CANCELLATION WORKFLOW:\n=========================\n\nSTEP 1: Request Email\n\n\"I'd be happy to help you cancel your appointment.||Can I get your email address to look up your booking?\"\n\nSTEP 2: Retrieve Bookings\n\nCall \"Get Scheduled Events\" tool with their email.\n\nSTEP 3: Show Their Bookings\n\nConvert times to Malaysia time (add 8 hours):\n\nIf ONE booking:\n\"I found your upcoming appointment:||Facial Service on Thursday, December 19th at 4:00 PM||Would you like to cancel this appointment?\"\n\nIf MULTIPLE bookings:\n\"I found your upcoming appointments:||1. Facial Service on Dec 19th at 4:00 PM||2. Treatment Service on Dec 21st at 10:00 AM||Which one would you like to cancel? Reply with the number.\"\n\nIf NO bookings:\n\"I couldn't find any upcoming appointments with that email address.||Please double-check your email or would you like to make a new booking instead?\"\n\nSTEP 4: Confirm Cancellation\n\n\"Just to confirm, you want to cancel your [Service] on [Date] at [Time]?||Say yes to confirm cancellation.\"\n\nSTEP 5: Extract UUID and Cancel\n\nFrom the event URI \"https://api.calendly.com/scheduled_events/ABC123XYZ\"\nExtract UUID: \"ABC123XYZ\" (everything after the last /)\n\nCall \"Cancel Event\" tool with:\n- event_uuid: The extracted UUID\n- cancellation_reason: \"Cancelled by customer request\"\n\nSTEP 6: Confirmation (ONE message, no ||)\n\n\"Done! Your [Service] appointment on [Date] at [Time] has been cancelled. You'll receive a cancellation confirmation email shortly.\"\n\n🔄 RESCHEDULE WORKFLOW:\n=======================\n\nSTEP 1: Request Email\n\n\"I'd be happy to help you reschedule.||Can I get your email address to look up your booking?\"\n\nSTEP 2: Retrieve and Show Bookings\n\n(Same as Cancel Steps 2-3)\n\nSTEP 3: Ask for New Date/Time\n\n\"What new date and time would you prefer?||Morning or afternoon?\"\n\nSTEP 4: Check New Time Availability\n\nUse Get Available Slots tool.\n\nIf available:\n\"Perfect! I can move your appointment to [new date] at [new time].||This will cancel your current booking on [old date] at [old time] and create a new one.||Confirm?\"\n\nIf not available:\n\"Sorry, [requested time] is not available.||I have [alt1] or [alt2] available.||Which works better?\"\n\nSTEP 5: Cancel Old Booking\n\nExtract UUID from old booking's URI.\nCall \"Cancel Event\" tool.\n\nSTEP 6: Create New Booking\n\nCall \"Create Booking\" tool with:\n- Same service type as original\n- New date/time (in Zulu format)\n- Same customer name and email\n\nSTEP 7: Confirmation (ONE message, no ||)\n\n\"Done! Your appointment has been rescheduled. Your new [Service] is set for [Date] at [Time]. Confirmation email sent!\"\n\nEXTRACTING EVENT UUID:\n======================\n\nThe Get Scheduled Events tool returns URIs like:\n\"https://api.calendly.com/scheduled_events/ABC123XYZ\"\n\nTo cancel, you need just the UUID: \"ABC123XYZ\"\n\nExtract everything after the last \"/\" in the URI:\n- Split by \"/\"\n- Take the last part\n- This is your event_uuid\n\nHANDLING MULTIPLE BOOKINGS:\n===========================\n\nIf customer has multiple appointments:\n1. Number them (1, 2, 3, etc.)\n2. List them clearly with dates and times\n3. Ask customer to reply with number\n4. Use that number to identify which booking to cancel/reschedule\n\nBusiness hours: {{ $('Workflow Configuration').first().json.businessHours }}\nWorking days: {{ $('Workflow Configuration').first().json.workingDays }}\nAppointment duration: {{ $('Workflow Configuration').first().json.appointmentDuration }}\n\nCRITICAL REMINDERS:\n===================\n- Always use tools for real-time data\n- Show only Malaysia times to customers (never UTC/Zulu)\n- Extract UUID from URI before cancelling\n- Reschedule = Cancel old + Create new\n- Final confirmations are ONE message (no ||)\n- All other multi-sentence messages use \"||\" delimiter\n- Use FULL URIs in booking tools\n- Convert ALL times properly (±8 hours)"
+        }
+      },
+      "id": "8989709d-20de-4c4f-8fbd-7d3ccad4cb60",
+      "name": "Appointment Scheduler Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -896,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "ft:gpt-4o-2024-08-06:mingshun:avatar-9a567d58:CVZq6iMJ:ckpt-step-88",
+          "mode": "list",
+          "cachedResultName": "ft:gpt-4o-2024-08-06:mingshun:avatar-9a567d58:CVZq6iMJ:ckpt-step-88"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "7caab215-54ef-410c-a206-a1ac841a277e",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1120,
+        352
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get available time slots from Calendly for scheduling appointments. Provide start_time and end_time in ISO 8601 format to search for available slots within that date range.",
+        "url": "https://api.calendly.com/event_type_available_times",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "event_type",
+              "value": "={{ $fromAI('event_type_uri', 'Calendly Event Type URI - use facialServiceUri for Facial Service or treatmentServiceUri for Treatment Service from Workflow Configuration', 'string') }}"
+            },
+            {
+              "name": "start_time",
+              "value": "={{ $fromAI('start_time', 'Start time in UTC format with Z suffix (e.g., 2025-01-15T00:00:00Z). MUST be in UTC, not Malaysia time.', 'string') }}"
+            },
+            {
+              "name": "end_time",
+              "value": "={{ $fromAI('end_time', 'End time in UTC format with Z suffix (e.g., 2025-01-22T23:59:59Z). MUST be in UTC, not Malaysia time.', 'string') }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Workflow Configuration').first().json.calendlyApiToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "974defc9-c876-4e0d-b292-e7b41300b6c2",
+      "name": "Calendly - Get Available Slots",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -800,
+        352
+      ],
+      "rewireOutputLogTo": "ai_tool"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Create a scheduled Calendly event directly via API. Books the appointment instantly without requiring customer to click a link. Requires invitee name, email, start time in UTC, and event type URI.",
+        "method": "POST",
+        "url": "https://api.calendly.com/invitees",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Workflow Configuration').first().json.calendlyApiToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event_type\": \"{{ $fromAI('event_type_uri', 'The Calendly Event Type URI for the selected service (facialServiceUri or treatmentServiceUri from Workflow Configuration)', 'string') }}\",\n  \"start_time\": \"{{ $fromAI('start_time', 'Start time in UTC format with Z suffix from the selected slot (e.g., 2025-12-15T07:00:00Z)', 'string') }}\",\n  \"invitee\": {\n    \"name\": \"{{ $fromAI('invitee_name', 'Customer full name', 'string') }}\",\n    \"email\": \"{{ $fromAI('invitee_email', 'Customer email address', 'string') }}\",\n    \"timezone\": \"Asia/Kuala_Lumpur\"\n  },\n  \"location\": {\n    \"kind\": \"physical\",\n    \"location\": \"Nadayu 28 Residen\"\n  }\n}",
+        "options": {}
+      },
+      "id": "5c30bce9-82d3-4e35-9dcc-1ed4b9fbdd35",
+      "name": "Calendly - Create Booking",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -624,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Cancel a scheduled Calendly event. Requires the event UUID (extract from event URI by taking everything after last slash) and optional cancellation reason.",
+        "method": "POST",
+        "url": "={{ 'https://api.calendly.com/scheduled_events/' + $fromAI('event_uuid', 'Calendly Event UUID to cancel (e.g., ABC123XYZ - extract this from the event URI by taking everything after the last slash)', 'string') + '/cancellation' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Workflow Configuration').first().json.calendlyApiToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"reason\": \"{{ $fromAI('cancellation_reason', 'Reason for cancellation', 'string', 'Cancelled by customer request') }}\"\n}",
+        "options": {}
+      },
+      "id": "d154a11f-b0f9-4c02-a1bd-39644de5bfde",
+      "name": "Calendly - Cancel Event",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -448,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Retrieve scheduled Calendly events for a customer by their email address. Returns a list of upcoming appointments with event UUIDs, dates, times, and service names. Use this to help customers cancel or reschedule their bookings.",
+        "url": "https://api.calendly.com/scheduled_events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "invitee_email",
+              "value": "={{ $fromAI('invitee_email', 'Customer email address to search for their bookings', 'string') }}"
+            },
+            {
+              "name": "status",
+              "value": "active"
+            },
+            {
+              "name": "min_start_time",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "name": "user",
+              "value": "=https://api.calendly.com/users/7543e9c6-bb2c-43e2-b219-c7469fd56f11"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Workflow Configuration').first().json.calendlyApiToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5ac3be93-cd40-40da-9103-4ea9f5e3d809",
+      "name": "Calendly - Get Scheduled Events",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -272,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.contact.phone }}",
+        "tableName": "chat_history_spa_beauty",
+        "contextWindowLength": 50
+      },
+      "id": "b7afdaff-a18b-4a8e-9705-05e132c844fa",
+      "name": "Postgres Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.1,
+      "position": [
+        -960,
+        352
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "xNOp8yGL6Gc6SCWC",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.mediaUrl }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1296,
+        -256
+      ],
+      "id": "b9af5c38-632f-4c33-98c0-a3cc66692cbc",
+      "name": "Get Audio"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "373ad437-deba-4536-9b28-8504ad114bd2",
+              "leftValue": "={{ $json.message.type }}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1568,
+        -160
+      ],
+      "id": "99d831e7-95ee-412f-a3c3-3b5fa2dda197",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Format Output - Handle both audio transcription and direct text with language detection\nconst inputData = $input.first().json;\nlet chatInput = '';\nlet messageSource = '';\nlet phoneNumber = '';\nlet detectedLanguage = 'unknown';\n\nconsole.log('=== Enhanced Format Output Debug ===');\nconsole.log('Input data keys:', Object.keys(inputData));\n\n// Simple language detection function\nfunction detectLanguage(text) {\n  if (!text) return 'unknown';\n  \n  // Check for Chinese characters\n  const chineseRegex = /[\\u4e00-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff]/;\n  if (chineseRegex.test(text)) {\n    return 'chinese';\n  }\n  \n  // Check for Malay/Indonesian common words\n  const malayWords = ['saya', 'anda', 'dengan', 'untuk', 'adalah', 'yang', 'ini', 'itu', 'pada', 'dari'];\n  const lowerText = text.toLowerCase();\n  if (malayWords.some(word => lowerText.includes(word))) {\n    return 'malay';\n  }\n  \n  // Default to English if no specific patterns found\n  return 'english';\n}\n\n// Determine the source and extract appropriate data\nif (inputData.text && typeof inputData.text === 'string') {\n  // This is from OpenAI5 (audio transcription)\n  chatInput = inputData.text.trim();\n  messageSource = 'audio_transcribed';\n  detectedLanguage = detectLanguage(chatInput);\n  \n  console.log('Source: Audio transcription');\n  console.log('Transcribed text:', chatInput);\n  console.log('Detected language:', detectedLanguage);\n  \n  // For audio messages, get contact info from the original trigger\n  try {\n    const triggerData = $('When chat message received').first().json;\n    phoneNumber = triggerData.contact?.phone || triggerData.phone || '';\n    console.log('Phone from trigger (audio):', phoneNumber);\n  } catch (e) {\n    console.log('Could not access trigger data for audio:', e.message);\n    phoneNumber = '';\n  }\n  \n} else if (inputData.chatInput) {\n  // This is from Code5 (direct text message)\n  chatInput = inputData.chatInput;\n  messageSource = inputData.messageSource || 'text';\n  phoneNumber = inputData.phone || '';\n  detectedLanguage = detectLanguage(chatInput);\n  \n  console.log('Source: Direct text from Code5');\n  console.log('Detected language:', detectedLanguage);\n  \n} else {\n  // Fallback extraction\n  console.log('Using fallback extraction');\n  \n  if (inputData.message?.content) {\n    chatInput = inputData.message.content;\n  } else if (inputData.contact?.message) {\n    chatInput = inputData.contact.message;\n  } else if (typeof inputData === 'string') {\n    chatInput = inputData;\n  } else {\n    try {\n      const triggerData = $('When chat message received').first().json;\n      chatInput = triggerData.chatInput || triggerData.message?.content || 'Hello';\n      phoneNumber = triggerData.contact?.phone || triggerData.phone || '';\n      console.log('Using trigger data as fallback');\n    } catch (e) {\n      console.log('Could not access trigger data:', e.message);\n      chatInput = 'Hello';\n    }\n  }\n  \n  messageSource = 'fallback';\n  detectedLanguage = detectLanguage(chatInput);\n}\n\n// Clean up the message\nchatInput = String(chatInput || 'Hello').trim();\n\n// If we still don't have phone number, try to get it from trigger\nif (!phoneNumber) {\n  try {\n    const triggerData = $('When chat message received').first().json;\n    phoneNumber = triggerData.contact?.phone || triggerData.phone || '';\n    console.log('Phone from trigger (fallback):', phoneNumber);\n  } catch (e) {\n    console.log('Could not get phone from trigger:', e.message);\n    phoneNumber = '';\n  }\n}\n\n// Generate contact info\nconst contact = {\n  id: phoneNumber ? phoneNumber.replace(/\\D/g, '') : 'anonymous',\n  phone: phoneNumber\n};\n\nconsole.log('=== Enhanced Format Output Results ===');\nconsole.log('Final chatInput:', chatInput);\nconsole.log('Message source:', messageSource);\nconsole.log('Phone number:', phoneNumber);\nconsole.log('Detected language:', detectedLanguage);\nconsole.log('Has text:', !!chatInput);\n\n// Return standardized format with language information\nreturn {\n  json: {\n    chatInput: chatInput,\n    contact: contact,\n    phone: phoneNumber,\n    messageType: messageSource,\n    detectedLanguage: detectedLanguage,\n    isMediaMessage: messageSource === 'audio_transcribed',\n    sessionId: `conv_${Date.now()}_${contact.id}`,\n    timestamp: new Date().toISOString(),\n    \n    // Language context for the AI to maintain consistency\n    languageContext: {\n      inputLanguage: detectedLanguage,\n      shouldReplyInSameLanguage: true,\n      isAudioTranscription: messageSource === 'audio_transcribed'\n    },\n    \n    // Debug information\n    debug: {\n      source: messageSource,\n      hasText: !!chatInput,\n      hasPhone: !!phoneNumber,\n      detectedLanguage: detectedLanguage,\n      inputKeys: Object.keys(inputData),\n      processingComplete: true\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        -144
+      ],
+      "id": "1e598cf9-2408-4caf-b14a-69f1e38ab3ae",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -1040,
+        -256
+      ],
+      "id": "745e2b0e-b252-492c-b7e5-7fd065be5ec4",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the input data\nconst inputData = $input.first().json;\n\n// Create a deep copy of the input data\nconst modifiedData = JSON.parse(JSON.stringify(inputData));\n\n// Function to replace localhost URL with bot.creatiqai.com\nfunction replaceMediaUrl(url) {\n  if (url && (url.includes('http://localhost:9000') || url.includes('https://localhost:9000'))) {\n    return url.replace('http://localhost:9000', 'https://bot.creatiqai.com')\n              .replace('https://localhost:9000', 'https://bot.creatiqai.com');\n  }\n  return url;\n}\n\n// Replace media URL if it exists\nif (modifiedData.media && modifiedData.media.url) {\n  modifiedData.media.url = replaceMediaUrl(modifiedData.media.url);\n}\n\n// Also add a direct access field for convenience\nmodifiedData.mediaUrl = modifiedData.media?.url || null;\n\nreturn modifiedData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        -160
+      ],
+      "id": "cee1bee2-dc53-4e68-819f-43890595b841",
+      "name": "Replace Media URL"
+    }
+  ],
+  "pinData": {
+    "When chat message received": [
+      {
+        "json": {
+          "chatInput": "Sunday",
+          "sessionId": "conv_2569_contact_1",
+          "messageType": "text",
+          "isMediaMessage": false,
+          "message": {
+            "content": "Sunday",
+            "type": "text",
+            "timestamp": "2025-12-19T04:25:30.042Z"
+          },
+          "contact": {
+            "id": 1,
+            "name": "Keane",
+            "phone": "60162617638",
+            "email": ""
+          },
+          "conversation": {
+            "id": 2569
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Replace Media URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendly - Get Available Slots": {
+      "ai_tool": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendly - Cancel Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendly - Create Booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendly - Get Scheduled Events": {
+      "ai_tool": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Appointment Scheduler Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Get Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Media URL": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "90d8d6b0-2478-48bd-9988-30ffc9cef8b2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2634913f2f63564c82ce4655d9f40e1dc9c1a1fed88b38602578fc73f31e2a9f"
+  },
+  "id": "bVNO4172w2Xxqhre",
+  "tags": []
+}

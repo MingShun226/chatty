@@ -28,29 +28,36 @@ import {
 import { TrainingService } from '../../../services/trainingService';
 import { FineTuneService } from '../../../services/fineTuneService';
 import { PromptModificationInterface } from './PromptModificationInterface';
+import { WhatsAppParserService, WhatsAppParseResult } from '../../../services/whatsappParserService';
 
 interface SimplifiedTrainingInterfaceProps {
   avatarId: string;
   avatarName: string;
   userId: string;
   onTrainingComplete?: () => void;
+  onlyFineTuning?: boolean; // If true, skip training type selection and go directly to fine-tuning
 }
 
 export function SimplifiedTrainingInterface({
   avatarId,
   avatarName,
   userId,
-  onTrainingComplete
+  onTrainingComplete,
+  onlyFineTuning = false
 }: SimplifiedTrainingInterfaceProps) {
   const { toast } = useToast();
 
-  // Step 0: Training Type Selection
-  const [trainingType, setTrainingType] = useState<'prompt' | 'finetune' | null>(null);
+  // Step 0: Training Type Selection (skip if onlyFineTuning is true)
+  const [trainingType, setTrainingType] = useState<'prompt' | 'finetune' | null>(onlyFineTuning ? 'finetune' : null);
 
   // Step 1: Upload files
   const [files, setFiles] = useState<File[]>([]);
   const [textInput, setTextInput] = useState('');
   const [instructions, setInstructions] = useState('');
+
+  // WhatsApp parsing
+  const [whatsappParseResult, setWhatsappParseResult] = useState<WhatsAppParseResult | null>(null);
+  const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
 
   // Step 2: Process and extract
   const [isProcessing, setIsProcessing] = useState(false);
@@ -62,6 +69,7 @@ export function SimplifiedTrainingInterface({
 
   // Step 3: Training options
   const [trainingMethod, setTrainingMethod] = useState<'quick' | 'deep' | null>(null);
+  const [trainingStrategy, setTrainingStrategy] = useState<'standard-mini' | 'standard-4o' | 'distillation' | null>(null);
   const [selectedModel, setSelectedModel] = useState('gpt-4o-mini-2024-07-18');
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
@@ -131,10 +139,33 @@ export function SimplifiedTrainingInterface({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       setFiles(prev => [...prev, ...newFiles]);
+
+      // Auto-detect and parse WhatsApp exports
+      for (const file of newFiles) {
+        if (file.name.toLowerCase().includes('whatsapp') || file.name.endsWith('.txt')) {
+          try {
+            const text = await file.text();
+            if (WhatsAppParserService.isValidWhatsAppExport(text)) {
+              const result = WhatsAppParserService.parseWhatsAppExport(text);
+              setWhatsappParseResult(result);
+              setShowWhatsAppPreview(true);
+
+              toast({
+                title: "WhatsApp Chat Detected!",
+                description: `Found ${result.conversations.length} conversation pairs. Click to review and import.`,
+              });
+
+              break; // Only parse first WhatsApp file
+            }
+          } catch (error) {
+            console.error('Error parsing WhatsApp file:', error);
+          }
+        }
+      }
     }
   };
 
@@ -390,7 +421,9 @@ export function SimplifiedTrainingInterface({
       <div className="text-center">
         <h2 className="text-3xl font-bold">Train {avatarName}</h2>
         <p className="text-gray-600 mt-2">
-          {currentStep === 0 ? 'Choose your training method' : 'Follow these simple steps to teach your avatar'}
+          {currentStep === 0 && !onlyFineTuning
+            ? 'Choose your training method'
+            : 'Follow these simple steps to train your custom model'}
         </p>
       </div>
 
@@ -420,7 +453,7 @@ export function SimplifiedTrainingInterface({
       )}
 
       {/* Step 0: Training Type Selection */}
-      {currentStep === 0 && (
+      {currentStep === 0 && !onlyFineTuning && (
         <div className="grid md:grid-cols-2 gap-6">
           {/* Prompt-Based Training */}
           <Card
@@ -561,55 +594,267 @@ export function SimplifiedTrainingInterface({
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Upload className="w-5 h-5" />
-                Step 1: Upload Your Conversations
+                Step 1: Upload Your Conversation Examples
               </CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setTrainingType(null)}
-              >
-                Change Training Type
-              </Button>
+              {!onlyFineTuning && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTrainingType(null)}
+                >
+                  Change Training Type
+                </Button>
+              )}
             </div>
             <p className="text-sm text-gray-600 mt-2">
-              Selected: {trainingType === 'prompt' ? (
-                <Badge className="bg-blue-600"><Zap className="w-3 h-3 mr-1 inline" /> Prompt-Based Training</Badge>
-              ) : (
-                <Badge className="bg-purple-600"><Sparkles className="w-3 h-3 mr-1 inline" /> Fine-Tuning Training</Badge>
-              )}
+              Provide conversation examples showing how you want your chatbot to respond
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Upload conversation screenshots, text files, or paste conversations.
-                The more examples you provide, the better your avatar will learn!
-              </AlertDescription>
-            </Alert>
+          <CardContent className="space-y-6">
+            {/* Model Strategy Selection */}
+            {!trainingStrategy && (
+              <div className="space-y-4">
+                <div className="text-center mb-6">
+                  <h3 className="text-lg font-semibold mb-2">Choose Your Training Strategy</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Select the approach that best fits your quality needs and budget
+                  </p>
+                </div>
 
-            {/* File Upload Area */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Upload Files (Recommended)
-              </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                <div className="grid md:grid-cols-3 gap-4">
+                  {/* Budget Option - GPT-4o-mini */}
+                  <Card
+                    className="cursor-pointer hover:border-green-400 transition-all hover:shadow-md border-2"
+                    onClick={() => {
+                      setTrainingStrategy('standard-mini');
+                      setSelectedModel('gpt-4o-mini-2024-07-18');
+                    }}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="text-3xl mb-2">💰</div>
+                      <CardTitle className="text-lg">Budget</CardTitle>
+                      <p className="text-xs text-muted-foreground">GPT-4o-mini Direct</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Training:</span>
+                          <span className="font-semibold">~$9</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Per 10K chats:</span>
+                          <span className="font-semibold">~$2.70</span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          ✅ Most affordable
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ✅ Good for simple tasks
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ⚠️ Basic quality
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Distillation - Recommended */}
+                  <Card
+                    className="cursor-pointer hover:border-purple-400 transition-all hover:shadow-lg border-2 border-purple-300 relative"
+                    onClick={() => {
+                      setTrainingStrategy('distillation');
+                      setSelectedModel('gpt-4o-mini-2024-07-18'); // Will be trained with GPT-4o data
+                    }}
+                  >
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+                        RECOMMENDED
+                      </Badge>
+                    </div>
+                    <CardHeader className="pb-3">
+                      <div className="text-3xl mb-2">✨</div>
+                      <CardTitle className="text-lg">Smart Distillation</CardTitle>
+                      <p className="text-xs text-muted-foreground">GPT-4o Quality, Mini Price</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Training:</span>
+                          <span className="font-semibold">~$30-40</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Per 10K chats:</span>
+                          <span className="font-semibold">~$2.70</span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-green-700 font-medium">
+                          ⭐ Best value overall
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ✅ Premium quality
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ✅ Budget pricing
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Premium Option - GPT-4o */}
+                  <Card
+                    className="cursor-pointer hover:border-blue-400 transition-all hover:shadow-md border-2"
+                    onClick={() => {
+                      setTrainingStrategy('standard-4o');
+                      setSelectedModel('gpt-4o-2024-08-06');
+                    }}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="text-3xl mb-2">🚀</div>
+                      <CardTitle className="text-lg">Premium</CardTitle>
+                      <p className="text-xs text-muted-foreground">GPT-4o Direct</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Training:</span>
+                          <span className="font-semibold">~$75</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Per 10K chats:</span>
+                          <span className="font-semibold text-orange-600">~$34</span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          ✅ Highest quality
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ✅ Best performance
+                        </p>
+                        <p className="text-xs text-orange-600">
+                          ⚠️ 12x more expensive
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 What is Model Distillation?</h4>
+                  <p className="text-xs text-blue-800 leading-relaxed">
+                    Distillation uses GPT-4o to generate high-quality training examples from your data,
+                    then trains GPT-4o-mini to mimic GPT-4o's responses. You get ~90% of GPT-4o's quality
+                    at just 8% of the cost! Perfect for most chatbot use cases.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Show selected strategy and allow change */}
+            {trainingStrategy && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-purple-900">
+                      Selected Strategy: {
+                        trainingStrategy === 'distillation' ? '✨ Smart Distillation' :
+                        trainingStrategy === 'standard-4o' ? '🚀 Premium (GPT-4o)' :
+                        '💰 Budget (GPT-4o-mini)'
+                      }
+                    </p>
+                    <p className="text-xs text-purple-700 mt-1">
+                      {trainingStrategy === 'distillation'
+                        ? 'GPT-4o quality at mini pricing'
+                        : trainingStrategy === 'standard-4o'
+                        ? 'Highest quality, premium pricing'
+                        : 'Most affordable option'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTrainingStrategy(null)}
+                  >
+                    Change
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Helpful Tips - Only show after strategy is selected */}
+            {trainingStrategy && (
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  💡 What makes good training data?
+                </h3>
+                <ul className="text-sm text-blue-800 space-y-1 ml-6 list-disc">
+                  <li><strong>Real conversations</strong> - Use actual chat histories that show your desired style</li>
+                  <li><strong>Quality over quantity</strong> - 10-20 well-written examples work great</li>
+                  <li><strong>Consistent tone</strong> - Examples should match the personality you want</li>
+                  <li><strong>Clear format</strong> - Each conversation should have User and Assistant messages</li>
+                </ul>
+              </div>
+            )}
+
+            {/* File Upload Area - Only show after strategy is selected */}
+            {trainingStrategy && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-semibold">
+                  📁 Option 1: Upload Files
+                </label>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    const template = `User: Hello! How are you today?
+Assistant: Hi there! I'm doing great, thanks for asking! How can I help you today?
+
+User: I'm looking for information about your products
+Assistant: I'd be happy to help! We have a wide range of products. Could you tell me what specific category you're interested in?
+
+User: I need a new laptop
+Assistant: Great choice! We have several excellent laptops. What's your budget and what will you mainly use it for?`;
+                    const blob = new Blob([template], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'conversation_template.txt';
+                    a.click();
+                  }}
+                >
+                  ⬇️ Download Template
+                </Button>
+              </div>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-400 transition-colors cursor-pointer bg-gradient-to-b from-white to-gray-50">
                 <input
                   type="file"
                   multiple
-                  accept="image/*,.txt,.pdf"
+                  accept="image/*,.txt,.pdf,.json,.csv"
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
                   disabled={isProcessing}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
-                  <ImageIcon className="w-16 h-16 mx-auto text-gray-400 mb-3" />
-                  <p className="text-lg font-medium text-gray-700">
+                  <div className="flex justify-center mb-3">
+                    <ImageIcon className="w-12 h-12 text-purple-400" />
+                    <FileText className="w-12 h-12 text-blue-400 -ml-3" />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-700">
                     Click to upload or drag files here
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
-                    WhatsApp screenshots, Discord chats, PDFs, or text files
+                    <span className="font-medium">Supported formats:</span> WhatsApp exports (.txt), Screenshots (.png/.jpg),
+                    Chat logs (.txt), JSON (.json), CSV (.csv)
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Multiple files supported • Max 10MB per file
                   </p>
                 </label>
               </div>
@@ -643,82 +888,245 @@ export function SimplifiedTrainingInterface({
                   ))}
                 </div>
               )}
-            </div>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">Or</span>
-              </div>
-            </div>
+              {/* WhatsApp Parse Results */}
+              {whatsappParseResult && showWhatsAppPreview && (
+                <div className="mt-4 p-4 border-2 border-green-300 bg-green-50 rounded-lg space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-green-600">WhatsApp Chat Detected</Badge>
+                        {(() => {
+                          const quality = WhatsAppParserService.getQualityScore(whatsappParseResult);
+                          const colorClass =
+                            quality.rating === 'excellent' ? 'bg-green-600' :
+                            quality.rating === 'good' ? 'bg-blue-600' :
+                            quality.rating === 'fair' ? 'bg-yellow-600' : 'bg-orange-600';
+                          return <Badge className={colorClass}>{quality.rating.toUpperCase()} ({quality.score}/100)</Badge>;
+                        })()}
+                      </div>
 
-            {/* Text Input */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Paste Conversation Text
-              </label>
+                      <h4 className="font-semibold text-green-900 mb-1">
+                        📱 Parsed {whatsappParseResult.conversations.length} Conversation Pairs
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-green-800 mb-2">
+                        <div>👤 {whatsappParseResult.stats.userMessages} user messages</div>
+                        <div>🤖 {whatsappParseResult.stats.assistantMessages} assistant messages</div>
+                        <div>🗑️ {whatsappParseResult.stats.systemMessages} system messages filtered</div>
+                        <div>🔇 {whatsappParseResult.stats.audioMessages} media messages skipped</div>
+                      </div>
+
+                      {whatsappParseResult.warnings.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {whatsappParseResult.warnings.map((warning, idx) => (
+                            <p key={idx} className="text-xs text-yellow-700 flex items-start gap-1">
+                              <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              {warning}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const converted = WhatsAppParserService.convertToTrainingFormat(
+                              whatsappParseResult.conversations
+                            );
+                            setTextInput(converted);
+                            setShowWhatsAppPreview(false);
+                            toast({
+                              title: "Import Successful!",
+                              description: `${whatsappParseResult.conversations.length} conversations imported to text input.`
+                            });
+                          }}
+                        >
+                          ✅ Import to Text Input
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            // Show first 3 conversations as preview
+                            const preview = whatsappParseResult.conversations
+                              .slice(0, 3)
+                              .map(c => `User: ${c.userMessage}\nAssistant: ${c.assistantMessage}`)
+                              .join('\n\n');
+                            alert(`Preview (first 3 conversations):\n\n${preview}\n\n... and ${whatsappParseResult.conversations.length - 3} more`);
+                          }}
+                        >
+                          👁️ Preview
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setWhatsappParseResult(null);
+                            setShowWhatsAppPreview(false);
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-gray-500">Or</span>
+                </div>
+              </div>
+
+              {/* Text Input */}
+              <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-semibold">
+                  ✍️ Option 2: Paste or Type Conversations
+                </label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const example1 = `User: What are your business hours?
+Assistant: We're open Monday to Friday, 9 AM to 6 PM, and Saturday 10 AM to 4 PM. We're closed on Sundays and public holidays.
+
+User: Do you offer delivery?
+Assistant: Yes! We offer free delivery for orders over $50 within the city. For orders below $50, there's a flat $5 delivery fee.
+
+User: How long does delivery take?
+Assistant: Standard delivery takes 2-3 business days. We also offer express delivery (next day) for an additional $10.`;
+                      setTextInput(example1);
+                    }}
+                    disabled={isProcessing}
+                  >
+                    📋 Example 1
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const example2 = `User: Hi! I'm interested in your services
+Assistant: Hello! Welcome! I'd be delighted to help you learn about our services. What specific area are you interested in?
+
+User: What makes you different from competitors?
+Assistant: Great question! Our key differentiators are: 1) 24/7 customer support, 2) Money-back guarantee, 3) Certified experts with 10+ years experience, and 4) Custom solutions tailored to your needs.
+
+User: That sounds good. How do I get started?
+Assistant: It's easy! Just fill out our quick online form (takes 2 minutes), and one of our specialists will contact you within 24 hours to discuss your specific needs and create a custom plan.`;
+                      setTextInput(example2);
+                    }}
+                    disabled={isProcessing}
+                  >
+                    📋 Example 2
+                  </Button>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 mb-3">
+                <div className="flex items-start gap-2">
+                  <div className="text-sm text-purple-900 flex-1">
+                    <p className="font-semibold mb-1">📝 Format Guide:</p>
+                    <ul className="space-y-1 text-xs ml-4 list-disc">
+                      <li><code className="bg-white px-1 rounded">User: [customer message]</code></li>
+                      <li><code className="bg-white px-1 rounded">Assistant: [your response]</code></li>
+                      <li>Leave a blank line between conversation pairs</li>
+                      <li>Include 3-5 conversation exchanges for best results</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
               <textarea
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
-                placeholder="User: Hi, how are you?&#10;Assistant: I'm great! How can I help?&#10;&#10;User: Tell me about yourself&#10;Assistant: I'm an AI assistant designed to help you with various tasks..."
-                className="w-full h-40 p-4 border rounded-lg resize-none font-mono text-sm"
+                placeholder="User: Hello! How can I contact customer service?
+Assistant: Hi! You can reach our customer service team via email at support@company.com, phone at +1-234-567-8900, or live chat on our website. We're here 24/7 to help!
+
+User: What's your return policy?
+Assistant: We offer a 30-day money-back guarantee on all products. If you're not satisfied, simply return the item in its original condition for a full refund. Return shipping is free!
+
+User: That's great, thank you!
+Assistant: You're welcome! If you have any other questions, feel free to ask. Happy to help! 😊"
+                className="w-full h-48 p-4 border-2 border-gray-300 rounded-lg resize-none font-mono text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-200 transition-all"
                 disabled={isProcessing}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Format: "User: message" then "Assistant: response" (one per line)
+              <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                Click "Example 1" or "Example 2" above to see sample formats, or type your own conversations
               </p>
-            </div>
-
-            {/* Optional Instructions */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Training Instructions (Optional)
-              </label>
-              <textarea
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder="e.g., 'Be more casual and use emojis', 'Speak like a professional consultant', 'Use Malaysian English'"
-                className="w-full h-20 p-3 border rounded-lg resize-none"
-                disabled={isProcessing}
-              />
-            </div>
-
-            {/* Processing Progress */}
-            {isProcessing && (
-              <div className="space-y-2 p-4 bg-blue-50 rounded-lg">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-blue-900">{processingStep}</span>
-                  <span className="font-medium text-blue-600">{processingProgress}%</span>
-                </div>
-                <Progress value={processingProgress} className="h-2" />
               </div>
-            )}
 
-            {/* Process Button */}
-            <Button
-              onClick={handleProcessData}
-              disabled={isProcessing || (files.length === 0 && !textInput.trim())}
-              className="w-full"
-              size="lg"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Processing... {processingProgress}%
-                </>
-              ) : (
-                <>
-                  <ArrowRight className="w-5 h-5 mr-2" />
-                  Process Data & Extract Examples
-                </>
+              {/* Optional Instructions */}
+              <div>
+                <label className="block text-sm font-semibold mb-3 flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  Additional Training Instructions (Optional)
+                </label>
+                <textarea
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  placeholder="Add specific style or behavior instructions...
+
+Examples:
+• Be more casual and friendly, use emojis when appropriate
+• Speak like a professional consultant with formal language
+• Use Malaysian English and local phrases
+• Always mention our 24/7 customer support in responses
+• Keep responses under 3 sentences for brevity"
+                  className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg resize-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 transition-all"
+                  disabled={isProcessing}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  These instructions will guide the AI's behavior during training
+                </p>
+              </div>
+
+              {/* Processing Progress */}
+              {isProcessing && (
+                <div className="space-y-2 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-900">{processingStep}</span>
+                    <span className="font-medium text-blue-600">{processingProgress}%</span>
+                  </div>
+                  <Progress value={processingProgress} className="h-2" />
+                </div>
               )}
-            </Button>
 
-            <p className="text-xs text-center text-gray-500">
-              This will analyze your conversations and extract training examples
-            </p>
+              {/* Process Button */}
+              <Button
+                onClick={handleProcessData}
+                disabled={isProcessing || (files.length === 0 && !textInput.trim())}
+                className="w-full"
+                size="lg"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Processing... {processingProgress}%
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="w-5 h-5 mr-2" />
+                    Process Data & Extract Examples
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-gray-500">
+                This will analyze your conversations and extract training examples
+              </p>
+            </>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,0 +1,293 @@
+{
+  "common": {
+    "cancel": "Batal",
+    "save": "Simpan",
+    "delete": "Padam",
+    "edit": "Edit",
+    "create": "Cipta",
+    "update": "Kemaskini",
+    "back": "Kembali",
+    "next": "Seterusnya",
+    "finish": "Selesai",
+    "skip": "Langkau",
+    "loading": "Memuatkan...",
+    "error": "Ralat",
+    "success": "Berjaya",
+    "confirm": "Sahkan",
+    "yes": "Ya",
+    "no": "Tidak",
+    "search": "Cari",
+    "filter": "Tapis",
+    "upload": "Muat Naik",
+    "download": "Muat Turun",
+    "close": "Tutup"
+  },
+
+  "nav": {
+    "dashboard": "Papan Pemuka",
+    "myChatbots": "Chatbot Saya",
+    "createChatbot": "Cipta Chatbot",
+    "chatbotStudio": "Studio Chatbot",
+    "settings": "Tetapan",
+    "pricing": "Harga",
+    "help": "Bantuan"
+  },
+
+  "home": {
+    "hero": {
+      "title": "Bina Chatbot Bisnes Dalam 5 Minit",
+      "subtitle": "Uruskan pertanyaan pelanggan 24/7 dalam Bahasa Inggeris, Melayu & Cina. Sambung ke WhatsApp, laman web, atau platform lain.",
+      "getStarted": "Mulakan Percuma",
+      "viewDemo": "Lihat Demo"
+    },
+    "features": {
+      "title": "Kenapa Pilih ChatBiz?",
+      "fastSetup": {
+        "title": "Setup Pantas",
+        "description": "3 langkah sahaja, siap dalam 5 minit"
+      },
+      "malaysiaFocused": {
+        "title": "Fokus Malaysia",
+        "description": "Templat untuk budaya perniagaan Malaysia"
+      },
+      "multiLanguage": {
+        "title": "Multi-Bahasa",
+        "description": "Sokongan Bahasa Inggeris, Melayu, Mandarin"
+      },
+      "affordable": {
+        "title": "Mampu Milik",
+        "description": "Dari RM99/bulan untuk 1 chatbot"
+      }
+    }
+  },
+
+  "wizard": {
+    "title": "Cipta Chatbot Anda",
+    "step1": "Pilih Industri",
+    "step2": "Maklumat Asas",
+    "step3": "Muat Naik Pengetahuan & Produk",
+
+    "step1Title": "Pilih Industri Anda",
+    "step1Subtitle": "Pilih templat yang sesuai dengan bisnes anda",
+
+    "step2Title": "Maklumat Asas",
+    "step2Subtitle": "Beritahu kami tentang bisnes anda",
+
+    "step3Title": "Muat Naik Pengetahuan & Produk",
+    "step3Subtitle": "Muat naik dokumen dan produk (pilihan)",
+
+    "complete": "Setup Selesai!",
+    "testYourChatbot": "Test Chatbot Anda"
+  },
+
+  "industries": {
+    "customer_service": {
+      "name": "Khidmat Pelanggan",
+      "description": "Uruskan soalan lazim, penyelesaian masalah, dan pertanyaan pelanggan",
+      "forLabel": "Untuk: Sokongan, FAQ, Penyelesaian Masalah"
+    },
+    "ecommerce": {
+      "name": "Kedai Online",
+      "description": "Cadangan produk, penjejakan pesanan, dan jualan",
+      "forLabel": "Untuk: Jualan produk, Cadangan, Pesanan"
+    },
+    "real_estate": {
+      "name": "Hartanah",
+      "description": "Pertanyaan hartanah, jadual tontonan, dan kelayakan prospek",
+      "forLabel": "Untuk: Pertanyaan hartanah, Tontonan, Prospek"
+    },
+    "appointment": {
+      "name": "Tempahan Janji Temu",
+      "description": "Jadualkan janji temu, semak ketersediaan, dan hantar peringatan",
+      "forLabel": "Untuk: Klinik, Salon, Konsultasi"
+    }
+  },
+
+  "basicInfo": {
+    "chatbotName": "Nama Chatbot",
+    "chatbotNamePlaceholder": "Contoh: Bot Sokongan Pelanggan, Pembantu Kedai",
+    "companyName": "Nama Syarikat",
+    "companyNamePlaceholder": "Contoh: ABC Electronics, Kedai Ramli",
+    "businessDescription": "Penerangan Bisnes",
+    "businessDescriptionPlaceholder": "Terangkan bisnes anda dalam 2-3 ayat...",
+    "businessDescriptionHelper": "Ini membantu chatbot memahami konteks bisnes anda",
+    "primaryLanguage": "Bahasa Utama",
+    "supportedLanguages": "Sokongan Pelbagai Bahasa",
+    "tone": "Nada Perbualan",
+    "tones": {
+      "formal": "Formal (Bank, Guaman)",
+      "friendly": "Mesra (Kebanyakan bisnes)",
+      "casual": "Kasual (Startup, F&B)"
+    }
+  },
+
+  "knowledgeUpload": {
+    "knowledgeBase": "Pangkalan Pengetahuan",
+    "knowledgeBaseOptional": "Pangkalan Pengetahuan (Pilihan)",
+    "knowledgeBaseDescription": "Muat naik dokumen untuk rujukan chatbot",
+    "recommended": "Disyorkan",
+    "uploadPDF": "Muat Naik PDF/Word",
+    "writeText": "Tulis Teks",
+    "filesUploaded": "Fail dimuat naik",
+    "products": "Produk",
+    "productsOptional": "Produk (Pilihan)",
+    "productsDescription": "Untuk e-dagang: Muat naik senarai produk",
+    "uploadExcel": "Muat Naik Excel",
+    "downloadTemplate": "Muat turun templat",
+    "addManually": "Tambah Produk Secara Manual",
+    "productsUploaded": "Produk dimuat naik",
+    "tip": "Tip: Anda boleh tambah kemudian di Studio Chatbot"
+  },
+
+  "products": {
+    "title": "Galeri Produk",
+    "addNew": "Tambah Produk Baru",
+    "bulkUpload": "Muat Naik Excel",
+    "exportCSV": "Eksport CSV",
+    "search": "Cari produk...",
+    "filterByCategory": "Tapis mengikut Kategori",
+    "sku": "SKU",
+    "productName": "Nama Produk",
+    "description": "Penerangan",
+    "price": "Harga (RM)",
+    "category": "Kategori",
+    "stock": "Stok",
+    "images": "Gambar",
+    "inStock": "Ada Stok",
+    "outOfStock": "Kehabisan Stok",
+    "lowStock": "Stok Rendah",
+    "uploadImage": "Muat Naik Gambar",
+    "enterImageURL": "Masukkan URL Gambar",
+    "tags": "Tag (dipisahkan koma)",
+    "saveProduct": "Simpan Produk",
+    "deleteProduct": "Padam Produk",
+    "confirmDelete": "Adakah anda pasti mahu memadam produk ini?"
+  },
+
+  "excel": {
+    "title": "Muat Naik Produk melalui Excel",
+    "step1": "Muat Turun Templat",
+    "step2": "Isikan Produk Anda",
+    "step2Description": "Isikan fail Excel dengan data produk anda",
+    "step3": "Muat Naik Fail",
+    "chooseFile": "Pilih Fail Excel",
+    "preview": "Pratonton (5 baris pertama)",
+    "totalRows": "Jumlah baris",
+    "valid": "Sah",
+    "issues": "Isu",
+    "issuesFound": "Isu Dijumpai",
+    "importOptions": "Pilihan Import",
+    "skipErrors": "Langkau baris dengan ralat (import {{count}} produk)",
+    "fixFirst": "Betulkan ralat dahulu (disyorkan)",
+    "downloadErrorReport": "Muat Turun Laporan Ralat",
+    "importProducts": "Import Produk",
+    "importing": "Mengimport...",
+    "importSuccess": "Import Berjaya!",
+    "importSummary": "Ringkasan Import",
+    "totalProcessed": "Jumlah Baris Diproses",
+    "successfullyImported": "Berjaya Diimport",
+    "failed": "Gagal (ralat)",
+    "timeTaken": "Masa diambil",
+    "viewProducts": "Lihat Produk yang Diimport"
+  },
+
+  "chatbot": {
+    "name": "Chatbot",
+    "chatbots": "Chatbot",
+    "status": "Status",
+    "active": "Aktif",
+    "inactive": "Tidak Aktif",
+    "industry": "Industri",
+    "created": "Dicipta",
+    "messages": "Mesej",
+    "configure": "Konfigurasi",
+    "test": "Test",
+    "analytics": "Analitik",
+    "integrate": "Integrasi",
+    "delete": "Padam Chatbot",
+    "confirmDelete": "Adakah anda pasti mahu memadam chatbot ini?",
+    "businessContext": "Konteks Bisnes",
+    "complianceRules": "Peraturan Pematuhan",
+    "responseGuidelines": "Garis Panduan Respons",
+    "knowledgeBase": "Pangkalan Pengetahuan",
+    "productGallery": "Galeri Produk",
+    "settings": "Tetapan Chatbot"
+  },
+
+  "pricing": {
+    "title": "Pilih Pelan Anda",
+    "monthly": "Bulanan",
+    "annually": "Tahunan",
+    "freeTrial": "Percubaan percuma 7 hari",
+    "noCreditCard": "Tiada kad kredit diperlukan",
+    "choosePlan": "Pilih Pelan",
+    "contactSales": "Hubungi Jualan",
+    "starter": {
+      "name": "Permulaan",
+      "price": "RM99",
+      "features": [
+        "1 Chatbot",
+        "1,000 mesej/bulan",
+        "Pangkalan Pengetahuan",
+        "100 produk",
+        "Integrasi WhatsApp",
+        "Widget laman web",
+        "Sokongan email"
+      ]
+    },
+    "business": {
+      "name": "Bisnes",
+      "price": "RM199",
+      "features": [
+        "Sehingga 3 Chatbot",
+        "5,000 mesej/bulan",
+        "Pangkalan Pengetahuan",
+        "1,000 produk",
+        "Integrasi WhatsApp",
+        "Widget laman web",
+        "Fine-tuning",
+        "Sokongan keutamaan"
+      ]
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "RM599",
+      "features": [
+        "Chatbot Tanpa Had",
+        "50,000 mesej/bulan",
+        "Pangkalan Pengetahuan",
+        "Produk tanpa had",
+        "Integrasi WhatsApp",
+        "Widget laman web",
+        "Fine-tuning",
+        "Latihan tersuai",
+        "Sokongan khusus",
+        "Branding tersuai",
+        "Akses API"
+      ]
+    }
+  },
+
+  "testChat": {
+    "title": "Test Chat",
+    "placeholder": "Taip mesej anda...",
+    "send": "Hantar",
+    "clear": "Kosongkan Chat",
+    "model": "Model AI",
+    "settings": "Tetapan Chat"
+  },
+
+  "messages": {
+    "chatbotCreated": "Chatbot berjaya dicipta!",
+    "chatbotUpdated": "Chatbot berjaya dikemaskini!",
+    "chatbotDeleted": "Chatbot berjaya dipadam!",
+    "productAdded": "Produk berjaya ditambah!",
+    "productUpdated": "Produk berjaya dikemaskini!",
+    "productDeleted": "Produk berjaya dipadam!",
+    "fileUploaded": "Fail berjaya dimuat naik!",
+    "errorOccurred": "Ralat berlaku. Sila cuba lagi.",
+    "fillRequired": "Sila isikan semua medan yang diperlukan",
+    "invalidEmail": "Alamat email tidak sah",
+    "invalidPhone": "Nombor telefon tidak sah"
+  }
+}

@@ -1,0 +1,380 @@
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Send, Loader2, Bot, User, RefreshCw, MessageSquare } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface BusinessChatbotTestProps {
+  chatbotId: string;
+  chatbotName: string;
+}
+
+export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotTestProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [contextInfo, setContextInfo] = useState({
+    products: 0,
+    knowledgeFiles: 0,
+    hasSystemPrompt: false
+  });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Load context information
+  useEffect(() => {
+    loadContextInfo();
+  }, [chatbotId]);
+
+  const loadContextInfo = async () => {
+    try {
+      // Get products count
+      const { count: productsCount } = await supabase
+        .from('chatbot_products')
+        .select('*', { count: 'exact', head: true })
+        .eq('chatbot_id', chatbotId);
+
+      // Get knowledge files count
+      const { count: filesCount } = await supabase
+        .from('avatar_knowledge_files')
+        .select('*', { count: 'exact', head: true })
+        .eq('avatar_id', chatbotId)
+        .eq('is_linked', true);
+
+      // Check for active system prompt
+      const { data: promptVersion } = await supabase
+        .from('avatar_prompt_versions')
+        .select('id')
+        .eq('avatar_id', chatbotId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      setContextInfo({
+        products: productsCount || 0,
+        knowledgeFiles: filesCount || 0,
+        hasSystemPrompt: !!promptVersion
+      });
+    } catch (error) {
+      console.error('Error loading context info:', error);
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || loading) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: inputMessage,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setLoading(true);
+
+    try {
+      // Get session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+      // Call avatar-chat edge function (same as n8n would use)
+      const response = await fetch(`${supabaseUrl}/functions/v1/avatar-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'x-api-key': 'test-mode' // Special key for test mode
+        },
+        body: JSON.stringify({
+          avatar_id: chatbotId,
+          message: inputMessage,
+          conversation_history: messages.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          model: 'gpt-4o-mini'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get response');
+      }
+
+      const data = await response.json();
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.message,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Show metadata if available
+      if (data.metadata) {
+        console.log('Response metadata:', data.metadata);
+      }
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to get response from chatbot",
+        variant: "destructive"
+      });
+
+      // Add error message
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `Sorry, I encountered an error: ${error.message}. Please try again or check your API settings.`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = () => {
+    setMessages([]);
+    toast({
+      title: "Chat Reset",
+      description: "Conversation cleared"
+    });
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Suggested questions based on context
+  const suggestedQuestions = [
+    contextInfo.products > 0 ? "What products do you have?" : null,
+    contextInfo.products > 0 ? "Show me products under RM 1000" : null,
+    contextInfo.knowledgeFiles > 0 ? "What are your store policies?" : null,
+    "Tell me about your business",
+    contextInfo.products > 0 ? "What's in stock?" : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-4">
+      {/* Context Info Header */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              Test Chat - {chatbotName}
+            </CardTitle>
+            <Button onClick={handleReset} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Reset
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={contextInfo.hasSystemPrompt ? "default" : "secondary"}>
+              {contextInfo.hasSystemPrompt ? '✓' : '○'} System Prompt
+            </Badge>
+            <Badge variant={contextInfo.products > 0 ? "default" : "secondary"}>
+              {contextInfo.products} Products
+            </Badge>
+            <Badge variant={contextInfo.knowledgeFiles > 0 ? "default" : "secondary"}>
+              {contextInfo.knowledgeFiles} Knowledge Files
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            This test uses the same API endpoint as n8n (WhatsApp integration)
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Chat Messages */}
+      <Card className="h-[500px] flex flex-col">
+        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+              <Bot className="h-16 w-16 text-gray-300" />
+              <div>
+                <p className="text-lg font-semibold text-gray-600">Start a conversation</p>
+                <p className="text-sm text-muted-foreground">
+                  Test your chatbot with products and knowledge base
+                </p>
+              </div>
+              {suggestedQuestions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Try asking:</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {suggestedQuestions.map((question, i) => (
+                      <Button
+                        key={i}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInputMessage(question!)}
+                      >
+                        {question}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {messages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Bot className="h-5 w-5 text-blue-600" />
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[70%] rounded-lg p-3 ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-900'
+                    }`}
+                  >
+                    {msg.role === 'assistant' ? (
+                      <div className="text-sm space-y-2">
+                        {msg.content.split('||').map((segment, i) => {
+                          const trimmedSegment = segment.trim();
+                          if (!trimmedSegment) return null;
+
+                          // Detect image URLs (including Supabase storage URLs)
+                          const imageUrlMatch = trimmedSegment.match(/(https?:\/\/[^\s]+(?:\.(?:jpg|jpeg|png|gif|webp)|storage\/v1\/object\/public\/[^\s]+))/i);
+
+                          if (imageUrlMatch) {
+                            const imageUrl = imageUrlMatch[1];
+                            const beforeImage = trimmedSegment.substring(0, imageUrlMatch.index).trim();
+                            const afterImage = trimmedSegment.substring(imageUrlMatch.index + imageUrl.length).trim();
+
+                            return (
+                              <div key={i} className="space-y-1">
+                                {beforeImage && <p className="leading-relaxed">{beforeImage}</p>}
+                                <img
+                                  src={imageUrl}
+                                  alt="Product"
+                                  className="max-w-full max-h-64 h-auto rounded border border-gray-300 my-2"
+                                  onError={(e) => {
+                                    // If image fails to load, show the URL as clickable link
+                                    const target = e.currentTarget;
+                                    target.style.display = 'none';
+                                    if (target.nextSibling) {
+                                      (target.nextSibling as HTMLElement).classList.remove('text-xs', 'text-gray-500');
+                                      (target.nextSibling as HTMLElement).classList.add('text-sm', 'text-blue-600', 'underline');
+                                    }
+                                  }}
+                                />
+                                <a
+                                  href={imageUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-gray-500 break-all hover:text-blue-600 block"
+                                >
+                                  {imageUrl}
+                                </a>
+                                {afterImage && <p className="leading-relaxed mt-1">{afterImage}</p>}
+                              </div>
+                            );
+                          }
+
+                          // Regular text segment - each || creates a new paragraph
+                          return (
+                            <p key={i} className="leading-relaxed">
+                              {trimmedSegment}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                    <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                      {msg.timestamp.toLocaleTimeString()}
+                    </p>
+                  </div>
+                  {msg.role === 'user' && (
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                        <User className="h-5 w-5 text-gray-600" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {loading && (
+                <div className="flex gap-3 justify-start">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <Bot className="h-5 w-5 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="bg-gray-100 rounded-lg p-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </CardContent>
+
+        {/* Input Area */}
+        <div className="border-t p-4">
+          <div className="flex gap-2">
+            <Input
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message..."
+              disabled={loading}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || loading}
+              size="icon"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}

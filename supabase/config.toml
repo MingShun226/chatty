@@ -11,3 +11,12 @@ verify_jwt = true
 
 [functions.save-generated-image]
 verify_jwt = true
+
+[functions.whatsapp-get-oauth-url]
+verify_jwt = true
+
+[functions.whatsapp-oauth-callback]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false

@@ -1,0 +1,51 @@
+SKU,Product Name,Description,Price,Category,Stock,Image URL
+PHONE001,Samsung Galaxy S24 Ultra,"Latest flagship smartphone with 200MP camera, 6.8-inch Dynamic AMOLED display, 12GB RAM, 256GB storage, 5G enabled. Phantom Black color.",5299,Mobile Phones,25,https://images.unsplash.com/photo-1610945415295-d9bbf067e59c
+PHONE002,iPhone 15 Pro Max,"Apple's premium smartphone featuring A17 Pro chip, ProMotion display, 48MP main camera, 256GB storage. Titanium Blue finish.",6499,Mobile Phones,18,https://images.unsplash.com/photo-1592286927505-b9e1057a935b
+PHONE003,OPPO Reno11 Pro,"Mid-range powerhouse with 50MP camera, 120Hz AMOLED display, 12GB RAM, fast charging. Pearl White.",1899,Mobile Phones,42,https://images.unsplash.com/photo-1598327105666-5b89351aff97
+PHONE004,Xiaomi Redmi Note 13,"Budget-friendly 5G phone with 108MP camera, 6.67-inch display, 8GB RAM, 128GB storage. Midnight Black.",799,Mobile Phones,65,https://images.unsplash.com/photo-1511707171634-5f897ff02aa9
+LAPTOP001,Dell XPS 15,"Premium ultrabook with Intel Core i7-13700H, 16GB RAM, 512GB SSD, NVIDIA RTX 4050, 15.6-inch 4K OLED display.",6799,Laptops,12,https://images.unsplash.com/photo-1588872657578-7efd1f1555ed
+LAPTOP002,MacBook Air M2,"Apple Silicon M2 chip, 8GB unified memory, 256GB SSD, 13.6-inch Liquid Retina display. Midnight color.",4899,Laptops,20,https://images.unsplash.com/photo-1517336714731-489689fd1ca8
+LAPTOP003,ASUS ROG Strix G16,"Gaming laptop with Intel i9-13980HX, 32GB RAM, 1TB SSD, RTX 4070, 16-inch QHD 240Hz display.",8999,Laptops,8,https://images.unsplash.com/photo-1603302576837-37561b2e2302
+LAPTOP004,Lenovo IdeaPad Slim 3,"Affordable everyday laptop with AMD Ryzen 5, 8GB RAM, 512GB SSD, 14-inch FHD display. Arctic Grey.",2199,Laptops,35,https://images.unsplash.com/photo-1496181133206-80ce9b88a853
+TABLET001,iPad Air 11-inch,"M2 chip, 128GB storage, Wi-Fi + Cellular, 11-inch Liquid Retina display. Space Grey.",3299,Tablets,22,https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0
+TABLET002,Samsung Galaxy Tab S9,"Snapdragon 8 Gen 2, 8GB RAM, 128GB storage, 11-inch Dynamic AMOLED display, S Pen included.",2899,Tablets,30,https://images.unsplash.com/photo-1561154464-82e9adf32764
+AIRCON001,Daikin Inverter 1.5HP,"Energy-efficient R32 inverter air conditioner, quiet operation, 5-star rating. Includes installation kit.",2199,Home Appliances,15,https://images.unsplash.com/photo-1631545806609-6b9e0e4c1e31
+AIRCON002,Panasonic 2.0HP Non-Inverter,"Powerful cooling for large rooms, eco-friendly R410A gas, 2-year warranty. White.",1599,Home Appliances,12,https://images.unsplash.com/photo-1585771724684-38269d6639fd
+FRIDGE001,Samsung 2-Door Refrigerator 450L,"Digital inverter technology, Twin Cooling Plus, deodorizer, large capacity. Elegant Inox.",2499,Home Appliances,10,https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5
+FRIDGE002,LG Side-by-Side 668L,"InstaView Door-in-Door, smart inverter compressor, ice & water dispenser. Platinum Silver.",5299,Home Appliances,5,https://images.unsplash.com/photo-1584568694244-14fbdf83bd30
+WASHER001,Panasonic Top Load 9kg,"Powerful wash, gentle on clothes, 10 wash programs, stainless steel drum. 2-year warranty.",1299,Home Appliances,18,https://images.unsplash.com/photo-1626806787461-102c1bfaaea1
+WASHER002,Samsung Front Load 11kg,"AddWash technology, EcoBubble, 14 wash programs, inverter motor. Black Caviar.",2899,Home Appliances,14,https://images.unsplash.com/photo-1604335399105-a0c585fd81a1
+TV001,Samsung 65-inch QLED 4K,"Quantum Processor 4K, HDR10+, 120Hz refresh rate, smart TV with Tizen OS. Crystal Black.",4999,Audio & Entertainment,8,https://images.unsplash.com/photo-1593784991095-a205069470b6
+TV002,LG 55-inch OLED,"Self-lit pixels, perfect blacks, Dolby Vision IQ, webOS smart platform. 2024 model.",6499,Audio & Entertainment,6,https://images.unsplash.com/photo-1593359677879-a4bb92f829d1
+TV003,Sony 43-inch Full HD,"Triluminos display, Clear Audio+, Android TV, Google Assistant. Compact size for bedrooms.",1899,Audio & Entertainment,20,https://images.unsplash.com/photo-1571863533956-01c88e79957e
+AUDIO001,Sony WH-1000XM5,"Industry-leading noise cancelling headphones, 30-hour battery, LDAC codec. Black.",1599,Audio & Entertainment,45,https://images.unsplash.com/photo-1546435770-a3e426bf472b
+AUDIO002,AirPods Pro 2nd Gen,"Active noise cancellation, adaptive audio, MagSafe charging, USB-C. White.",1199,Audio & Entertainment,38,https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7
+AUDIO003,JBL Flip 6,"Portable Bluetooth speaker, IP67 waterproof, 12-hour battery, PartyBoost. Red.",499,Audio & Entertainment,55,https://images.unsplash.com/photo-1608043152269-423dbba4e7e1
+AUDIO004,Bose SoundLink Revolve+,"360-degree sound, 16-hour battery, water-resistant, built-in microphone. Triple Black.",1299,Audio & Entertainment,28,https://images.unsplash.com/photo-1545454675-3531b543be5d
+SOUNDBAR001,Samsung Q990C Soundbar,"11.1.4ch with Dolby Atmos, wireless subwoofer, Q-Symphony, SpaceFit Sound. Black.",3999,Audio & Entertainment,10,https://images.unsplash.com/photo-1545454675-3531b543be5d
+SOUNDBAR002,Sony HT-A3000,"3.1ch Dolby Atmos soundbar, 360 Spatial Sound Mapping, wireless subwoofer. Black.",2499,Audio & Entertainment,15,https://images.unsplash.com/photo-1558618666-fcd25c85cd64
+MONITOR001,Dell UltraSharp 27-inch 4K,"IPS panel, 99% sRGB, USB-C connectivity, height adjustable stand. Professional monitor.",2199,Computer Accessories,16,https://images.unsplash.com/photo-1527443224154-c4a3942d3acf
+MONITOR002,ASUS TUF Gaming 24-inch,"Full HD 165Hz, 1ms response, FreeSync Premium, ergonomic stand. For gaming.",899,Computer Accessories,25,https://images.unsplash.com/photo-1527443195645-1133f7f28990
+KEYBOARD001,Logitech MX Keys,"Wireless illuminated keyboard, multi-device, USB-C rechargeable, quiet typing. Graphite.",599,Computer Accessories,40,https://images.unsplash.com/photo-1587829741301-dc798b83add3
+MOUSE001,Logitech MX Master 3S,"Wireless mouse, 8K DPI sensor, quiet clicks, USB-C charging. Graphite.",499,Computer Accessories,48,https://images.unsplash.com/photo-1527864550417-7fd91fc51a46
+WEBCAM001,Logitech Brio 4K,"4K Ultra HD webcam, auto light correction, 5x digital zoom, dual microphones.",899,Computer Accessories,32,https://images.unsplash.com/photo-1632072400819-e14bb3d4e040
+PRINTER001,HP LaserJet Pro M404dn,"Monochrome laser printer, 38ppm, duplex printing, Ethernet. Business class.",1599,Computer Accessories,12,https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6
+PRINTER002,Epson EcoTank L3250,"All-in-one inkjet with refillable tanks, print/scan/copy, Wi-Fi. Low cost per page.",799,Computer Accessories,22,https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6
+COOKER001,Philips Rice Cooker 1.8L,"Fuzzy logic, 12 cooking modes, keep warm function, non-stick pot. White.",299,Home Appliances,50,https://images.unsplash.com/photo-1588013273468-315fd88ea34c
+COOKER002,Tefal Multi Cooker 6L,"45-in-1 functions, pressure cooker, slow cooker, rice cooker. Intelligent cooking.",699,Home Appliances,28,https://images.unsplash.com/photo-1585515320310-259814833e62
+MICRO001,Sharp Microwave Oven 25L,"1000W power, 11 auto menus, grill function, child lock. Silver.",399,Home Appliances,35,https://images.unsplash.com/photo-1585515320310-259814833e62
+VACUUM001,Dyson V12 Detect Slim,"Cordless vacuum, laser detection, 60min runtime, HEPA filtration. Gold.",3299,Home Appliances,8,https://images.unsplash.com/photo-1558317374-067fb5f30001
+VACUUM002,Xiaomi Robot Vacuum S10,"Smart mapping, 4000Pa suction, auto-empty station, mop function. White.",1899,Home Appliances,15,https://images.unsplash.com/photo-1567538096630-e0c55bd6374c
+ROUTER001,TP-Link Archer AX73,"Wi-Fi 6 router, AX5400 speed, 6 antennas, OneMesh compatible. Black.",599,Computer Accessories,30,https://images.unsplash.com/photo-1606904825846-647eb07f5be2
+ROUTER002,ASUS RT-AX86U,"Gaming router, Wi-Fi 6, 5700Mbps, AiMesh support, RGB lighting. Black.",1299,Computer Accessories,18,https://images.unsplash.com/photo-1606904825846-647eb07f5be2
+EARBUDS001,Samsung Galaxy Buds2 Pro,"Active noise cancellation, 360 audio, IPX7 waterproof, wireless charging. Graphite.",899,Audio & Entertainment,42,https://images.unsplash.com/photo-1590658268037-6bf12165a8df
+EARBUDS002,Nothing Ear (2),"ANC earbuds, 40dB noise cancellation, dual connection, wireless charging. White.",599,Audio & Entertainment,50,https://images.unsplash.com/photo-1590658268037-6bf12165a8df
+SMARTWATCH001,Apple Watch Series 9,"GPS + Cellular, 45mm, always-on display, health tracking. Midnight Aluminum.",2199,Wearables,25,https://images.unsplash.com/photo-1579586337278-3befd40fd17a
+SMARTWATCH002,Samsung Galaxy Watch 6,"1.5-inch AMOLED, health sensors, 40+ workout modes, 40mm. Silver.",1299,Wearables,30,https://images.unsplash.com/photo-1579586337278-3befd40fd17a
+CHARGER001,Anker PowerPort III 65W,"3-port USB-C charger, GaN technology, foldable plug, PowerIQ 3.0. Black.",149,Mobile Accessories,80,https://images.unsplash.com/photo-1583394838336-acd977736f90
+POWERBANK001,Xiaomi Power Bank 20000mAh,"Fast charging, USB-C + USB-A ports, LED display, portable. Black.",149,Mobile Accessories,95,https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5
+CABLE001,Anker USB-C to Lightning 2m,"MFi certified, fast charging, braided nylon, 10000+ bend lifespan. White.",89,Mobile Accessories,120,https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a
+STAND001,Twelve South BookArc,"MacBook stand, space-saving, cable management, eco-friendly materials. Silver.",199,Computer Accessories,25,https://images.unsplash.com/photo-1527864550417-7fd91fc51a46
+HUB001,Anker USB-C Hub 7-in-1,"HDMI, USB 3.0, SD/TF card reader, 100W PD charging. Space Grey.",249,Computer Accessories,35,https://images.unsplash.com/photo-1625948515291-69613efd103f
+STORAGE001,Samsung T7 Portable SSD 1TB,"USB 3.2 Gen 2, 1050MB/s read speed, password protection, shock-resistant. Titan Grey.",549,Computer Accessories,40,https://images.unsplash.com/photo-1597872200969-2b65d56bd16b
+STORAGE002,WD My Passport 5TB,"Portable HDD, USB 3.2, auto backup software, password protection. Black.",599,Computer Accessories,28,https://images.unsplash.com/photo-1597872200969-2b65d56bd16b

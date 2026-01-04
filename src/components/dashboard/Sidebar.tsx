@@ -14,7 +14,6 @@ import {
   Bot,
   Menu,
   X,
-  UserCircle,
   CreditCard,
   Key,
   ShieldCheck,
@@ -22,7 +21,13 @@ import {
   ChevronDown,
   ChevronRight,
   Image,
-  Film
+  Film,
+  SettingsIcon,
+  ShoppingBag,
+  BookOpen,
+  TestTube,
+  Zap,
+  Wand2
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,7 +38,20 @@ interface SidebarProps {
 
 const navigationItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { id: 'chatbot', label: 'WhatsApp Chatbot', icon: MessageCircle, path: '/chatbot-studio' },
+  {
+    id: 'chatbot',
+    label: 'WhatsApp Chatbot',
+    icon: MessageCircle,
+    children: [
+      { id: 'chatbot-settings', label: 'Chatbot Settings', icon: SettingsIcon, path: '/chatbot/settings' },
+      { id: 'chatbot-products', label: 'Products', icon: ShoppingBag, path: '/chatbot/products' },
+      { id: 'chatbot-knowledge', label: 'Knowledge Base', icon: BookOpen, path: '/chatbot/knowledge' },
+      { id: 'chatbot-finetune', label: 'Prompt Engineer', icon: Wand2, path: '/chatbot/prompt-engineer' },
+      { id: 'chatbot-model-training', label: 'Model Training', icon: Zap, path: '/chatbot/model-training' },
+      { id: 'chatbot-whatsapp', label: 'WhatsApp Integration', icon: MessageCircle, path: '/chatbot/whatsapp' },
+      { id: 'chatbot-test', label: 'Test Chat', icon: TestTube, path: '/chatbot/test' },
+    ]
+  },
   {
     id: 'advertising',
     label: 'Advertising',
@@ -43,7 +61,6 @@ const navigationItems = [
       { id: 'videos', label: 'Promo Videos', icon: Film, path: '/video-studio' },
     ]
   },
-  { id: 'my-avatar', label: 'My Chatbots', icon: UserCircle, path: '/my-avatars' },
   { id: 'api-keys', label: 'API Keys', icon: Key, path: '/api-keys' },
   { id: 'billing', label: 'Billing & Plans', icon: CreditCard, path: '/billing' },
 ];
@@ -51,7 +68,7 @@ const navigationItems = [
 const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => {
   const { isCollapsed, setIsCollapsed } = useSidebar();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<string[]>(['advertising']);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['chatbot', 'advertising']);
   const { isAdmin } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,12 +92,11 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
   const handleNavigation = (item: any) => {
     setIsMobileOpen(false);
 
-    if (item.path === '/dashboard') {
-      // For dashboard, use the old method
-      onSectionChange(item.id);
-    } else if (item.path) {
-      // For all other pages, navigate using React Router
+    if (item.path) {
+      // Use React Router for all navigation
       navigate(item.path);
+      // Also update section for backward compatibility
+      onSectionChange(item.id);
     }
   };
 
@@ -137,8 +153,8 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
             </div>
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
-                <h1 className="text-sm font-bold text-sidebar-foreground truncate">AvatarHub</h1>
-                <p className="text-xs text-sidebar-foreground/60 truncate">AI Business Automation</p>
+                <h1 className="text-sm font-bold text-sidebar-foreground truncate">Chatty</h1>
+                <p className="text-xs text-sidebar-foreground/60 truncate">AI Business Chatbots</p>
               </div>
             )}
           </div>
