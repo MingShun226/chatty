@@ -37,6 +37,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 // Store active WhatsApp sockets
 const whatsappSockets = new Map() // sessionId -> { sock, chatbotId, userId }
 
+// Message batching buffers and timers
+// Structure: Map<key, { messages: string[], timer: NodeJS.Timeout, chatbotId: string }>
+// Key format: `${sessionId}_${fromNumber}`
+const messageBatchBuffers = new Map()
+
 // Initialize Express
 const app = express()
 app.use(cors())
@@ -324,6 +329,37 @@ function splitBySentences(text, maxLength = 1500) {
 }
 
 /**
+ * Send WhatsApp image message
+ * @param {object} sock - WhatsApp socket
+ * @param {string} toNumber - Recipient number
+ * @param {string} imageUrl - Image URL or base64 data
+ * @param {string} caption - Optional caption for the image
+ */
+async function sendWhatsAppImage(sock, toNumber, imageUrl, caption = '') {
+  try {
+    console.log(`Sending image to ${toNumber}: ${imageUrl.substring(0, 100)}...`)
+
+    // Show uploading indicator
+    await sock.sendPresenceUpdate('composing', toNumber)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Send image
+    await sock.sendMessage(toNumber, {
+      image: { url: imageUrl },
+      caption: caption || undefined
+    })
+
+    // Clear presence
+    await sock.sendPresenceUpdate('paused', toNumber)
+
+    console.log('Image sent successfully')
+  } catch (err) {
+    console.error('Error sending WhatsApp image:', err)
+    throw err
+  }
+}
+
+/**
  * Send WhatsApp message with typing indicator and message splitting
  * @param {object} sock - WhatsApp socket
  * @param {string} toNumber - Recipient number
@@ -375,9 +411,85 @@ async function sendWhatsAppMessage(sock, toNumber, text, delimiter = null, wpm =
 }
 
 /**
- * Process inbound message with chatbot (n8n integration)
+ * Process batched messages (combine and send to n8n)
+ */
+async function processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock) {
+  // Combine all messages with line breaks
+  const combinedMessage = messages.join('\n')
+  console.log(`Processing ${messages.length} batched messages as: "${combinedMessage}"`)
+
+  // Process as single message
+  await processMessageWithChatbot(sessionId, chatbotId, fromNumber, combinedMessage, sock)
+}
+
+/**
+ * Process inbound message with batching support
  */
 async function processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock) {
+  try {
+    // Get chatbot settings to check batch timeout
+    const { data: chatbot } = await supabase
+      .from('avatars')
+      .select('whatsapp_message_batch_timeout')
+      .eq('id', chatbotId)
+      .single()
+
+    if (!chatbot) {
+      console.error('Chatbot not found:', chatbotId)
+      return
+    }
+
+    const batchTimeout = chatbot.whatsapp_message_batch_timeout || 0
+
+    // If batching is disabled (timeout = 0), process immediately
+    if (batchTimeout === 0) {
+      await processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock)
+      return
+    }
+
+    // Batching is enabled - add to buffer
+    const bufferKey = `${sessionId}_${fromNumber}`
+
+    if (messageBatchBuffers.has(bufferKey)) {
+      // Add to existing buffer
+      const buffer = messageBatchBuffers.get(bufferKey)
+      buffer.messages.push(messageText)
+      console.log(`Added message to batch buffer (${buffer.messages.length} messages, ${batchTimeout}s timeout)`)
+
+      // Clear existing timer and restart
+      clearTimeout(buffer.timer)
+      buffer.timer = setTimeout(async () => {
+        const messages = buffer.messages
+        messageBatchBuffers.delete(bufferKey)
+        await processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock)
+      }, batchTimeout * 1000)
+    } else {
+      // Create new buffer
+      const timer = setTimeout(async () => {
+        const buffer = messageBatchBuffers.get(bufferKey)
+        if (buffer) {
+          const messages = buffer.messages
+          messageBatchBuffers.delete(bufferKey)
+          await processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock)
+        }
+      }, batchTimeout * 1000)
+
+      messageBatchBuffers.set(bufferKey, {
+        messages: [messageText],
+        timer,
+        chatbotId
+      })
+      console.log(`Started batch buffer (${batchTimeout}s timeout)`)
+    }
+  } catch (err) {
+    console.error('Error in processInboundMessage:', err)
+  }
+}
+
+/**
+ * Process message with chatbot (n8n integration)
+ */
+async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock) {
   try {
     // Get chatbot details with all related data
     const { data: chatbot } = await supabase
@@ -428,6 +540,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
     const n8nWebhookUrl = chatbot.n8n_enabled ? chatbot.n8n_webhook_url : null
 
     let reply
+    let images = []
 
     if (n8nWebhookUrl) {
       // Call n8n webhook with full context
@@ -487,6 +600,12 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
         reply = 'Sorry, I could not generate a response.'
       }
 
+      // Extract images if present (new feature)
+      images = data?.images || []
+      if (images.length > 0) {
+        console.log(`n8n response includes ${images.length} image(s)`)
+      }
+
       // Update n8n last used timestamp
       await supabase
         .from('avatars')
@@ -517,16 +636,50 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
 
       const result = await response.json()
       reply = result.reply
+      images = [] // Edge function doesn't support images yet
     }
 
     // Get WhatsApp settings from chatbot configuration
     const messageDelimiter = chatbot.whatsapp_message_delimiter || null
     const typingWPM = chatbot.whatsapp_typing_wpm || 200
+    const enableImages = chatbot.whatsapp_enable_images !== false // Default to true
 
-    console.log(`WhatsApp settings - Delimiter: ${messageDelimiter || 'auto'}, Typing speed: ${typingWPM} WPM`)
+    console.log(`WhatsApp settings - Delimiter: ${messageDelimiter || 'auto'}, Typing speed: ${typingWPM} WPM, Images: ${enableImages ? 'enabled' : 'disabled'}`)
 
     // Send reply via WhatsApp with typing indicator and message splitting
     const sentChunks = await sendWhatsAppMessage(sock, fromNumber, reply, messageDelimiter, typingWPM)
+
+    // Send images if enabled and images are present
+    if (enableImages && images && images.length > 0) {
+      console.log(`Sending ${images.length} image(s)...`)
+      for (const imageData of images) {
+        try {
+          // imageData can be a string (URL) or object with {url, caption}
+          const imageUrl = typeof imageData === 'string' ? imageData : imageData.url
+          const caption = typeof imageData === 'object' ? imageData.caption : ''
+
+          await sendWhatsAppImage(sock, fromNumber, imageUrl, caption)
+
+          // Store image message in database
+          const sessionUuid = await getSessionIdFromDb(sessionId)
+          await supabase
+            .from('whatsapp_web_messages')
+            .insert({
+              session_id: sessionUuid,
+              chatbot_id: chatbotId,
+              message_id: `out_img_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+              from_number: sock.user?.id || '',
+              to_number: fromNumber,
+              direction: 'outbound',
+              message_type: 'image',
+              content: imageUrl,
+              timestamp: new Date().toISOString()
+            })
+        } catch (imgErr) {
+          console.error('Error sending image:', imgErr)
+        }
+      }
+    }
 
     // Store outbound message(s)
     const sessionUuid = await getSessionIdFromDb(sessionId)

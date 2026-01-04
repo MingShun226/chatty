@@ -141,6 +141,8 @@ const WhatsAppIntegrationContent = ({ chatbot, onRefresh }: { chatbot: any; onRe
             chatbotId={chatbot.id}
             currentDelimiter={chatbot.whatsapp_message_delimiter}
             currentWPM={chatbot.whatsapp_typing_wpm}
+            currentEnableImages={chatbot.whatsapp_enable_images}
+            currentBatchTimeout={chatbot.whatsapp_message_batch_timeout}
             onUpdate={onRefresh}
           />
         ) : (
