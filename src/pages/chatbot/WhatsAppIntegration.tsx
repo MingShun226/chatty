@@ -17,15 +17,21 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { supabase } from '@/integrations/supabase/client'
-import { MessageCircle, Settings2 } from 'lucide-react'
+import { MessageCircle, Settings2, LogOut, RefreshCw } from 'lucide-react'
 import { WhatsAppWebConnectionModal } from '@/components/whatsapp/WhatsAppWebConnectionModal'
 import { WhatsAppSettings } from '@/components/chatbot-settings/WhatsAppSettings'
 import { N8nConfigurationCard } from '@/components/n8n/N8nConfigurationCard'
+import { useToast } from '@/hooks/use-toast'
+
+const WHATSAPP_SERVICE_URL = import.meta.env.VITE_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
 
 // WhatsApp content component
 const WhatsAppIntegrationContent = ({ chatbot, onRefresh }: { chatbot: any; onRefresh: () => void }) => {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [whatsappSession, setWhatsappSession] = useState<any>(null)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (chatbot?.id) {
@@ -51,6 +57,96 @@ const WhatsAppIntegrationContent = ({ chatbot, onRefresh }: { chatbot: any; onRe
       }
     } catch (err) {
       console.error('Error fetching WhatsApp session:', err)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!whatsappSession) return
+
+    if (!confirm('Are you sure you want to disconnect WhatsApp? You will need to scan the QR code again to reconnect.')) {
+      return
+    }
+
+    setIsDisconnecting(true)
+
+    try {
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/api/sessions/disconnect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId: whatsappSession.session_id
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to disconnect')
+      }
+
+      toast({
+        title: "WhatsApp Disconnected",
+        description: "Your WhatsApp has been disconnected successfully.",
+      })
+
+      setWhatsappSession(null)
+      await fetchWhatsAppSession()
+    } catch (error: any) {
+      console.error('Error disconnecting:', error)
+      toast({
+        title: "Disconnect Failed",
+        description: error.message || "Failed to disconnect WhatsApp. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
+  const handleRegenerateQR = async () => {
+    if (!chatbot?.id) return
+
+    if (!confirm('This will disconnect your current WhatsApp and generate a new QR code. Continue?')) {
+      return
+    }
+
+    setIsRegenerating(true)
+
+    try {
+      // First disconnect if there's an active session
+      if (whatsappSession) {
+        await fetch(`${WHATSAPP_SERVICE_URL}/api/sessions/disconnect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sessionId: whatsappSession.session_id
+          })
+        })
+      }
+
+      // Wait a moment
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Set session to null and open modal for new connection
+      setWhatsappSession(null)
+      setShowWhatsAppModal(true)
+
+      toast({
+        title: "Regenerating QR Code",
+        description: "Opening connection dialog with new QR code...",
+      })
+    } catch (error: any) {
+      console.error('Error regenerating QR:', error)
+      toast({
+        title: "Regenerate Failed",
+        description: error.message || "Failed to regenerate QR code. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsRegenerating(false)
     }
   }
 
@@ -88,13 +184,26 @@ const WhatsAppIntegrationContent = ({ chatbot, onRefresh }: { chatbot: any; onRe
                     )}
                   </div>
                 </div>
-                <Button
-                  onClick={() => setShowWhatsAppModal(true)}
-                  variant="outline"
-                  size="sm"
-                >
-                  Manage
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleRegenerateQR}
+                    disabled={isRegenerating || isDisconnecting}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    Regenerate QR
+                  </Button>
+                  <Button
+                    onClick={handleDisconnect}
+                    disabled={isDisconnecting || isRegenerating}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                  </Button>
+                </div>
               </div>
               <div className="bg-green-100 border border-green-300 rounded-md p-3">
                 <p className="text-sm text-green-800">
