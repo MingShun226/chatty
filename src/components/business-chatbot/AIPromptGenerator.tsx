@@ -20,9 +20,10 @@ interface AIPromptGeneratorProps {
   chatbotId: string;
   userId: string;
   onPromptGenerated?: (prompt: string) => void;
+  compact?: boolean; // New prop for compact mode
 }
 
-export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated }: AIPromptGeneratorProps) {
+export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated, compact = false }: AIPromptGeneratorProps) {
   const [generating, setGenerating] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
@@ -133,6 +134,106 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated }: AIPr
     }
   };
 
+  // Compact mode - just a button on the right side
+  if (compact) {
+    return (
+      <>
+        <Card className="w-auto">
+          <CardContent className="p-4">
+            <Button
+              onClick={handleGeneratePrompt}
+              disabled={generating}
+              size="lg"
+              className="whitespace-nowrap"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Generate based on existing data
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              First-time setup
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Preview Dialog */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                Generated System Prompt
+              </DialogTitle>
+              <DialogDescription>
+                Review and edit the AI-generated prompt. Click "Save as Version" to use it.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4 border">
+                <Textarea
+                  value={generatedPrompt}
+                  onChange={(e) => setGeneratedPrompt(e.target.value)}
+                  rows={20}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  You can edit the prompt before saving
+                </p>
+              </div>
+
+              {/* Save button next to the prompt */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveAsVersion}
+                  disabled={saving}
+                  size="lg"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save this as version
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-900">
+                  <strong>💡 Tip:</strong> This prompt is optimized based on your business context, products, and knowledge base.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setPreviewOpen(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // Full mode - original card layout
   return (
     <>
       <Card>
@@ -212,6 +313,27 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated }: AIPr
               </p>
             </div>
 
+            {/* Save button next to the prompt */}
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveAsVersion}
+                disabled={saving}
+                size="lg"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save this as version
+                  </>
+                )}
+              </Button>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-900">
                 <strong>💡 Tip:</strong> This Malaysian salesman-style prompt will make your WhatsApp chatbot sound warm and persuasive, like a real shop owner chatting with customers (老板, lah, lor, ||).
@@ -226,22 +348,6 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated }: AIPr
               disabled={saving}
             >
               Cancel
-            </Button>
-            <Button
-              onClick={handleSaveAsVersion}
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save as New Version
-                </>
-              )}
             </Button>
           </DialogFooter>
         </DialogContent>
