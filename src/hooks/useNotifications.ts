@@ -136,15 +136,10 @@ export function useNotifications() {
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
 
-          // Show toast
+          // Show toast (simple version without JSX to avoid .ts file issues)
           toast({
             title: newNotification.title,
             description: newNotification.message,
-            action: newNotification.action_url ? (
-              <a href={newNotification.action_url} className="underline">
-                View
-              </a>
-            ) : undefined,
           });
         }
       )
