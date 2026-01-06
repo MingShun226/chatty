@@ -19,8 +19,10 @@ import {
   Wand2,
   Zap,
   Palette,
-  Layers
+  Layers,
+  Rocket
 } from 'lucide-react';
+import { AdvertisingWizard } from '@/components/advertising';
 import { MultiImageUploadBox } from '@/components/ui/multi-image-upload-box';
 import { ImageDetailDialog } from '@/components/ui/image-detail-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -443,13 +445,37 @@ const ImagesSection = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="generate" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="generate">Generate</TabsTrigger>
+      <Tabs defaultValue="ai-wizard" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
+          <TabsTrigger value="ai-wizard" className="flex items-center gap-1">
+            <Rocket className="h-4 w-4" />
+            AI Wizard
+          </TabsTrigger>
+          <TabsTrigger value="generate">Manual</TabsTrigger>
           <TabsTrigger value="gallery">Gallery ({images.length})</TabsTrigger>
         </TabsList>
 
-        {/* Generate Tab */}
+        {/* AI Wizard Tab - New Smart Workflow */}
+        <TabsContent value="ai-wizard">
+          <div className="mb-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              <h3 className="font-semibold text-purple-900">Smart AI Generation</h3>
+              <Badge variant="secondary" className="bg-purple-100 text-purple-800">New</Badge>
+            </div>
+            <p className="text-sm text-purple-700">
+              Upload your product → AI analyzes & recommends styles → Generate in background → Get notified when ready
+            </p>
+          </div>
+          <AdvertisingWizard
+            onJobStarted={(jobId) => {
+              console.log('Job started:', jobId);
+              refreshImages();
+            }}
+          />
+        </TabsContent>
+
+        {/* Generate Tab - Manual Mode */}
         <TabsContent value="generate" className="space-y-6">
           {/* Upload Section */}
           <Card>

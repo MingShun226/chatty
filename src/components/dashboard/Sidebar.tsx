@@ -5,6 +5,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { NotificationBell } from '@/components/notifications';
 import {
   LayoutDashboard,
   MessageCircle,
@@ -157,6 +158,10 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
                 <p className="text-xs text-sidebar-foreground/60 truncate">AI Business Chatbots</p>
               </div>
             )}
+            {/* Notification Bell */}
+            <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+              <NotificationBell />
+            </div>
           </div>
         </div>
 
