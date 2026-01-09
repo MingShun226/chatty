@@ -366,29 +366,60 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
             messageType = 'audio'
             const isVoiceNote = msgContent.audioMessage.ptt === true // ptt = push to talk (voice note)
             messageText = isVoiceNote ? '[Voice message received]' : '[Audio received]'
-            console.log(`Audio message received from ${fromNumber} (voice note: ${isVoiceNote})`)
+            const mimeType = msgContent.audioMessage.mimetype || 'audio/ogg; codecs=opus'
+            console.log(`Audio message received from ${fromNumber} (voice note: ${isVoiceNote}, mime: ${mimeType})`)
+            console.log(`Audio message details:`, JSON.stringify({
+              ptt: msgContent.audioMessage.ptt,
+              seconds: msgContent.audioMessage.seconds,
+              mimetype: msgContent.audioMessage.mimetype,
+              fileLength: msgContent.audioMessage.fileLength,
+              url: msgContent.audioMessage.url ? 'present' : 'missing',
+              mediaKey: msgContent.audioMessage.mediaKey ? 'present' : 'missing'
+            }))
 
             // Download audio and upload to Supabase Storage
             try {
-              const buffer = await downloadMediaMessage(msg, 'buffer', {})
-              const mimeType = msgContent.audioMessage.mimetype || 'audio/ogg; codecs=opus'
+              console.log('Attempting to download audio message...')
+
+              // For voice notes, we need to use stream type and convert to buffer
+              const stream = await downloadMediaMessage(
+                msg,
+                'stream',
+                {},
+                {
+                  reuploadRequest: sock.updateMediaMessage
+                }
+              )
+
+              // Convert stream to buffer
+              const chunks = []
+              for await (const chunk of stream) {
+                chunks.push(chunk)
+              }
+              const buffer = Buffer.concat(chunks)
+
               console.log(`Downloaded audio: ${mimeType}, size: ${buffer.length} bytes`)
 
-              // Upload to Supabase Storage and get public URL
-              const audioUrl = await uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber)
+              if (buffer.length > 0) {
+                // Upload to Supabase Storage and get public URL
+                const audioUrl = await uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber)
 
-              if (audioUrl) {
-                mediaData = {
-                  type: 'audio',
-                  mimeType: mimeType,
-                  url: audioUrl,
-                  isVoiceNote: isVoiceNote,
-                  duration: msgContent.audioMessage.seconds || null
+                if (audioUrl) {
+                  mediaData = {
+                    type: 'audio',
+                    mimeType: mimeType,
+                    url: audioUrl,
+                    isVoiceNote: isVoiceNote,
+                    duration: msgContent.audioMessage.seconds || null
+                  }
+                  console.log(`Audio uploaded successfully: ${audioUrl}`)
                 }
-                console.log(`Audio uploaded successfully: ${audioUrl}`)
+              } else {
+                console.error('Audio download returned empty buffer')
               }
             } catch (downloadErr) {
               console.error('Error processing audio:', downloadErr.message)
+              console.error('Full error:', downloadErr)
             }
           } else if (msgContent.documentMessage) {
             // Document/file message (PDF, DOCX, etc.)
