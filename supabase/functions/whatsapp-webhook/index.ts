@@ -320,17 +320,38 @@ async function processIncomingMessage(
     console.log('Chatbot response:', chatbotResponse.response)
 
     // ====================================================
-    // 6. SEND REPLY VIA META API
+    // 6. CHECK FOR IMAGES IN RESPONSE (PROMOTIONS/PRODUCTS)
     // ====================================================
+    // Extract any image URLs from the response metadata
+    const imageUrls = extractImageUrls(chatbotResponse.response)
+
+    // ====================================================
+    // 7. SEND IMAGES FIRST (IF ANY)
+    // ====================================================
+    for (const imageUrl of imageUrls) {
+      await sendWhatsAppImage(
+        connection,
+        fromPhone,
+        imageUrl.url,
+        imageUrl.caption
+      )
+    }
+
+    // ====================================================
+    // 8. SEND TEXT REPLY VIA META API
+    // ====================================================
+    // Clean the response by removing image markers
+    const cleanedResponse = cleanResponseForWhatsApp(chatbotResponse.response)
+
     const replyMessageId = await sendWhatsAppMessage(
       connection,
       fromPhone,
-      chatbotResponse.response,
+      cleanedResponse,
       messageId
     )
 
     // ====================================================
-    // 7. SAVE OUTBOUND MESSAGE TO DATABASE
+    // 9. SAVE OUTBOUND MESSAGE TO DATABASE
     // ====================================================
     if (replyMessageId) {
       await supabase
@@ -342,7 +363,7 @@ async function processIncomingMessage(
           from_phone: connection.phone_number,
           to_phone: fromPhone,
           direction: 'outbound',
-          message_type: 'text',
+          message_type: imageUrls.length > 0 ? 'image' : 'text',
           content: chatbotResponse.response,
           context_message_id: messageId,
           status: 'sent',
@@ -426,6 +447,136 @@ async function sendWhatsAppMessage(
     return data.messages[0].id
   } catch (error: any) {
     console.error('Error in sendWhatsAppMessage:', error)
+    return null
+  }
+}
+
+/**
+ * Extract image URLs from AI response
+ * Looks for patterns like [IMAGE:url] or markdown images ![alt](url)
+ */
+function extractImageUrls(response: string): Array<{ url: string; caption: string }> {
+  const images: Array<{ url: string; caption: string }> = []
+
+  // Pattern 1: [IMAGE:url:caption] or [IMAGE:url]
+  const imagePattern = /\[IMAGE:([^\]:]+)(?::([^\]]*))?\]/g
+  let match
+  while ((match = imagePattern.exec(response)) !== null) {
+    images.push({
+      url: match[1].trim(),
+      caption: match[2]?.trim() || ''
+    })
+  }
+
+  // Pattern 2: Markdown images ![caption](url)
+  const mdPattern = /!\[([^\]]*)\]\(([^)]+)\)/g
+  while ((match = mdPattern.exec(response)) !== null) {
+    const url = match[2].trim()
+    // Only add if it's an image URL (not already added)
+    if (url.match(/\.(jpg|jpeg|png|gif|webp)/i) ||
+        url.includes('supabase') ||
+        url.includes('storage')) {
+      images.push({
+        url: url,
+        caption: match[1]?.trim() || ''
+      })
+    }
+  }
+
+  // Pattern 3: Direct URLs that look like images
+  const urlPattern = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp))/gi
+  while ((match = urlPattern.exec(response)) !== null) {
+    const url = match[1].trim()
+    // Check if not already added
+    if (!images.some(img => img.url === url)) {
+      images.push({
+        url: url,
+        caption: ''
+      })
+    }
+  }
+
+  return images
+}
+
+/**
+ * Clean response text for WhatsApp (remove image markers)
+ */
+function cleanResponseForWhatsApp(response: string): string {
+  let cleaned = response
+
+  // Remove [IMAGE:...] patterns
+  cleaned = cleaned.replace(/\[IMAGE:[^\]]+\]/g, '')
+
+  // Remove markdown image patterns
+  cleaned = cleaned.replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+
+  // Remove standalone image URLs
+  cleaned = cleaned.replace(/(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp))/gi, '')
+
+  // Clean up extra whitespace/newlines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
+  return cleaned
+}
+
+/**
+ * Send a WhatsApp image via Meta API
+ */
+async function sendWhatsAppImage(
+  connection: any,
+  toPhone: string,
+  imageUrl: string,
+  caption?: string
+): Promise<string | null> {
+  try {
+    // Decrypt access token
+    const accessToken = await decryptToken(connection.access_token_encrypted)
+
+    // Prepare image message payload
+    const payload: any = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toPhone,
+      type: 'image',
+      image: {
+        link: imageUrl
+      }
+    }
+
+    // Add caption if provided
+    if (caption) {
+      payload.image.caption = caption
+    }
+
+    console.log('Sending WhatsApp image:', imageUrl)
+
+    // Send to Meta API
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${connection.phone_number_id}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(payload)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('Error sending WhatsApp image:', errorData)
+      // Don't throw, just log and continue
+      return null
+    }
+
+    const data = await response.json()
+    console.log('Image sent successfully:', data)
+
+    return data.messages[0].id
+  } catch (error: any) {
+    console.error('Error in sendWhatsAppImage:', error)
     return null
   }
 }

@@ -20,7 +20,19 @@ import { ConfirmationStep } from './steps/ConfirmationStep';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { ProductAnalysis } from '@/services/productAnalysis';
-import { AdvertisingStyle } from '@/config/advertisingStyles';
+
+// Extended advertising style with negativePrompt support
+export interface ExtendedAdvertisingStyle {
+  id: string;
+  name: string;
+  platform: string;
+  seriesNumber: number;
+  description: string;
+  prompt: string;
+  negativePrompt?: string;
+  aspectRatio: string;
+  strength: number;
+}
 
 // Wizard step definitions
 const WIZARD_STEPS = [
@@ -31,7 +43,7 @@ const WIZARD_STEPS = [
 ];
 
 export interface StyleRecommendation {
-  style: AdvertisingStyle;
+  style: ExtendedAdvertisingStyle;
   score: number;
   reason: string;
   isRecommended: boolean;
@@ -41,7 +53,7 @@ export interface WizardState {
   productImage: string | null;
   productAnalysis: ProductAnalysis | null;
   recommendations: StyleRecommendation[];
-  selectedStyles: AdvertisingStyle[];
+  selectedStyles: ExtendedAdvertisingStyle[];
   imageQuality: '1K' | '2K' | '4K';
   groupName: string;
   isAnalyzing: boolean;

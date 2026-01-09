@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Rocket, Settings, Image, Clock, Sparkles, Loader2, CheckCircle } from 'lucide-react';
+import { Rocket, Settings, Image, Clock, Sparkles, Loader2, CheckCircle, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,63 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { WizardState } from '../AdvertisingWizard';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+
+// Helper function to upload base64 image to storage and get public URL
+async function uploadImageToStorage(
+  userId: string,
+  base64Image: string,
+  imageId: string
+): Promise<string> {
+  // If it's already an HTTP URL, return it directly
+  if (base64Image.startsWith('http')) {
+    return base64Image;
+  }
+
+  // Extract image data from base64
+  const base64Data = base64Image.includes('base64,')
+    ? base64Image.split('base64,')[1]
+    : base64Image;
+
+  // Determine file type from data URL
+  let fileType = 'png';
+  if (base64Image.includes('image/jpeg') || base64Image.includes('image/jpg')) {
+    fileType = 'jpg';
+  } else if (base64Image.includes('image/webp')) {
+    fileType = 'webp';
+  }
+
+  // Convert base64 to binary
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  // Generate filename
+  const timestamp = Date.now();
+  const filename = `${userId}/advertising_input_${imageId}_${timestamp}.${fileType}`;
+
+  // Upload to storage
+  const { data, error } = await supabase.storage
+    .from('generated-images')
+    .upload(filename, bytes, {
+      contentType: `image/${fileType}`,
+      upsert: false
+    });
+
+  if (error) {
+    console.error('Storage upload error:', error);
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('generated-images')
+    .getPublicUrl(filename);
+
+  console.log('Input image uploaded to storage:', publicUrl);
+  return publicUrl;
+}
 
 interface ConfirmationStepProps {
   wizardState: WizardState;
@@ -53,6 +110,17 @@ export function ConfirmationStep({
     setIsStarting(true);
 
     try {
+      // First, upload the input image to storage to get HTTP URL
+      // KIE.AI requires HTTP URLs, not base64 data URLs
+      console.log('Uploading input image to storage...');
+      const jobId = crypto.randomUUID();
+      const inputImageUrl = await uploadImageToStorage(
+        user.id,
+        wizardState.productImage!,
+        jobId
+      );
+      console.log('Input image uploaded:', inputImageUrl);
+
       // Create collection first
       const { data: collection, error: collectionError } = await supabase
         .from('image_collections')
@@ -68,7 +136,7 @@ export function ConfirmationStep({
         throw new Error('Failed to create collection: ' + collectionError.message);
       }
 
-      // Create the advertising job
+      // Create the advertising job with the uploaded image URL
       const { data: job, error: jobError } = await supabase
         .from('advertising_jobs')
         .insert({
@@ -76,7 +144,7 @@ export function ConfirmationStep({
           collection_id: collection.id,
           status: 'pending',
           total_images: totalImages,
-          input_image_url: wizardState.productImage!,
+          input_image_url: inputImageUrl, // Use HTTP URL, not base64
           product_analysis: wizardState.productAnalysis,
           recommended_styles: wizardState.recommendations.filter(r => r.isRecommended).map(r => ({
             styleId: r.style.id,
@@ -88,9 +156,11 @@ export function ConfirmationStep({
             name: s.name,
             platform: s.platform,
             prompt: s.prompt,
+            negativePrompt: s.negativePrompt,
             aspectRatio: s.aspectRatio,
             strength: s.strength,
             seriesNumber: s.seriesNumber,
+            description: s.description,
           })),
           image_quality: wizardState.imageQuality,
           group_name: wizardState.groupName,

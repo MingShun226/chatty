@@ -5,7 +5,6 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { NotificationBell } from '@/components/notifications';
 import {
   LayoutDashboard,
   MessageCircle,
@@ -28,7 +27,8 @@ import {
   BookOpen,
   TestTube,
   Zap,
-  Wand2
+  Wand2,
+  Tag
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -46,6 +46,7 @@ const navigationItems = [
     children: [
       { id: 'chatbot-settings', label: 'Chatbot Settings', icon: SettingsIcon, path: '/chatbot/settings' },
       { id: 'chatbot-products', label: 'Products', icon: ShoppingBag, path: '/chatbot/products' },
+      { id: 'chatbot-promotions', label: 'Promotions', icon: Tag, path: '/chatbot/promotions' },
       { id: 'chatbot-knowledge', label: 'Knowledge Base', icon: BookOpen, path: '/chatbot/knowledge' },
       { id: 'chatbot-finetune', label: 'Prompt Engineer', icon: Wand2, path: '/chatbot/prompt-engineer' },
       { id: 'chatbot-model-training', label: 'Model Training', icon: Zap, path: '/chatbot/model-training' },
@@ -158,10 +159,6 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
                 <p className="text-xs text-sidebar-foreground/60 truncate">AI Business Chatbots</p>
               </div>
             )}
-            {/* Notification Bell */}
-            <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-              <NotificationBell />
-            </div>
           </div>
         </div>
 
@@ -330,7 +327,7 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
               )}
             </button>
           )}
-          
+
           <Button
             variant="ghost"
             size="sm"

@@ -23,6 +23,7 @@ import { ChatbotCreationWizard } from '@/components/chatbot-creation/ChatbotCrea
 // Chatbot sub-pages
 import ChatbotSettings from '@/pages/chatbot/ChatbotSettings';
 import ChatbotProducts from '@/pages/chatbot/ChatbotProducts';
+import ChatbotPromotions from '@/pages/chatbot/ChatbotPromotions';
 import ChatbotKnowledge from '@/pages/chatbot/ChatbotKnowledge';
 import ChatbotPromptEngineer from '@/pages/chatbot/ChatbotPromptEngineer';
 import ChatbotModelTraining from '@/pages/chatbot/ChatbotModelTraining';
@@ -40,6 +41,7 @@ import { AdminSettings } from '@/pages/admin/AdminSettings';
 
 import { useAuth } from '@/hooks/useAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
+import { GlobalNotification } from '@/components/notifications';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -126,6 +128,10 @@ function App() {
             element={user ? <ChatbotProducts /> : <Navigate to="/auth" />}
           />
           <Route
+            path="/chatbot/promotions"
+            element={user ? <ChatbotPromotions /> : <Navigate to="/auth" />}
+          />
+          <Route
             path="/chatbot/knowledge"
             element={user ? <ChatbotKnowledge /> : <Navigate to="/auth" />}
           />
@@ -195,6 +201,7 @@ function App() {
         </Routes>
         <Toaster />
         <SonnerToaster />
+        <GlobalNotification />
         </Router>
       </SidebarProvider>
     </QueryClientProvider>

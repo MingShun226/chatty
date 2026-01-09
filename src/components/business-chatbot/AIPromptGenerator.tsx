@@ -10,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Sparkles, Loader2, Eye, Save, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, Save, AlertCircle, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { BusinessPromptService } from '@/services/businessPromptService';
+import { BusinessPromptService, BusinessChatbotContext } from '@/services/businessPromptService';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -28,7 +28,61 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated, compac
   const [previewOpen, setPreviewOpen] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingBasic, setLoadingBasic] = useState(false);
   const { toast } = useToast();
+
+  const handleUseBasicTemplate = async () => {
+    try {
+      setLoadingBasic(true);
+
+      // Fetch chatbot context
+      const { data: chatbot, error: chatbotError } = await supabase
+        .from('avatars')
+        .select('*')
+        .eq('id', chatbotId)
+        .eq('user_id', userId)
+        .single();
+
+      if (chatbotError || !chatbot) {
+        throw new Error('Chatbot not found');
+      }
+
+      // Build context for template
+      const context: BusinessChatbotContext = {
+        chatbot_id: chatbotId,
+        chatbot_name: chatbot.name,
+        company_name: chatbot.company_name,
+        industry: chatbot.industry,
+        business_context: chatbot.business_context,
+        compliance_rules: chatbot.compliance_rules || [],
+        response_guidelines: chatbot.response_guidelines || [],
+        products_count: 0, // Not needed for basic template
+        knowledge_files_count: 0,
+        supported_languages: chatbot.supported_languages || ['en'],
+        default_language: chatbot.default_language || 'en',
+      };
+
+      // Generate the basic template
+      const prompt = BusinessPromptService.generateBasicTemplate(context);
+
+      setGeneratedPrompt(prompt);
+      setPreviewOpen(true);
+
+      toast({
+        title: "Basic Template Generated",
+        description: "A clean, no-language-mixing template is ready for review"
+      });
+    } catch (error: any) {
+      console.error('Error generating basic template:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate basic template",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingBasic(false);
+    }
+  };
 
   const handleGeneratePrompt = async () => {
     try {
@@ -139,27 +193,48 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated, compac
     return (
       <>
         <Card className="w-auto">
-          <CardContent className="p-4">
-            <Button
-              onClick={handleGeneratePrompt}
-              disabled={generating}
-              size="lg"
-              className="whitespace-nowrap"
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-5 w-5 mr-2" />
-                  Generate based on existing data
-                </>
-              )}
-            </Button>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              First-time setup
+          <CardContent className="p-4 space-y-3">
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUseBasicTemplate}
+                disabled={loadingBasic || generating}
+                size="lg"
+                variant="outline"
+                className="whitespace-nowrap"
+              >
+                {loadingBasic ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5 mr-2" />
+                    Use Basic Template
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleGeneratePrompt}
+                disabled={generating || loadingBasic}
+                size="lg"
+                className="whitespace-nowrap"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5 mr-2" />
+                    AI Generate (GPT-4o)
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Basic: Clean template | AI: Malaysian salesman style
             </p>
           </CardContent>
         </Card>
@@ -262,28 +337,55 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated, compac
             </AlertDescription>
           </Alert>
 
-          <Button
-            onClick={handleGeneratePrompt}
-            disabled={generating}
-            size="lg"
-            className="w-full"
-          >
-            {generating ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Generating System Prompt...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-5 w-5 mr-2" />
-                Generate System Prompt with AI
-              </>
-            )}
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              onClick={handleUseBasicTemplate}
+              disabled={loadingBasic || generating}
+              size="lg"
+              variant="outline"
+              className="w-full"
+            >
+              {loadingBasic ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-5 w-5 mr-2" />
+                  Use Basic Template
+                </>
+              )}
+            </Button>
 
-          <p className="text-xs text-muted-foreground text-center">
-            Creates a humanized Malaysian salesman-style prompt - your chatbot will chat like a real, friendly shop owner on WhatsApp!
-          </p>
+            <Button
+              onClick={handleGeneratePrompt}
+              disabled={generating || loadingBasic}
+              size="lg"
+              className="w-full"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  AI Generate (GPT-4o)
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <p className="text-xs text-muted-foreground">
+              Clean, polite template that replies in customer's language (no mixing)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Malaysian salesman style with persuasive language
+            </p>
+          </div>
         </CardContent>
       </Card>
 

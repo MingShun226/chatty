@@ -235,7 +235,25 @@ serve(async (req) => {
       systemPrompt += '\n=== END MEMORIES ===\n'
     }
 
-    systemPrompt += `\n\nUser's current question: "${message}"\n\nRespond professionally and helpfully. Use the available tools to access product information, search the knowledge base, or get any data you need from the database.`
+    systemPrompt += `\n\nUser's current question: "${message}"\n\nRespond professionally and helpfully. Use the available tools to access product information, search the knowledge base, or get any data you need from the database.
+
+**CRITICAL - TOOL USAGE RULES:**
+1. When customer asks about promotions, discounts, sales, deals, offers, promo codes, 优惠, 折扣, 促销 - ALWAYS call get_active_promotions first
+2. When customer mentions a specific promo code - ALWAYS call validate_promo_code to verify it
+3. When customer asks about products - call search_products or get_products_by_category
+4. DO NOT guess or make up promotions. Only share promotions returned by the get_active_promotions tool
+
+**IMPORTANT - FORMATTING IMAGES:**
+When you have product images or promotion banners to share:
+1. Include the image URL using this format: [IMAGE:url:caption]
+2. For promotions with banner_image, always include: [IMAGE:banner_image_url:Promotion Title]
+3. For products with images, include: [IMAGE:image_url:Product Name]
+4. The image will be sent before your text message
+
+Example response with promotion image:
+"We have an exciting promotion for you!
+[IMAGE:https://example.com/promo.jpg:Chinese New Year Sale]
+Get 50% off on all items with code CNY2024! Valid until January 31st."`
 
     // Get OpenAI API key
     const { data: apiKeyData } = await supabase
@@ -329,6 +347,40 @@ serve(async (req) => {
               }
             },
             required: ['category']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_active_promotions',
+          description: 'Get all currently active promotions, sales, discounts, and special offers. ALWAYS use this when customers ask about promotions, discounts, sales, deals, offers, 优惠, 折扣, or 促销.',
+          parameters: {
+            type: 'object',
+            properties: {
+              limit: {
+                type: 'number',
+                description: 'Maximum number of promotions to return (default: 10)',
+                default: 10
+              }
+            }
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'validate_promo_code',
+          description: 'Check if a promo code is valid and get its discount details. Use this when a customer asks about a specific promo code.',
+          parameters: {
+            type: 'object',
+            properties: {
+              promo_code: {
+                type: 'string',
+                description: 'The promo code to validate'
+              }
+            },
+            required: ['promo_code']
           }
         }
       }
@@ -435,6 +487,112 @@ serve(async (req) => {
               success: true,
               products: products || [],
               count: products?.length || 0
+            }
+          } else if (functionName === 'get_active_promotions') {
+            const { limit = 10 } = functionArgs
+
+            // Get active promotions
+            const { data: promotions } = await supabase
+              .from('chatbot_promotions')
+              .select('*')
+              .eq('chatbot_id', avatar_id)
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .limit(limit)
+
+            // Filter by valid date range
+            const now = new Date()
+            const activePromotions = (promotions || []).filter((promo: any) => {
+              const startDate = promo.start_date ? new Date(promo.start_date) : null
+              const endDate = promo.end_date ? new Date(promo.end_date) : null
+              const afterStart = !startDate || now >= startDate
+              const beforeEnd = !endDate || now <= endDate
+              const notMaxedOut = !promo.max_uses || promo.current_uses < promo.max_uses
+              return afterStart && beforeEnd && notMaxedOut
+            })
+
+            // Format promotions for AI response
+            const formattedPromotions = activePromotions.map((promo: any) => ({
+              title: promo.title,
+              description: promo.description,
+              promo_code: promo.promo_code,
+              discount: promo.discount_type === 'percentage'
+                ? `${promo.discount_value}% OFF`
+                : promo.discount_value ? `RM${promo.discount_value} OFF` : null,
+              discount_type: promo.discount_type,
+              discount_value: promo.discount_value,
+              valid_from: promo.start_date,
+              valid_until: promo.end_date,
+              terms: promo.terms_and_conditions,
+              banner_image: promo.banner_image_url,
+              // Include formatted image tag for AI to use directly
+              image_tag: promo.banner_image_url ? `[IMAGE:${promo.banner_image_url}:${promo.title}]` : null
+            }))
+
+            functionResult = {
+              success: true,
+              promotions: formattedPromotions,
+              count: formattedPromotions.length,
+              message: formattedPromotions.length > 0
+                ? `Found ${formattedPromotions.length} active promotion(s). IMPORTANT: If promotion has image_tag, include it in your response exactly as provided.`
+                : 'No active promotions at the moment'
+            }
+          } else if (functionName === 'validate_promo_code') {
+            const { promo_code } = functionArgs
+
+            const { data: promo } = await supabase
+              .from('chatbot_promotions')
+              .select('*')
+              .eq('chatbot_id', avatar_id)
+              .ilike('promo_code', promo_code)
+              .eq('is_active', true)
+              .single()
+
+            if (!promo) {
+              functionResult = {
+                success: false,
+                valid: false,
+                message: `Promo code "${promo_code}" is not valid or does not exist`
+              }
+            } else {
+              const now = new Date()
+              const startDate = promo.start_date ? new Date(promo.start_date) : null
+              const endDate = promo.end_date ? new Date(promo.end_date) : null
+
+              if (startDate && now < startDate) {
+                functionResult = {
+                  success: true,
+                  valid: false,
+                  message: `Promo code "${promo_code}" is not active yet. It starts on ${promo.start_date}`
+                }
+              } else if (endDate && now > endDate) {
+                functionResult = {
+                  success: true,
+                  valid: false,
+                  message: `Promo code "${promo_code}" has expired on ${promo.end_date}`
+                }
+              } else if (promo.max_uses && promo.current_uses >= promo.max_uses) {
+                functionResult = {
+                  success: true,
+                  valid: false,
+                  message: `Promo code "${promo_code}" has reached its maximum usage limit`
+                }
+              } else {
+                functionResult = {
+                  success: true,
+                  valid: true,
+                  message: `Promo code "${promo_code}" is valid!`,
+                  promotion: {
+                    title: promo.title,
+                    description: promo.description,
+                    discount: promo.discount_type === 'percentage'
+                      ? `${promo.discount_value}% OFF`
+                      : `RM${promo.discount_value} OFF`,
+                    valid_until: promo.end_date,
+                    terms: promo.terms_and_conditions
+                  }
+                }
+              }
             }
           }
         } catch (error: any) {

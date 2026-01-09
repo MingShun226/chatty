@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,95 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Loader2, Bot, User, RefreshCw, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+
+// Helper function to render message content with images
+function renderMessageWithImages(content: string): ReactNode[] {
+  const elements: ReactNode[] = [];
+  let keyIndex = 0;
+
+  // Combined pattern to find all image references:
+  // - [IMAGE:url:caption] format
+  // - Markdown images ![caption](url)
+  // - Direct image URLs
+  const combinedPattern = /\[IMAGE:(https?:\/\/[^\]]+):([^\]]*)\]|!\[([^\]]*)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp))/gi;
+
+  let lastIndex = 0;
+  let match;
+
+  while ((match = combinedPattern.exec(content)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      const textBefore = content.slice(lastIndex, match.index).trim();
+      if (textBefore) {
+        elements.push(
+          <p key={`text-${keyIndex++}`} className="whitespace-pre-wrap">
+            {textBefore}
+          </p>
+        );
+      }
+    }
+
+    let imageUrl = '';
+    let caption = '';
+
+    if (match[1] && match[2] !== undefined) {
+      // [IMAGE:url:caption] format
+      imageUrl = match[1];
+      caption = match[2];
+    } else if (match[3] !== undefined && match[4]) {
+      // ![caption](url) format
+      imageUrl = match[4];
+      caption = match[3];
+    } else if (match[5]) {
+      // Direct URL
+      imageUrl = match[5];
+      caption = 'Image';
+    }
+
+    if (imageUrl) {
+      elements.push(
+        <div key={`img-${keyIndex++}`} className="my-2">
+          <img
+            src={imageUrl}
+            alt={caption || 'Image'}
+            className="max-w-full rounded-lg shadow-md max-h-64 object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          {caption && (
+            <p className="text-xs text-gray-500 mt-1 italic">{caption}</p>
+          )}
+        </div>
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last match
+  if (lastIndex < content.length) {
+    const remainingText = content.slice(lastIndex).trim();
+    if (remainingText) {
+      elements.push(
+        <p key={`text-${keyIndex++}`} className="whitespace-pre-wrap">
+          {remainingText}
+        </p>
+      );
+    }
+  }
+
+  // If no images were found, just return the content as-is
+  if (elements.length === 0) {
+    elements.push(
+      <p key="text-only" className="whitespace-pre-wrap">
+        {content}
+      </p>
+    );
+  }
+
+  return elements;
+}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -24,6 +113,7 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
   const [loading, setLoading] = useState(false);
   const [contextInfo, setContextInfo] = useState({
     products: 0,
+    promotions: 0,
     knowledgeFiles: 0,
     hasSystemPrompt: false
   });
@@ -43,6 +133,16 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
         .select('*', { count: 'exact', head: true })
         .eq('chatbot_id', chatbotId);
 
+      // Get active promotions count
+      const now = new Date().toISOString();
+      const { count: promotionsCount } = await supabase
+        .from('chatbot_promotions')
+        .select('*', { count: 'exact', head: true })
+        .eq('chatbot_id', chatbotId)
+        .eq('is_active', true)
+        .or(`start_date.is.null,start_date.lte.${now}`)
+        .or(`end_date.is.null,end_date.gte.${now}`);
+
       // Get knowledge files count
       const { count: filesCount } = await supabase
         .from('avatar_knowledge_files')
@@ -61,6 +161,7 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
 
       setContextInfo({
         products: productsCount || 0,
+        promotions: promotionsCount || 0,
         knowledgeFiles: filesCount || 0,
         hasSystemPrompt: !!promptVersion
       });
@@ -174,10 +275,11 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
   // Suggested questions based on context
   const suggestedQuestions = [
     contextInfo.products > 0 ? "What products do you have?" : null,
+    contextInfo.promotions > 0 ? "Do you have any promotions?" : null,
     contextInfo.products > 0 ? "Show me products under RM 1000" : null,
     contextInfo.knowledgeFiles > 0 ? "What are your store policies?" : null,
     "Tell me about your business",
-    contextInfo.products > 0 ? "What's in stock?" : null,
+    contextInfo.promotions > 0 ? "What discounts are available?" : null,
   ].filter(Boolean);
 
   return (
@@ -203,6 +305,9 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
             </Badge>
             <Badge variant={contextInfo.products > 0 ? "default" : "secondary"}>
               {contextInfo.products} Products
+            </Badge>
+            <Badge variant={contextInfo.promotions > 0 ? "default" : "secondary"}>
+              {contextInfo.promotions} Promotions
             </Badge>
             <Badge variant={contextInfo.knowledgeFiles > 0 ? "default" : "secondary"}>
               {contextInfo.knowledgeFiles} Knowledge Files
@@ -267,55 +372,7 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
                   >
                     {msg.role === 'assistant' ? (
                       <div className="text-sm space-y-2">
-                        {msg.content.split('||').map((segment, i) => {
-                          const trimmedSegment = segment.trim();
-                          if (!trimmedSegment) return null;
-
-                          // Detect image URLs (including Supabase storage URLs)
-                          const imageUrlMatch = trimmedSegment.match(/(https?:\/\/[^\s]+(?:\.(?:jpg|jpeg|png|gif|webp)|storage\/v1\/object\/public\/[^\s]+))/i);
-
-                          if (imageUrlMatch) {
-                            const imageUrl = imageUrlMatch[1];
-                            const beforeImage = trimmedSegment.substring(0, imageUrlMatch.index).trim();
-                            const afterImage = trimmedSegment.substring(imageUrlMatch.index + imageUrl.length).trim();
-
-                            return (
-                              <div key={i} className="space-y-1">
-                                {beforeImage && <p className="leading-relaxed">{beforeImage}</p>}
-                                <img
-                                  src={imageUrl}
-                                  alt="Product"
-                                  className="max-w-full max-h-64 h-auto rounded border border-gray-300 my-2"
-                                  onError={(e) => {
-                                    // If image fails to load, show the URL as clickable link
-                                    const target = e.currentTarget;
-                                    target.style.display = 'none';
-                                    if (target.nextSibling) {
-                                      (target.nextSibling as HTMLElement).classList.remove('text-xs', 'text-gray-500');
-                                      (target.nextSibling as HTMLElement).classList.add('text-sm', 'text-blue-600', 'underline');
-                                    }
-                                  }}
-                                />
-                                <a
-                                  href={imageUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-gray-500 break-all hover:text-blue-600 block"
-                                >
-                                  {imageUrl}
-                                </a>
-                                {afterImage && <p className="leading-relaxed mt-1">{afterImage}</p>}
-                              </div>
-                            );
-                          }
-
-                          // Regular text segment - each || creates a new paragraph
-                          return (
-                            <p key={i} className="leading-relaxed">
-                              {trimmedSegment}
-                            </p>
-                          );
-                        })}
+                        {renderMessageWithImages(msg.content)}
                       </div>
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>

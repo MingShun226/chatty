@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Sparkles, CheckCircle, AlertCircle, Tag, Palette, Package, Star } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle, AlertCircle, Tag, Palette, Package, Star, Image, Users, Zap, Camera, LayoutGrid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { analyzeProductImage, ProductAnalysis } from '@/services/productAnalysis';
-import { getAllPlatforms, AdvertisingStyle } from '@/config/advertisingStyles';
+import { generateProfessionalPrompts, getGeneratedStylesFromPrompts, GeneratedPrompt } from '@/services/promptGeneration';
 import { StyleRecommendation } from '../AdvertisingWizard';
-import { supabase } from '@/integrations/supabase/client';
 
 interface AnalysisStepProps {
   productImage: string;
@@ -16,17 +15,22 @@ interface AnalysisStepProps {
   onAnalysisStart: () => void;
 }
 
-// Category to platform mapping for AI recommendations
-const CATEGORY_PLATFORM_MAP: Record<string, string[]> = {
-  'electronics': ['instagram', 'tiktok', 'lazada'],
-  'fashion': ['instagram', 'tiktok', 'shopee'],
-  'beauty': ['instagram', 'tiktok', 'shopee'],
-  'home': ['shopee', 'lazada', 'facebook'],
-  'food': ['instagram', 'tiktok', 'facebook'],
-  'sports': ['instagram', 'tiktok', 'shopee'],
-  'toys': ['shopee', 'lazada', 'facebook'],
-  'health': ['shopee', 'lazada', 'facebook'],
-  'default': ['instagram', 'shopee', 'lazada'],
+// Image type icons mapping
+const IMAGE_TYPE_ICONS: Record<string, React.ReactNode> = {
+  'hero': <Image className="h-4 w-4" />,
+  'multi-angle': <LayoutGrid className="h-4 w-4" />,
+  'functionality': <Zap className="h-4 w-4" />,
+  'lifestyle': <Camera className="h-4 w-4" />,
+  'human-interaction': <Users className="h-4 w-4" />,
+};
+
+// Image type colors
+const IMAGE_TYPE_COLORS: Record<string, string> = {
+  'hero': 'bg-blue-100 border-blue-300 text-blue-800',
+  'multi-angle': 'bg-purple-100 border-purple-300 text-purple-800',
+  'functionality': 'bg-orange-100 border-orange-300 text-orange-800',
+  'lifestyle': 'bg-green-100 border-green-300 text-green-800',
+  'human-interaction': 'bg-pink-100 border-pink-300 text-pink-800',
 };
 
 export function AnalysisStep({
@@ -39,65 +43,34 @@ export function AnalysisStep({
 }: AnalysisStepProps) {
   const [error, setError] = useState<string | null>(null);
   const [hasTriedAnalysis, setHasTriedAnalysis] = useState(false);
+  const [generatedPrompts, setGeneratedPrompts] = useState<GeneratedPrompt[]>([]);
+  const [productSummary, setProductSummary] = useState<string>('');
 
-  // Generate style recommendations based on product analysis
+  // Generate professional prompts and convert to style recommendations
   const generateRecommendations = (analysis: ProductAnalysis): StyleRecommendation[] => {
-    const allPlatforms = getAllPlatforms();
-    const allStyles: AdvertisingStyle[] = [];
+    const result = generateProfessionalPrompts(analysis);
+    setGeneratedPrompts(result.prompts);
+    setProductSummary(result.productSummary);
 
-    // Flatten all styles from all platforms
-    allPlatforms.forEach(platform => {
-      allStyles.push(...platform.styles);
-    });
+    // Convert to StyleRecommendation format
+    const styles = getGeneratedStylesFromPrompts(result.prompts);
 
-    // Determine best platforms based on category
-    const category = analysis.category?.toLowerCase() || 'default';
-    const preferredPlatforms = CATEGORY_PLATFORM_MAP[category] || CATEGORY_PLATFORM_MAP['default'];
-
-    // Score each style
-    const scoredStyles: StyleRecommendation[] = allStyles.map(style => {
-      let score = 50; // Base score
-      let reasons: string[] = [];
-
-      // Platform preference (40 points max)
-      const platformId = style.platform.toLowerCase().replace(' malaysia', '');
-      const platformIndex = preferredPlatforms.indexOf(platformId);
-      if (platformIndex !== -1) {
-        score += (3 - platformIndex) * 13; // 39, 26, 13 points
-        reasons.push(`Great for ${analysis.category || 'products'} on ${style.platform}`);
-      }
-
-      // Series number preference - prefer hero shots (20 points max)
-      if (style.seriesNumber === 1) {
-        score += 20;
-        reasons.push('Hero shot - primary product display');
-      } else if (style.seriesNumber === 2) {
-        score += 15;
-        reasons.push('Lifestyle context - shows product in use');
-      } else if (style.seriesNumber === 5) {
-        score += 10;
-        reasons.push('Promotional style - great for sales');
-      }
-
-      // Boost based on product features
-      if (analysis.style?.toLowerCase().includes('modern') && style.name.toLowerCase().includes('aesthetic')) {
-        score += 10;
-        reasons.push('Matches modern aesthetic');
-      }
-
-      // Cap score at 100
-      score = Math.min(100, score);
-
-      return {
-        style,
-        score,
-        reason: reasons[0] || `Suitable for ${style.platform}`,
-        isRecommended: score >= 70,
-      };
-    });
-
-    // Sort by score and return top recommendations
-    return scoredStyles.sort((a, b) => b.score - a.score);
+    return styles.map((style, index) => ({
+      style: {
+        id: style.id,
+        name: style.name,
+        platform: style.platform,
+        seriesNumber: style.seriesNumber,
+        description: style.description,
+        prompt: style.prompt,
+        negativePrompt: style.negativePrompt,
+        aspectRatio: style.aspectRatio,
+        strength: style.strength,
+      },
+      score: 100 - (index * 5), // Decreasing score: 100, 95, 90, 85, 80
+      reason: style.description,
+      isRecommended: true, // All 5 are recommended
+    }));
   };
 
   // Auto-analyze when component mounts
@@ -152,7 +125,7 @@ export function AnalysisStep({
         <div className="text-center">
           <h3 className="text-lg font-semibold">Analyzing your product...</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Our AI is identifying your product and selecting the best advertising styles
+            Our AI is identifying your product and generating professional advertising prompts
           </p>
         </div>
       </div>
@@ -177,15 +150,12 @@ export function AnalysisStep({
     );
   }
 
-  // Show recommended styles count
-  const recommendedCount = recommendations.filter(r => r.isRecommended).length;
-
   return (
     <div className="space-y-6">
       {/* Product Analysis Results */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
         <div className="flex items-start gap-4">
-          <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border bg-white">
+          <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 border bg-white">
             <img
               src={productImage}
               alt="Product"
@@ -197,12 +167,12 @@ export function AnalysisStep({
               <CheckCircle className="h-5 w-5 text-green-500" />
               <h3 className="font-semibold text-lg">Product Identified</h3>
             </div>
-            <p className="text-xl font-bold text-purple-700 mb-2">
+            <p className="text-2xl font-bold text-purple-700 mb-3">
               {productAnalysis.productName}
             </p>
             <div className="flex flex-wrap gap-2">
               {productAnalysis.category && (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary" className="flex items-center gap-1 bg-purple-100">
                   <Tag className="h-3 w-3" />
                   {productAnalysis.category}
                 </Badge>
@@ -211,6 +181,12 @@ export function AnalysisStep({
                 <Badge key={i} variant="outline" className="flex items-center gap-1">
                   <Palette className="h-3 w-3" />
                   {color}
+                </Badge>
+              ))}
+              {productAnalysis.materials?.slice(0, 2).map((material, i) => (
+                <Badge key={`mat-${i}`} variant="outline" className="flex items-center gap-1">
+                  <Package className="h-3 w-3" />
+                  {material}
                 </Badge>
               ))}
             </div>
@@ -222,7 +198,7 @@ export function AnalysisStep({
           <div className="mt-4 pt-4 border-t border-purple-200">
             <p className="text-sm font-medium text-gray-700 mb-2">Key Features:</p>
             <div className="flex flex-wrap gap-2">
-              {productAnalysis.keyFeatures.slice(0, 4).map((feature, i) => (
+              {productAnalysis.keyFeatures.slice(0, 5).map((feature, i) => (
                 <Badge key={i} variant="outline" className="bg-white">
                   {feature}
                 </Badge>
@@ -232,57 +208,76 @@ export function AnalysisStep({
         )}
       </div>
 
-      {/* AI Recommendations Summary */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Star className="h-5 w-5 text-yellow-600" />
-          <h4 className="font-semibold text-yellow-900">AI Recommendations</h4>
+      {/* AI Generated 5 Professional Prompts */}
+      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Star className="h-5 w-5 text-yellow-600 fill-yellow-500" />
+          <h4 className="font-semibold text-yellow-900">5 Professional Ad Images Generated</h4>
         </div>
-        <p className="text-sm text-yellow-800">
-          Based on your <strong>{productAnalysis.productName}</strong>, we've selected{' '}
-          <strong>{recommendedCount} advertising styles</strong> that will work best for your product.
-          You can customize the selection in the next step.
+        <p className="text-sm text-yellow-800 mb-4">
+          Based on your <strong>{productAnalysis.productName}</strong>, we've created 5 optimized advertising images
+          for Malaysian e-commerce platforms.
         </p>
-      </div>
 
-      {/* Top Recommendations Preview */}
-      <div>
-        <h4 className="font-medium mb-3">Top Recommended Styles:</h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {recommendations.slice(0, 6).map((rec) => (
+        {/* 5 Image Types Preview */}
+        <div className="space-y-3">
+          {generatedPrompts.map((prompt, index) => (
             <div
-              key={rec.style.id}
-              className={`p-3 rounded-lg border ${
-                rec.isRecommended
-                  ? 'border-green-300 bg-green-50'
-                  : 'border-gray-200 bg-white'
-              }`}
+              key={prompt.id}
+              className={`p-4 rounded-lg border ${IMAGE_TYPE_COLORS[prompt.imageType]} transition-all`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-gray-500">
-                  {rec.style.platform}
-                </span>
-                <Badge
-                  variant={rec.isRecommended ? 'default' : 'secondary'}
-                  className={rec.isRecommended ? 'bg-green-600' : ''}
-                >
-                  {rec.score}%
-                </Badge>
+              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white shadow-sm flex-shrink-0">
+                  <span className="font-bold text-lg">{index + 1}</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    {IMAGE_TYPE_ICONS[prompt.imageType]}
+                    <h5 className="font-semibold">{prompt.name}</h5>
+                    <Badge variant="outline" className="text-xs bg-white">
+                      {prompt.aspectRatio}
+                    </Badge>
+                  </div>
+                  <p className="text-sm opacity-90 mb-2">{prompt.purpose}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {prompt.platforms.map((platform, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs bg-white/50">
+                        {platform}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <p className="font-medium text-sm">{rec.style.name}</p>
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                {rec.reason}
-              </p>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Prompt Preview (Collapsible) */}
+      <details className="bg-gray-50 rounded-lg border">
+        <summary className="p-4 cursor-pointer font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+          View Generated Prompts (Advanced)
+        </summary>
+        <div className="p-4 pt-0 space-y-4">
+          {generatedPrompts.map((prompt, index) => (
+            <div key={prompt.id} className="border rounded-lg p-3 bg-white">
+              <h6 className="font-medium text-sm mb-2">Image {index + 1}: {prompt.name}</h6>
+              <pre className="text-xs bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre-wrap">
+                {prompt.prompt}
+              </pre>
+              <p className="text-xs text-red-600 mt-2">
+                <strong>Negative:</strong> {prompt.negativePrompt}
+              </p>
+            </div>
+          ))}
+        </div>
+      </details>
+
       {error && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-sm text-yellow-800">
             <AlertCircle className="h-4 w-4 inline mr-1" />
-            {error}. Using default recommendations.
+            {error}. Using default prompts.
           </p>
         </div>
       )}

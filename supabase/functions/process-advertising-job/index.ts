@@ -7,17 +7,21 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
-// KIE.AI API configuration
-const KIE_API_URL = 'https://api.kie.ai/v1';
+// KIE.AI API configuration - correct endpoints
+const KIE_API_BASE = 'https://api.kie.ai';
+const KIE_CREATE_TASK_ENDPOINT = '/api/v1/jobs/createTask';
+const KIE_CHECK_STATUS_ENDPOINT = '/api/v1/jobs/recordInfo';
 
 interface AdvertisingStyle {
   id: string;
   name: string;
   platform: string;
   prompt: string;
+  negativePrompt?: string;
   aspectRatio: string;
   strength: number;
   seriesNumber: number;
+  description?: string;
 }
 
 interface JobItem {
@@ -30,17 +34,6 @@ interface JobItem {
   status: string;
   task_id: string | null;
 }
-
-// Aspect ratio to dimensions mapping
-const ASPECT_RATIO_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  '1:1': { width: 1024, height: 1024 },
-  '16:9': { width: 1024, height: 576 },
-  '9:16': { width: 576, height: 1024 },
-  '4:3': { width: 1024, height: 768 },
-  '3:4': { width: 768, height: 1024 },
-  '4:5': { width: 1024, height: 1280 },
-  '5:4': { width: 1280, height: 1024 },
-};
 
 // Size multipliers for quality settings
 function getSizeMultiplier(quality: string): number {
@@ -80,7 +73,43 @@ async function getKieApiKey(supabase: any, userId: string): Promise<string> {
   return platformKey;
 }
 
-// Generate image using KIE.AI
+// Helper: Convert width/height to aspect ratio
+function getAspectRatioFromSize(width: number, height: number): string {
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const divisor = gcd(width, height);
+  const w = width / divisor;
+  const h = height / divisor;
+  const ratio = `${w}:${h}`;
+
+  // Normalize to standard ratios
+  const standardRatios: Record<string, string> = {
+    '1:1': '1:1',
+    '4:3': '4:3',
+    '3:4': '3:4',
+    '16:9': '16:9',
+    '9:16': '9:16',
+    '3:2': '3:2',
+    '2:3': '2:3',
+    '5:4': '5:4',
+    '4:5': '4:5',
+    '21:9': '21:9',
+  };
+
+  return standardRatios[ratio] || '1:1';
+}
+
+// Aspect ratio to dimensions mapping
+const ASPECT_RATIO_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  '1:1': { width: 1024, height: 1024 },
+  '16:9': { width: 1024, height: 576 },
+  '9:16': { width: 576, height: 1024 },
+  '4:3': { width: 1024, height: 768 },
+  '3:4': { width: 768, height: 1024 },
+  '4:5': { width: 1024, height: 1280 },
+  '5:4': { width: 1280, height: 1024 },
+};
+
+// Generate image using KIE.AI - CORRECT FORMAT
 async function generateImage(
   apiKey: string,
   inputImageUrl: string,
@@ -93,8 +122,9 @@ async function generateImage(
   const multiplier = getSizeMultiplier(quality);
   const width = Math.round(baseDimensions.width * multiplier);
   const height = Math.round(baseDimensions.height * multiplier);
+  const aspectRatio = style.aspectRatio || getAspectRatioFromSize(width, height);
 
-  // Customize prompt with product info
+  // Build customized prompt
   let customizedPrompt = style.prompt;
   if (productAnalysis) {
     const productName = productAnalysis.productName || 'product';
@@ -113,63 +143,115 @@ async function generateImage(
     }
   }
 
-  console.log(`Generating image for style: ${style.name}, dimensions: ${width}x${height}`);
+  console.log(`Generating image for style: ${style.name}`);
+  console.log(`Aspect ratio: ${aspectRatio}, Dimensions: ${width}x${height}`);
+  console.log(`Input image URL: ${inputImageUrl}`);
 
-  // Call KIE.AI API
-  const response = await fetch(`${KIE_API_URL}/images/generate`, {
+  // Build KIE.AI request - CORRECT FORMAT matching generate-image-unified
+  const input: Record<string, any> = {
+    prompt: customizedPrompt,
+    image_urls: [inputImageUrl], // KIE.AI expects array of URLs
+    image_size: aspectRatio,
+    output_format: 'png',
+  };
+
+  // Add negative prompt if provided
+  if (style.negativePrompt) {
+    input.negative_prompt = style.negativePrompt;
+  }
+
+  const requestBody = {
+    model: 'google/nano-banana-edit', // Correct model ID
+    input,
+  };
+
+  console.log('KIE.AI request body:', JSON.stringify(requestBody, null, 2));
+
+  // Call KIE.AI API - CORRECT ENDPOINT
+  const response = await fetch(`${KIE_API_BASE}${KIE_CREATE_TASK_ENDPOINT}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: 'nano-banana-edit', // img2img model
-      prompt: customizedPrompt,
-      input_image: inputImageUrl,
-      width,
-      height,
-      strength: style.strength,
-      num_images: 1,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('KIE.AI API error:', response.status, errorText);
     throw new Error(`KIE.AI API error: ${response.status} - ${errorText}`);
   }
 
   const result = await response.json();
-  return { taskId: result.task_id || result.id };
+  console.log('KIE.AI response:', JSON.stringify(result, null, 2));
+
+  // Check for API errors
+  if (result.code !== 200) {
+    const errorMsg = result.msg || result.message || result.error || 'Unknown error';
+    throw new Error(`KIE.AI error (${result.code}): ${errorMsg}`);
+  }
+
+  if (!result.data?.taskId) {
+    throw new Error('Invalid response from KIE.AI: Missing taskId');
+  }
+
+  return { taskId: result.data.taskId };
 }
 
-// Check task status
+// Check task status - CORRECT ENDPOINT
 async function checkTaskStatus(apiKey: string, taskId: string): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed';
   imageUrl?: string;
   error?: string;
 }> {
-  const response = await fetch(`${KIE_API_URL}/tasks/${taskId}`, {
+  const url = `${KIE_API_BASE}${KIE_CHECK_STATUS_ENDPOINT}?taskId=${taskId}`;
+  console.log(`Checking task status: ${url}`);
+
+  const response = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${apiKey}`,
     },
   });
 
   if (!response.ok) {
-    return { status: 'failed', error: `Failed to check status: ${response.status}` };
+    console.error(`Status check failed: ${response.status}`);
+    return { status: 'processing' };
   }
 
   const result = await response.json();
+  console.log(`Task status response:`, JSON.stringify(result, null, 2));
 
-  if (result.status === 'succeeded' || result.status === 'completed') {
-    return {
-      status: 'completed',
-      imageUrl: result.output?.images?.[0] || result.images?.[0] || result.image_url,
-    };
-  } else if (result.status === 'failed' || result.status === 'error') {
-    return { status: 'failed', error: result.error || 'Generation failed' };
-  } else {
-    return { status: 'processing' };
+  // KIE.AI unified jobs API uses state: "waiting", "success", "fail"
+  if (result.code === 200 && result.data) {
+    const state = result.data.state;
+
+    if (state === 'success' && result.data.resultJson) {
+      try {
+        const resultData = typeof result.data.resultJson === 'string'
+          ? JSON.parse(result.data.resultJson)
+          : result.data.resultJson;
+
+        const imageUrl = resultData.resultUrls?.[0];
+
+        if (imageUrl) {
+          return {
+            status: 'completed',
+            imageUrl,
+          };
+        }
+      } catch (e) {
+        console.error('Failed to parse resultJson:', e);
+      }
+    } else if (state === 'fail') {
+      return {
+        status: 'failed',
+        error: result.data.failMsg || result.data.failCode || 'Generation failed',
+      };
+    }
   }
+
+  return { status: 'processing' };
 }
 
 // Process a single job item
@@ -201,18 +283,29 @@ async function processJobItem(
       .update({ status: 'processing', started_at: new Date().toISOString() })
       .eq('id', item.id);
 
-    // Start generation
-    const { taskId } = await generateImage(apiKey, inputImageUrl, style, quality, productAnalysis);
+    let taskId = item.task_id;
 
-    // Save task ID
-    await supabase
-      .from('advertising_job_items')
-      .update({ task_id: taskId })
-      .eq('id', item.id);
+    // If we already have a taskId, skip generation and just poll for results
+    // This handles the case where generation succeeded but saving failed
+    if (taskId) {
+      console.log(`Item ${item.id} already has taskId ${taskId}, checking for existing result...`);
+    } else {
+      // Start new generation only if no taskId exists
+      console.log(`Item ${item.id} has no taskId, starting new generation...`);
+      const result = await generateImage(apiKey, inputImageUrl, style, quality, productAnalysis);
+      taskId = result.taskId;
 
-    // Poll for completion (max 60 attempts, 2 seconds each = 2 minutes)
+      // Save task ID
+      await supabase
+        .from('advertising_job_items')
+        .update({ task_id: taskId })
+        .eq('id', item.id);
+    }
+
+    // Poll for completion (max 45 attempts, 2 seconds each = 90 seconds)
+    // Reduced from 2 minutes to avoid edge function timeout
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 45;
 
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -234,16 +327,21 @@ async function processJobItem(
           .insert({
             user_id: job.user_id,
             prompt: style.prompt,
+            negative_prompt: style.negativePrompt || null,
             image_url: status.imageUrl,
             original_image_url: inputImageUrl,
-            generation_type: 'image-to-image',
+            generation_type: 'img2img', // Must match database constraint: text2img, img2img, inpaint
             provider: 'kie-ai',
-            model: 'nano-banana-edit',
+            model: 'google/nano-banana-edit',
+            width: ASPECT_RATIO_DIMENSIONS[style.aspectRatio]?.width || 1024,
+            height: ASPECT_RATIO_DIMENSIONS[style.aspectRatio]?.height || 1024,
             parameters: {
-              width: ASPECT_RATIO_DIMENSIONS[style.aspectRatio]?.width || 1024,
-              height: ASPECT_RATIO_DIMENSIONS[style.aspectRatio]?.height || 1024,
               strength: style.strength,
               quality,
+              negativePrompt: style.negativePrompt,
+              styleName: style.name,
+              styleDescription: style.description,
+              aspectRatio: style.aspectRatio,
             },
             job_id: jobId,
             collection_id: collectionId,
@@ -255,6 +353,26 @@ async function processJobItem(
 
         if (saveError) {
           console.error('Failed to save image:', saveError);
+          throw new Error(`Failed to save image: ${saveError.message}`);
+        }
+
+        // Also add to image_collection_items junction table
+        if (savedImage?.id && collectionId) {
+          const { error: collectionItemError } = await supabase
+            .from('image_collection_items')
+            .insert({
+              collection_id: collectionId,
+              image_id: savedImage.id,
+              user_id: job.user_id,
+              sort_order: style.seriesNumber || 0,
+            });
+
+          if (collectionItemError) {
+            console.error('Failed to add image to collection:', collectionItemError);
+            // Don't throw - image was saved successfully, collection link is secondary
+          } else {
+            console.log(`Added image ${savedImage.id} to collection ${collectionId}`);
+          }
         }
 
         // Update item as completed
@@ -326,6 +444,8 @@ serve(async (req) => {
       throw new Error('Job ID is required');
     }
 
+    console.log(`=== Processing advertising job: ${jobId} ===`);
+
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -342,6 +462,13 @@ serve(async (req) => {
       throw new Error('Job not found');
     }
 
+    console.log(`Job details:`, {
+      userId: job.user_id,
+      totalImages: job.total_images,
+      quality: job.image_quality,
+      inputImageUrl: job.input_image_url,
+    });
+
     // Update job status to generating
     await supabase
       .from('advertising_jobs')
@@ -353,53 +480,161 @@ serve(async (req) => {
 
     // Get API key
     const apiKey = await getKieApiKey(supabase, job.user_id);
+    console.log(`Got KIE.AI API key for user ${job.user_id}`);
 
-    // Get pending items
+    // Get pending items (only pending, not processing - to avoid duplicate processing)
     const { data: items, error: itemsError } = await supabase
       .from('advertising_job_items')
       .select('*')
       .eq('job_id', jobId)
-      .in('status', ['pending', 'processing'])
+      .eq('status', 'pending')
       .order('created_at', { ascending: true });
 
     if (itemsError) {
       throw new Error('Failed to get job items');
     }
 
-    console.log(`Processing ${items.length} items for job ${jobId}`);
+    // If no pending items, check if job is complete
+    if (!items || items.length === 0) {
+      console.log('No pending items found, checking job status...');
 
-    // Process items in batches of 5 (for rate limiting)
-    const batchSize = 5;
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
+      // Check if there are any processing items (another invocation is handling them)
+      const { data: processingItems } = await supabase
+        .from('advertising_job_items')
+        .select('id')
+        .eq('job_id', jobId)
+        .eq('status', 'processing');
 
-      // Process batch concurrently
-      await Promise.all(
-        batch.map(item =>
-          processJobItem(
-            supabase,
-            apiKey,
+      if (processingItems && processingItems.length > 0) {
+        console.log(`${processingItems.length} items still processing, exiting to avoid duplicate work`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Items already being processed by another invocation',
             jobId,
-            item,
-            job.input_image_url,
-            job.selected_styles,
-            job.image_quality,
-            job.product_analysis,
-            job.collection_id
-          )
-        )
-      );
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
 
-      console.log(`Completed batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(items.length / batchSize)}`);
+      // All items done
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'All items already processed',
+          jobId,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
-    // Job status will be updated by the database trigger
+    console.log(`Processing ${items.length} items for job ${jobId}`);
+
+    // Track start time for timeout management
+    const startTime = Date.now();
+    const maxExecutionTime = 50000; // 50 seconds - leave buffer for Supabase timeout
+    let processedCount = 0;
+
+    // Process items SEQUENTIALLY to avoid timeout issues
+    // Edge functions have limited execution time, so we process one at a time
+    for (const item of items) {
+      // Check if we're approaching timeout
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > maxExecutionTime) {
+        console.log(`Approaching timeout after ${elapsedTime}ms, processed ${processedCount}/${items.length} items`);
+
+        // Re-invoke function for remaining items
+        console.log('Re-invoking function for remaining items...');
+
+        // Use fetch to call ourselves again (fire and forget)
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        fetch(`${supabaseUrl}/functions/v1/process-advertising-job`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({ jobId }),
+        }).catch(err => console.error('Failed to re-invoke:', err));
+
+        break;
+      }
+
+      await processJobItem(
+        supabase,
+        apiKey,
+        jobId,
+        item,
+        job.input_image_url,
+        job.selected_styles,
+        job.image_quality,
+        job.product_analysis,
+        job.collection_id
+      );
+
+      processedCount++;
+      console.log(`Completed item ${processedCount}/${items.length} (${item.style_name})`);
+    }
+
+    // Check if all items are done and update job status
+    const { data: remainingItems } = await supabase
+      .from('advertising_job_items')
+      .select('id')
+      .eq('job_id', jobId)
+      .in('status', ['pending', 'processing']);
+
+    const { data: completedItems } = await supabase
+      .from('advertising_job_items')
+      .select('id')
+      .eq('job_id', jobId)
+      .eq('status', 'completed');
+
+    const { data: failedItems } = await supabase
+      .from('advertising_job_items')
+      .select('id')
+      .eq('job_id', jobId)
+      .eq('status', 'failed');
+
+    const allDone = !remainingItems || remainingItems.length === 0;
+    const completedCount = completedItems?.length || 0;
+    const failedCount = failedItems?.length || 0;
+
+    // Manually update job status since trigger might not fire
+    if (allDone) {
+      let finalStatus = 'completed';
+      if (failedCount > 0 && completedCount === 0) {
+        finalStatus = 'failed';
+      } else if (failedCount > 0) {
+        finalStatus = 'partial';
+      }
+
+      console.log(`All items done. Updating job status to: ${finalStatus}`);
+      await supabase
+        .from('advertising_jobs')
+        .update({
+          status: finalStatus,
+          progress: 100,
+          completed_images: completedCount,
+          failed_images: failedCount,
+          completed_at: new Date().toISOString(),
+          error_message: null, // Clear any previous error
+        })
+        .eq('id', jobId);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Started processing ${items.length} items`,
+        message: allDone
+          ? `Completed all ${items.length} items`
+          : `Processed ${processedCount}/${items.length} items, continuing in background`,
         jobId,
+        processedCount,
+        totalItems: items.length,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

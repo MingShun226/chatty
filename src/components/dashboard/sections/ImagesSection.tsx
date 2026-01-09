@@ -20,9 +20,12 @@ import {
   Zap,
   Palette,
   Layers,
-  Rocket
+  Rocket,
+  FolderOpen,
+  LayoutGrid,
+  ChevronRight
 } from 'lucide-react';
-import { AdvertisingWizard } from '@/components/advertising';
+import { AdvertisingWizard, JobProgressPanel } from '@/components/advertising';
 import { MultiImageUploadBox } from '@/components/ui/multi-image-upload-box';
 import { ImageDetailDialog } from '@/components/ui/image-detail-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +44,7 @@ import {
   useToggleFavorite,
   useRefreshImages
 } from '@/hooks/useGalleryImages';
+import { useImageCollections, useDeleteCollection } from '@/hooks/useImageCollections';
 import { migrateImagesToStorage } from '@/services/migrationService';
 import { KIE_IMAGE_SERVICES, KIE_IMG2IMG_SERVICES } from '@/config/kieAIConfig';
 import { getPopularPlatforms, getAllPlatforms, getStylesByPlatform, PlatformSeries } from '@/config/advertisingStyles';
@@ -96,6 +100,13 @@ const ImagesSection = () => {
   const deleteMutation = useDeleteImage();
   const toggleFavoriteMutation = useToggleFavorite();
   const { refresh: refreshImages } = useRefreshImages();
+
+  // Collections hooks
+  const { data: collections = [], isLoading: isLoadingCollections } = useImageCollections();
+  const deleteCollectionMutation = useDeleteCollection();
+
+  // Gallery view mode: 'grid' (all images) or 'collections' (grouped by batch)
+  const [galleryViewMode, setGalleryViewMode] = useState<'grid' | 'collections'>('collections');
 
   // Default provider for img2img - using nano-banana-edit which is designed for img2img
   const DEFAULT_PROVIDER: AIProvider = 'kie-nano-banana-edit';
@@ -457,22 +468,28 @@ const ImagesSection = () => {
 
         {/* AI Wizard Tab - New Smart Workflow */}
         <TabsContent value="ai-wizard">
-          <div className="mb-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-5 w-5 text-purple-600" />
-              <h3 className="font-semibold text-purple-900">Smart AI Generation</h3>
-              <Badge variant="secondary" className="bg-purple-100 text-purple-800">New</Badge>
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                <h3 className="font-semibold text-purple-900">Smart AI Generation</h3>
+                <Badge variant="secondary" className="bg-purple-100 text-purple-800">New</Badge>
+              </div>
+              <p className="text-sm text-purple-700">
+                Upload your product → AI analyzes & recommends styles → Generate in background → Get notified when ready
+              </p>
             </div>
-            <p className="text-sm text-purple-700">
-              Upload your product → AI analyzes & recommends styles → Generate in background → Get notified when ready
-            </p>
+
+            {/* Job Progress Panel - Shows active and recent jobs */}
+            <JobProgressPanel />
+
+            <AdvertisingWizard
+              onJobStarted={(jobId) => {
+                console.log('Job started:', jobId);
+                refreshImages();
+              }}
+            />
           </div>
-          <AdvertisingWizard
-            onJobStarted={(jobId) => {
-              console.log('Job started:', jobId);
-              refreshImages();
-            }}
-          />
         </TabsContent>
 
         {/* Generate Tab - Manual Mode */}
@@ -731,7 +748,7 @@ const ImagesSection = () => {
         <TabsContent value="gallery" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Grid3x3 className="h-5 w-5" />
@@ -741,37 +758,60 @@ const ImagesSection = () => {
                     Browse, download, and manage your AI-generated masterpieces
                   </CardDescription>
                 </div>
-                {/* Migration Button - Shows only if there are base64 images */}
-                {images.some(img => img.image_url.startsWith('data:image')) && (
-                  <Button
-                    onClick={handleMigrateToStorage}
-                    disabled={isMigrating}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    {isMigrating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Migrating...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="h-4 w-4" />
-                        Speed Up Gallery
-                      </>
-                    )}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* View Toggle */}
+                  <div className="flex items-center rounded-lg border bg-muted p-1">
+                    <Button
+                      variant={galleryViewMode === 'collections' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setGalleryViewMode('collections')}
+                      className="gap-1"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                      Batches
+                    </Button>
+                    <Button
+                      variant={galleryViewMode === 'grid' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setGalleryViewMode('grid')}
+                      className="gap-1"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                      All
+                    </Button>
+                  </div>
+                  {/* Migration Button - Shows only if there are base64 images */}
+                  {images.some(img => img.image_url.startsWith('data:image')) && (
+                    <Button
+                      onClick={handleMigrateToStorage}
+                      disabled={isMigrating}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      {isMigrating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Migrating...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4" />
+                          Speed Up Gallery
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              {isLoadingImages ? (
+              {(isLoadingImages || isLoadingCollections) ? (
                 <div className="flex flex-col items-center justify-center py-16">
                   <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                   <p className="text-muted-foreground">Loading your images...</p>
                 </div>
-              ) : images.length === 0 ? (
+              ) : images.length === 0 && collections.length === 0 ? (
                 <div className="text-center py-16">
                   <Image className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
                   <h3 className="text-lg font-semibold mb-2">No images yet</h3>
@@ -781,7 +821,101 @@ const ImagesSection = () => {
                     Start Creating
                   </Button>
                 </div>
+              ) : galleryViewMode === 'collections' ? (
+                /* Collections/Batch View */
+                <div className="space-y-6">
+                  {collections.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
+                      <p className="text-muted-foreground">No batches yet. Generate images using the AI Wizard to create batches.</p>
+                      <Button
+                        variant="link"
+                        onClick={() => setGalleryViewMode('grid')}
+                        className="mt-2"
+                      >
+                        View all images instead
+                      </Button>
+                    </div>
+                  ) : (
+                    collections.map((collection) => (
+                      <Card key={collection.id} className="overflow-hidden">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <FolderOpen className="h-4 w-4 text-primary" />
+                                {collection.name}
+                              </CardTitle>
+                              <CardDescription className="text-xs mt-1">
+                                {collection.image_count} images • {new Date(collection.created_at).toLocaleDateString()}
+                              </CardDescription>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Delete this entire batch and all its images?')) {
+                                  deleteCollectionMutation.mutate(collection.id);
+                                }
+                              }}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          {collection.images && collection.images.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                              {collection.images.map((img) => (
+                                <div key={img.id} className="group relative">
+                                  <div
+                                    className="aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer"
+                                    onClick={() => {
+                                      const fullImage = images.find(i => i.id === img.id);
+                                      if (fullImage) setSelectedImageDetail(fullImage);
+                                    }}
+                                  >
+                                    <img
+                                      src={img.image_url}
+                                      alt={img.prompt}
+                                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                    />
+                                  </div>
+                                  {/* Quick Actions */}
+                                  <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      className="h-6 w-6 p-0 backdrop-blur-sm bg-background/80"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownload(img.image_url, img.id);
+                                      }}
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  {img.platform && (
+                                    <Badge variant="secondary" className="absolute bottom-1 left-1 text-[10px] px-1 py-0 bg-background/80">
+                                      {img.platform}
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              No images in this batch yet
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
               ) : (
+                /* Grid View - All Images */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {images.map((image) => (
                     <div key={image.id} className="group relative">
