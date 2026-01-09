@@ -13,11 +13,19 @@ const corsHeaders = {
 interface ChatRequest {
   avatar_id: string
   message: string
+  message_type?: string  // 'text', 'image', 'audio', 'video', 'document', etc.
+  media?: {
+    type: string
+    mime_type: string
+    base64?: string
+    caption?: string
+  } | null
   conversation_history?: Array<{
     role: 'user' | 'assistant' | 'system'
     content: string
   }>
   model?: string
+  user_identifier?: string  // WhatsApp number or other identifier
 }
 
 serve(async (req) => {
@@ -101,7 +109,15 @@ serve(async (req) => {
 
     // Parse request body
     const requestBody: ChatRequest = await req.json()
-    const { avatar_id, message, conversation_history = [], model = 'gpt-3.5-turbo' } = requestBody
+    const {
+      avatar_id,
+      message,
+      message_type = 'text',
+      media = null,
+      conversation_history = [],
+      model = 'gpt-3.5-turbo',
+      user_identifier
+    } = requestBody
 
     if (!avatar_id || !message) {
       return new Response(
@@ -386,11 +402,31 @@ Get 50% off on all items with code CNY2024! Valid until January 31st."`
       }
     ]
 
+    // Prepare user message content (handle media types)
+    let userMessageContent = message
+    if (message_type === 'image' && media) {
+      // User sent an image - include context
+      userMessageContent = media.caption
+        ? `[User sent an image with caption: "${media.caption}"]`
+        : `[User sent an image] ${message}`
+      console.log(`Processing image message: ${userMessageContent}`)
+    } else if (message_type === 'audio') {
+      userMessageContent = `[User sent a voice message] ${message}`
+    } else if (message_type === 'video') {
+      userMessageContent = `[User sent a video${media?.caption ? ` with caption: "${media.caption}"` : ''}] ${message}`
+    } else if (message_type === 'document') {
+      userMessageContent = `[User sent a document: ${message}]`
+    } else if (message_type === 'location') {
+      userMessageContent = `[User shared a location: ${message}]`
+    } else if (message_type === 'sticker') {
+      userMessageContent = `[User sent a sticker]`
+    }
+
     // Prepare messages for OpenAI
     const messages = [
       { role: 'system', content: systemPrompt },
       ...conversation_history.slice(-30),
-      { role: 'user', content: message }
+      { role: 'user', content: userMessageContent }
     ]
 
     // Call OpenAI API with function calling

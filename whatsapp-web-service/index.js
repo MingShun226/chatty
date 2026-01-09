@@ -11,7 +11,7 @@
  * - Store messages in Supabase database
  */
 
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys'
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, downloadMediaMessage } from '@whiskeysockets/baileys'
 import QRCode from 'qrcode'
 import express from 'express'
 import cors from 'cors'
@@ -184,19 +184,97 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
         if (msg.key.fromMe) continue // Skip messages sent by us
 
         try {
-          const messageText = msg.message?.conversation ||
-                             msg.message?.extendedTextMessage?.text ||
-                             ''
-
           const fromNumber = msg.key.remoteJid
-
           console.log(`Message received on session ${sessionId}: ${fromNumber}`)
 
-          // Skip empty messages (system/sync messages during connection)
-          if (!messageText || messageText.trim() === '') {
-            console.log('Skipping empty message (likely system/sync message)')
-            return
+          // Determine message type and extract content
+          let messageText = ''
+          let messageType = 'text'
+          let mediaData = null
+
+          const msgContent = msg.message
+
+          if (!msgContent) {
+            console.log('Skipping message with no content (system/sync message)')
+            continue
           }
+
+          // Handle different message types
+          if (msgContent.conversation) {
+            // Plain text message
+            messageText = msgContent.conversation
+            messageType = 'text'
+          } else if (msgContent.extendedTextMessage?.text) {
+            // Extended text (with formatting, links, etc.)
+            messageText = msgContent.extendedTextMessage.text
+            messageType = 'text'
+          } else if (msgContent.imageMessage) {
+            // Image message
+            messageType = 'image'
+            messageText = msgContent.imageMessage.caption || '[Image received]'
+            console.log(`Image message received from ${fromNumber}`)
+
+            // Download image if needed
+            try {
+              const buffer = await downloadMediaMessage(msg, 'buffer', {})
+              const base64 = buffer.toString('base64')
+              const mimeType = msgContent.imageMessage.mimetype || 'image/jpeg'
+              mediaData = {
+                type: 'image',
+                mimeType: mimeType,
+                base64: base64,
+                caption: msgContent.imageMessage.caption || ''
+              }
+              console.log(`Downloaded image: ${mimeType}, size: ${buffer.length} bytes`)
+            } catch (downloadErr) {
+              console.error('Error downloading image:', downloadErr.message)
+              // Continue without media data
+            }
+          } else if (msgContent.videoMessage) {
+            // Video message
+            messageType = 'video'
+            messageText = msgContent.videoMessage.caption || '[Video received]'
+            console.log(`Video message received from ${fromNumber}`)
+          } else if (msgContent.audioMessage) {
+            // Audio/voice message
+            messageType = 'audio'
+            messageText = '[Voice message received]'
+            console.log(`Audio message received from ${fromNumber}`)
+          } else if (msgContent.documentMessage) {
+            // Document/file message
+            messageType = 'document'
+            messageText = msgContent.documentMessage.fileName || '[Document received]'
+            console.log(`Document received from ${fromNumber}: ${messageText}`)
+          } else if (msgContent.stickerMessage) {
+            // Sticker message
+            messageType = 'sticker'
+            messageText = '[Sticker received]'
+            console.log(`Sticker received from ${fromNumber}`)
+          } else if (msgContent.locationMessage) {
+            // Location message
+            messageType = 'location'
+            const lat = msgContent.locationMessage.degreesLatitude
+            const lng = msgContent.locationMessage.degreesLongitude
+            messageText = `[Location: ${lat}, ${lng}]`
+            console.log(`Location received from ${fromNumber}: ${lat}, ${lng}`)
+          } else if (msgContent.contactMessage || msgContent.contactsArrayMessage) {
+            // Contact message
+            messageType = 'contact'
+            messageText = '[Contact shared]'
+            console.log(`Contact received from ${fromNumber}`)
+          } else {
+            // Unknown or unsupported message type
+            console.log('Skipping unsupported message type:', Object.keys(msgContent))
+            continue
+          }
+
+          // Skip if still no content (shouldn't happen but safety check)
+          if (!messageText || messageText.trim() === '') {
+            console.log('Skipping empty message content')
+            continue
+          }
+
+          console.log(`Processing ${messageType} message: "${messageText.substring(0, 50)}..."`)
 
           // Store message in database
           const { error } = await supabase
@@ -208,7 +286,7 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
               from_number: fromNumber,
               to_number: sock.user?.id || '',
               direction: 'inbound',
-              message_type: 'text',
+              message_type: messageType,
               content: messageText,
               timestamp: new Date(msg.messageTimestamp * 1000).toISOString()
             })
@@ -217,8 +295,8 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
             console.error('Error storing message:', error)
           }
 
-          // Process message with chatbot
-          await processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock)
+          // Process message with chatbot (pass media data if available)
+          await processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData)
         } catch (err) {
           console.error('Error handling message:', err)
         }
@@ -477,7 +555,7 @@ async function processBatchedMessages(sessionId, chatbotId, fromNumber, messages
 /**
  * Process inbound message with batching support
  */
-async function processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock) {
+async function processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null) {
   try {
     // Get chatbot settings to check batch timeout
     const { data: chatbot } = await supabase
@@ -495,7 +573,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
 
     // If batching is disabled (timeout = 0), process immediately
     if (batchTimeout === 0) {
-      await processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock)
+      await processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData)
       return
     }
 
@@ -505,7 +583,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
     if (messageBatchBuffers.has(bufferKey)) {
       // Add to existing buffer
       const buffer = messageBatchBuffers.get(bufferKey)
-      buffer.messages.push(messageText)
+      buffer.messages.push({ text: messageText, type: messageType, media: mediaData })
       console.log(`Added message to batch buffer (${buffer.messages.length} messages, ${batchTimeout}s timeout)`)
 
       // Clear existing timer and restart
@@ -527,7 +605,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
       }, batchTimeout * 1000)
 
       messageBatchBuffers.set(bufferKey, {
-        messages: [messageText],
+        messages: [{ text: messageText, type: messageType, media: mediaData }],
         timer,
         chatbotId
       })
@@ -541,7 +619,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
 /**
  * Process message with chatbot (n8n integration)
  */
-async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock) {
+async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null) {
   try {
     // Get chatbot details with all related data
     const { data: chatbot } = await supabase
@@ -607,7 +685,16 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
         body: JSON.stringify({
           // Message info
           message: messageText,
+          message_type: messageType,
           from_number: fromNumber,
+
+          // Media data (for images, documents, etc.)
+          media: mediaData ? {
+            type: mediaData.type,
+            mime_type: mediaData.mimeType,
+            base64: mediaData.base64,
+            caption: mediaData.caption
+          } : null,
 
           // Chatbot configuration
           chatbot: {
@@ -699,8 +786,16 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
         },
         body: JSON.stringify({
           message: messageText,
+          message_type: messageType,
           avatar_id: chatbotId,
-          user_identifier: fromNumber
+          user_identifier: fromNumber,
+          // Include media data for images
+          media: mediaData ? {
+            type: mediaData.type,
+            mime_type: mediaData.mimeType,
+            base64: mediaData.base64,
+            caption: mediaData.caption
+          } : null
         })
       })
 
