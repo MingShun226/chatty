@@ -80,6 +80,7 @@ async function uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber) {
       'application/octet-stream': 'bin'
     }
     // Handle mime types with parameters (e.g., "audio/ogg; codecs=opus")
+    // Supabase doesn't accept mime types with parameters, so we use the base type
     const baseMimeType = mimeType.split(';')[0].trim()
     const ext = extensions[mimeType] || extensions[baseMimeType] || 'bin'
 
@@ -90,11 +91,13 @@ async function uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber) {
     const fileName = `${cleanNumber}/${timestamp}_${randomId}.${ext}`
     const bucketName = 'whatsapp-media'
 
-    // Upload to Supabase Storage
+    console.log(`Uploading to Supabase: ${fileName}, mime: ${baseMimeType}, size: ${buffer.length} bytes`)
+
+    // Upload to Supabase Storage (use baseMimeType without parameters)
     const { data, error } = await supabase.storage
       .from(bucketName)
       .upload(fileName, buffer, {
-        contentType: mimeType,
+        contentType: baseMimeType,  // Use base mime type without codec parameters
         upsert: false
       })
 
@@ -111,7 +114,7 @@ async function uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber) {
         const { data: retryData, error: retryError } = await supabase.storage
           .from(bucketName)
           .upload(fileName, buffer, {
-            contentType: mimeType,
+            contentType: baseMimeType,  // Use base mime type without codec parameters
             upsert: false
           })
 
