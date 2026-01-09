@@ -17,7 +17,7 @@ interface ChatRequest {
   media?: {
     type: string
     mime_type: string
-    base64?: string
+    url?: string      // Public URL from Supabase Storage
     caption?: string
   } | null
   conversation_history?: Array<{
@@ -405,15 +405,17 @@ Get 50% off on all items with code CNY2024! Valid until January 31st."`
     // Prepare user message content (handle media types)
     let userMessageContent = message
     if (message_type === 'image' && media) {
-      // User sent an image - include context
+      // User sent an image - include context with URL
+      const imageInfo = media.url ? ` (Image URL: ${media.url})` : ''
       userMessageContent = media.caption
-        ? `[User sent an image with caption: "${media.caption}"]`
-        : `[User sent an image] ${message}`
+        ? `[User sent an image with caption: "${media.caption}"]${imageInfo}`
+        : `[User sent an image]${imageInfo} ${message}`
       console.log(`Processing image message: ${userMessageContent}`)
     } else if (message_type === 'audio') {
       userMessageContent = `[User sent a voice message] ${message}`
     } else if (message_type === 'video') {
-      userMessageContent = `[User sent a video${media?.caption ? ` with caption: "${media.caption}"` : ''}] ${message}`
+      const videoUrl = media?.url ? ` (Video URL: ${media.url})` : ''
+      userMessageContent = `[User sent a video${media?.caption ? ` with caption: "${media.caption}"` : ''}]${videoUrl} ${message}`
     } else if (message_type === 'document') {
       userMessageContent = `[User sent a document: ${message}]`
     } else if (message_type === 'location') {

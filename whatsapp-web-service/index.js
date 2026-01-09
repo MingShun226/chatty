@@ -42,6 +42,79 @@ const whatsappSockets = new Map() // sessionId -> { sock, chatbotId, userId }
 // Key format: `${sessionId}_${fromNumber}`
 const messageBatchBuffers = new Map()
 
+/**
+ * Upload media (image/video/document) to Supabase Storage
+ * Returns the public URL of the uploaded file
+ */
+async function uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber) {
+  try {
+    // Determine file extension from mime type
+    const extensions = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'video/mp4': 'mp4',
+      'audio/ogg': 'ogg',
+      'audio/mpeg': 'mp3',
+      'application/pdf': 'pdf'
+    }
+    const ext = extensions[mimeType] || 'bin'
+
+    // Create unique filename
+    const timestamp = Date.now()
+    const randomId = Math.random().toString(36).substring(2, 8)
+    const cleanNumber = fromNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const fileName = `${cleanNumber}/${timestamp}_${randomId}.${ext}`
+    const bucketName = 'whatsapp-media'
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, buffer, {
+        contentType: mimeType,
+        upsert: false
+      })
+
+    if (error) {
+      // If bucket doesn't exist, try to create it
+      if (error.message.includes('not found') || error.statusCode === 404) {
+        console.log('Bucket not found, creating whatsapp-media bucket...')
+        await supabase.storage.createBucket(bucketName, {
+          public: true,
+          fileSizeLimit: 52428800 // 50MB
+        })
+
+        // Retry upload
+        const { data: retryData, error: retryError } = await supabase.storage
+          .from(bucketName)
+          .upload(fileName, buffer, {
+            contentType: mimeType,
+            upsert: false
+          })
+
+        if (retryError) {
+          throw retryError
+        }
+      } else {
+        throw error
+      }
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName)
+
+    console.log(`Uploaded media to Supabase: ${urlData.publicUrl}`)
+    return urlData.publicUrl
+
+  } catch (err) {
+    console.error('Error uploading media to Supabase:', err.message)
+    return null
+  }
+}
+
 // Initialize Express
 const app = express()
 app.use(cors())
@@ -214,20 +287,28 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
             messageText = msgContent.imageMessage.caption || '[Image received]'
             console.log(`Image message received from ${fromNumber}`)
 
-            // Download image if needed
+            // Download image and upload to Supabase Storage
             try {
               const buffer = await downloadMediaMessage(msg, 'buffer', {})
-              const base64 = buffer.toString('base64')
               const mimeType = msgContent.imageMessage.mimetype || 'image/jpeg'
-              mediaData = {
-                type: 'image',
-                mimeType: mimeType,
-                base64: base64,
-                caption: msgContent.imageMessage.caption || ''
-              }
               console.log(`Downloaded image: ${mimeType}, size: ${buffer.length} bytes`)
+
+              // Upload to Supabase Storage and get public URL
+              const imageUrl = await uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber)
+
+              if (imageUrl) {
+                mediaData = {
+                  type: 'image',
+                  mimeType: mimeType,
+                  url: imageUrl,  // Public URL instead of base64
+                  caption: msgContent.imageMessage.caption || ''
+                }
+                console.log(`Image uploaded successfully: ${imageUrl}`)
+              } else {
+                console.log('Failed to upload image, continuing without media URL')
+              }
             } catch (downloadErr) {
-              console.error('Error downloading image:', downloadErr.message)
+              console.error('Error processing image:', downloadErr.message)
               // Continue without media data
             }
           } else if (msgContent.videoMessage) {
@@ -692,7 +773,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
           media: mediaData ? {
             type: mediaData.type,
             mime_type: mediaData.mimeType,
-            base64: mediaData.base64,
+            url: mediaData.url,  // Public URL from Supabase Storage
             caption: mediaData.caption
           } : null,
 
@@ -793,7 +874,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
           media: mediaData ? {
             type: mediaData.type,
             mime_type: mediaData.mimeType,
-            base64: mediaData.base64,
+            url: mediaData.url,  // Public URL from Supabase Storage
             caption: mediaData.caption
           } : null
         })
