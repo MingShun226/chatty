@@ -50,16 +50,38 @@ async function uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber) {
   try {
     // Determine file extension from mime type
     const extensions = {
+      // Images
       'image/jpeg': 'jpg',
       'image/png': 'png',
       'image/gif': 'gif',
       'image/webp': 'webp',
+      // Videos
       'video/mp4': 'mp4',
+      'video/3gpp': '3gp',
+      'video/quicktime': 'mov',
+      // Audio
       'audio/ogg': 'ogg',
+      'audio/ogg; codecs=opus': 'ogg',
       'audio/mpeg': 'mp3',
-      'application/pdf': 'pdf'
+      'audio/mp4': 'm4a',
+      'audio/aac': 'aac',
+      'audio/wav': 'wav',
+      // Documents
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'application/vnd.ms-powerpoint': 'ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+      'text/plain': 'txt',
+      'text/csv': 'csv',
+      'application/zip': 'zip',
+      'application/octet-stream': 'bin'
     }
-    const ext = extensions[mimeType] || 'bin'
+    // Handle mime types with parameters (e.g., "audio/ogg; codecs=opus")
+    const baseMimeType = mimeType.split(';')[0].trim()
+    const ext = extensions[mimeType] || extensions[baseMimeType] || 'bin'
 
     // Create unique filename
     const timestamp = Date.now()
@@ -316,16 +338,87 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
             messageType = 'video'
             messageText = msgContent.videoMessage.caption || '[Video received]'
             console.log(`Video message received from ${fromNumber}`)
+
+            // Download video and upload to Supabase Storage
+            try {
+              const buffer = await downloadMediaMessage(msg, 'buffer', {})
+              const mimeType = msgContent.videoMessage.mimetype || 'video/mp4'
+              console.log(`Downloaded video: ${mimeType}, size: ${buffer.length} bytes`)
+
+              // Upload to Supabase Storage and get public URL
+              const videoUrl = await uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber)
+
+              if (videoUrl) {
+                mediaData = {
+                  type: 'video',
+                  mimeType: mimeType,
+                  url: videoUrl,
+                  caption: msgContent.videoMessage.caption || '',
+                  duration: msgContent.videoMessage.seconds || null
+                }
+                console.log(`Video uploaded successfully: ${videoUrl}`)
+              }
+            } catch (downloadErr) {
+              console.error('Error processing video:', downloadErr.message)
+            }
           } else if (msgContent.audioMessage) {
             // Audio/voice message
             messageType = 'audio'
-            messageText = '[Voice message received]'
-            console.log(`Audio message received from ${fromNumber}`)
+            const isVoiceNote = msgContent.audioMessage.ptt === true // ptt = push to talk (voice note)
+            messageText = isVoiceNote ? '[Voice message received]' : '[Audio received]'
+            console.log(`Audio message received from ${fromNumber} (voice note: ${isVoiceNote})`)
+
+            // Download audio and upload to Supabase Storage
+            try {
+              const buffer = await downloadMediaMessage(msg, 'buffer', {})
+              const mimeType = msgContent.audioMessage.mimetype || 'audio/ogg; codecs=opus'
+              console.log(`Downloaded audio: ${mimeType}, size: ${buffer.length} bytes`)
+
+              // Upload to Supabase Storage and get public URL
+              const audioUrl = await uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber)
+
+              if (audioUrl) {
+                mediaData = {
+                  type: 'audio',
+                  mimeType: mimeType,
+                  url: audioUrl,
+                  isVoiceNote: isVoiceNote,
+                  duration: msgContent.audioMessage.seconds || null
+                }
+                console.log(`Audio uploaded successfully: ${audioUrl}`)
+              }
+            } catch (downloadErr) {
+              console.error('Error processing audio:', downloadErr.message)
+            }
           } else if (msgContent.documentMessage) {
-            // Document/file message
+            // Document/file message (PDF, DOCX, etc.)
             messageType = 'document'
-            messageText = msgContent.documentMessage.fileName || '[Document received]'
-            console.log(`Document received from ${fromNumber}: ${messageText}`)
+            const fileName = msgContent.documentMessage.fileName || 'document'
+            messageText = fileName
+            console.log(`Document received from ${fromNumber}: ${fileName}`)
+
+            // Download document and upload to Supabase Storage
+            try {
+              const buffer = await downloadMediaMessage(msg, 'buffer', {})
+              const mimeType = msgContent.documentMessage.mimetype || 'application/octet-stream'
+              console.log(`Downloaded document: ${mimeType}, size: ${buffer.length} bytes`)
+
+              // Upload to Supabase Storage and get public URL
+              const documentUrl = await uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber)
+
+              if (documentUrl) {
+                mediaData = {
+                  type: 'document',
+                  mimeType: mimeType,
+                  url: documentUrl,
+                  fileName: fileName,
+                  fileSize: buffer.length
+                }
+                console.log(`Document uploaded successfully: ${documentUrl}`)
+              }
+            } catch (downloadErr) {
+              console.error('Error processing document:', downloadErr.message)
+            }
           } else if (msgContent.stickerMessage) {
             // Sticker message
             messageType = 'sticker'
@@ -769,12 +862,18 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
           message_type: messageType,
           from_number: fromNumber,
 
-          // Media data (for images, documents, etc.)
+          // Media data (for images, videos, audio, documents)
           media: mediaData ? {
             type: mediaData.type,
             mime_type: mediaData.mimeType,
             url: mediaData.url,  // Public URL from Supabase Storage
-            caption: mediaData.caption
+            caption: mediaData.caption || null,
+            // Document-specific fields
+            file_name: mediaData.fileName || null,
+            file_size: mediaData.fileSize || null,
+            // Audio/Video-specific fields
+            duration: mediaData.duration || null,
+            is_voice_note: mediaData.isVoiceNote || false
           } : null,
 
           // Chatbot configuration
@@ -870,12 +969,16 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
           message_type: messageType,
           avatar_id: chatbotId,
           user_identifier: fromNumber,
-          // Include media data for images
+          // Include media data for images, videos, audio, documents
           media: mediaData ? {
             type: mediaData.type,
             mime_type: mediaData.mimeType,
             url: mediaData.url,  // Public URL from Supabase Storage
-            caption: mediaData.caption
+            caption: mediaData.caption || null,
+            file_name: mediaData.fileName || null,
+            file_size: mediaData.fileSize || null,
+            duration: mediaData.duration || null,
+            is_voice_note: mediaData.isVoiceNote || false
           } : null
         })
       })
