@@ -180,6 +180,12 @@ export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGe
   // Detailed negative prompt to prevent common AI mistakes
   const strictNegative = 'different product, redesigned product, modified design, color changes, wrong colors, yellow instead of orange, different shade, altered proportions, different shape, new design, generic product, stock photo product, similar product, product variation, different model, changed features, missing details, added details, simplified design, different brand, removed logos, changed handles, different wheels, modified buttons';
 
+  // Scale/size negative prompts for realistic proportions
+  const scaleNegative = 'oversized product, giant product, wrong scale, unrealistic size, product too big, product too small, incorrect proportions relative to person, distorted perspective';
+
+  // Single product instruction for lifestyle shots
+  const singleProductRule = `IMPORTANT: Show only ONE product in this image. If the input has multiple products/colors, pick the MAIN featured product (usually the one in front or most prominent). Do NOT show multiple products or multiple color variants in the same lifestyle scene.`;
+
   const prompts: GeneratedPrompt[] = [
     // IMAGE 1 — E-Commerce Hero Image
     {
@@ -270,13 +276,20 @@ STYLE: Technical product photography for feature explanation.`,
       aspectRatio: '4:5',
       prompt: `${strictPreservation}
 
-TASK: Place the EXACT product from input image in a lifestyle setting.
+${singleProductRule}
+
+TASK: Place ONE product from input image in a realistic lifestyle setting.
 
 CRITICAL PRODUCT RULES:
-- The product MUST be the identical item from the input image
+- Show ONLY ONE product (not multiple colors/variants)
+- The product MUST be the identical design from the input image
 - ${colorPreservation}
-- Do NOT use a generic or similar-looking product
-- All product details (logos, design, shape) must match input exactly
+- Product must be REALISTIC SIZE (normal proportions, not oversized)
+
+REALISTIC SCALE REQUIREMENT:
+- Product must be correct real-world size relative to surroundings
+- If showing with a person, product must be natural handheld/usable size
+- Do NOT make product giant or oversized
 
 SCENE SETTING:
 - Location: ${lifestyleContext}
@@ -284,8 +297,8 @@ SCENE SETTING:
 - Mood: Comfortable, practical, everyday usage feeling
 - Style: Instagram/TikTok-friendly lifestyle photography
 
-COMPOSITION: Product clearly visible and in focus, natural placement in scene.`,
-      negativePrompt: `${strictNegative}, text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality, generic product, stock photo`,
+COMPOSITION: Single product clearly visible and in focus, natural placement in scene.`,
+      negativePrompt: `${strictNegative}, ${scaleNegative}, multiple products, multiple colors, product collection, text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality, generic product, stock photo`,
     },
 
     // IMAGE 5 — Human Interaction Shot
@@ -298,13 +311,21 @@ COMPOSITION: Product clearly visible and in focus, natural placement in scene.`,
       aspectRatio: '9:16',
       prompt: `${strictPreservation}
 
-TASK: Show a person naturally using/holding the EXACT product from input image.
+${singleProductRule}
+
+TASK: Show a person naturally using/holding ONE product from input image.
 
 CRITICAL PRODUCT RULES:
-- The product in the person's hands MUST be identical to input image
+- Show ONLY ONE product (pick the main/featured one from input)
+- The product MUST be identical design from input image
 - ${colorPreservation}
 - Product must be clearly visible and recognizable
-- ALL product details must match: shape, color, design, logos
+
+REALISTIC SCALE - VERY IMPORTANT:
+- Product must be CORRECT REAL-WORLD SIZE relative to the person
+- Person should be able to naturally hold/use the product
+- Do NOT make product oversized or giant
+- Product should look like its actual size when held by a person
 
 PERSON & SCENE:
 - ${humanInteraction}
@@ -313,8 +334,8 @@ PERSON & SCENE:
 - Realistic skin tones, friendly expression
 - Modern social media advertisement style
 
-FOCUS: Product should be clearly visible and in sharp focus.`,
-      negativePrompt: `${strictNegative}, exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon, holding different product, wrong product`,
+FOCUS: Single product clearly visible and in sharp focus, realistic proportions.`,
+      negativePrompt: `${strictNegative}, ${scaleNegative}, multiple products, multiple colors, holding multiple items, exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon, holding different product, wrong product`,
     },
   ];
 
