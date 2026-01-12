@@ -168,6 +168,11 @@ export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGe
 
   const productSummary = `Product: ${productName}\nCategory: ${category}${colors ? `\nColor: ${colors}` : ''}${features ? `\nKey Features: ${features}` : ''}\nMarket: Malaysia`;
 
+  // CRITICAL: Product preservation instructions that MUST be included
+  const productPreservation = `CRITICAL: Keep the EXACT same product design from the input image. Do NOT modify, redesign, or recreate the product. Preserve all original details: exact shape, proportions, colors, textures, logos, branding, buttons, handles, and all design elements.`;
+
+  const preservationNegative = 'different product, modified design, wrong colors, altered shape, redesigned product, different model, changed proportions, missing features, added features';
+
   const prompts: GeneratedPrompt[] = [
     // IMAGE 1 — E-Commerce Hero Image
     {
@@ -177,17 +182,19 @@ export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGe
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Temu Malaysia'],
       imageType: 'hero',
       aspectRatio: '1:1',
-      prompt: `Premium product advertisement photo, ${productName.toLowerCase()} centered,
+      prompt: `${productPreservation}
+Premium product advertisement photo, the EXACT ${productName.toLowerCase()} from input image centered,
 clean pure white background, soft professional studio lighting,
 ultra high resolution, realistic natural shadow beneath product,
-${colors ? `accurate ${colors.toLowerCase()} colors, ` : ''}
+${colors ? `maintain exact ${colors.toLowerCase()} colors as shown in original, ` : ''}
 ${materialRendering},
+keep all original product details, logos, and branding visible,
 no dust, no fingerprints, flawless surface,
 sharp edges, clean silhouette,
 minimal and modern style,
 high-end e-commerce product image,
 optimized for Shopee and Lazada Malaysia main listing image.`,
-      negativePrompt: 'people, hands, text overlay, watermark, distortion, blurry, low quality, cartoon, illustration, cluttered background',
+      negativePrompt: `${preservationNegative}, people, hands, text overlay, watermark, distortion, blurry, low quality, cartoon, illustration, cluttered background`,
     },
 
     // IMAGE 2 — 4-Angle Showcase
@@ -198,16 +205,18 @@ optimized for Shopee and Lazada Malaysia main listing image.`,
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Amazon'],
       imageType: 'multi-angle',
       aspectRatio: '1:1',
-      prompt: `Product comparison layout, ${productName.toLowerCase()} displayed in four equal square frames,
-each frame showing a different angle: front view, side view, back view, angled perspective,
+      prompt: `${productPreservation}
+Product showcase layout, the EXACT same ${productName.toLowerCase()} from input image shown from multiple angles,
+maintain identical product design in all views,
 pure white background across all frames,
 consistent soft studio lighting,
-${colors ? `accurate ${colors.toLowerCase()} color tones, ` : ''}
+${colors ? `preserve exact ${colors.toLowerCase()} color tones as original, ` : ''}
+keep all original logos, branding, buttons, and design features,
 realistic shadows, clean reflections,
 professional product photography style,
 clear structure and symmetry,
 designed for e-commerce detail image sections.`,
-      negativePrompt: 'people, text, clutter, watermark, inconsistent lighting, different backgrounds, blurry, low quality',
+      negativePrompt: `${preservationNegative}, people, text, clutter, watermark, inconsistent lighting, different backgrounds, blurry, low quality, different products in each frame`,
     },
 
     // IMAGE 3 — Functionality Highlight
@@ -218,15 +227,17 @@ designed for e-commerce detail image sections.`,
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Amazon'],
       imageType: 'functionality',
       aspectRatio: '1:1',
-      prompt: `Product functionality advertisement image, ${productName.toLowerCase()} as main focus,
+      prompt: `${productPreservation}
+Product functionality advertisement image, the EXACT ${productName.toLowerCase()} from input image as main focus,
 clean light background,
 ${functionalityHighlight},
 ${features ? `highlighting ${features.toLowerCase()}, ` : ''}
+keep all original product design details intact,
 modern commercial product photography,
 realistic lighting, high clarity,
 technology-focused advertising style,
 ideal for Amazon-style and Shopee feature explanation images.`,
-      negativePrompt: 'people, excessive text, cartoon style, watermark, cluttered background, blurry, low quality',
+      negativePrompt: `${preservationNegative}, people, excessive text, cartoon style, watermark, cluttered background, blurry, low quality`,
     },
 
     // IMAGE 4 — Lifestyle Usage Scenario
@@ -237,15 +248,17 @@ ideal for Amazon-style and Shopee feature explanation images.`,
       platforms: ['Instagram Malaysia', 'Facebook Malaysia', 'TikTok Malaysia'],
       imageType: 'lifestyle',
       aspectRatio: '4:5',
-      prompt: `Lifestyle product advertisement, ${productName.toLowerCase()} in use,
+      prompt: `${productPreservation}
+Lifestyle product advertisement, the EXACT ${productName.toLowerCase()} from input image shown in use,
 ${lifestyleContext},
 warm natural daylight,
 clean and realistic background,
+the product must be the IDENTICAL design from the input image,
 natural shadows and lighting,
 comfortable, practical, everyday usage feeling,
 Instagram and TikTok-friendly lifestyle photography style,
 appealing to Malaysian consumers.`,
-      negativePrompt: 'text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality',
+      negativePrompt: `${preservationNegative}, text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality, generic product`,
     },
 
     // IMAGE 5 — Human Interaction Shot
@@ -256,15 +269,17 @@ appealing to Malaysian consumers.`,
       platforms: ['TikTok Malaysia', 'Instagram Malaysia', 'Facebook Malaysia'],
       imageType: 'human-interaction',
       aspectRatio: '9:16',
-      prompt: `${humanInteraction},
+      prompt: `${productPreservation}
+${humanInteraction},
+the person is holding/using the EXACT same ${productName.toLowerCase()} from the input image,
 bright and clean background,
 soft natural lighting,
 realistic skin tones,
-product clearly visible and in focus,
+product clearly visible and in focus with all original design details preserved,
 modern social media advertisement photography,
 friendly and relatable lifestyle mood,
 ideal for TikTok Malaysia and Instagram ads.`,
-      negativePrompt: 'exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon',
+      negativePrompt: `${preservationNegative}, exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon, generic product`,
     },
   ];
 
@@ -279,6 +294,19 @@ ideal for TikTok Malaysia and Instagram ads.`,
  * (Compatible with existing advertising workflow)
  */
 export function getGeneratedStylesFromPrompts(prompts: GeneratedPrompt[]): any[] {
+  // Strength guide for product preservation:
+  // - Lower strength (0.3-0.4) = Product stays almost identical, minimal changes
+  // - Medium strength (0.45-0.55) = Product preserved but background/context can change
+  // - Higher strength (0.6-0.7) = More creative freedom, product may change slightly
+
+  const strengthByType: Record<string, number> = {
+    'hero': 0.35,           // Very low - product must stay identical, only enhance lighting/background
+    'multi-angle': 0.30,    // Lowest - must preserve exact product design across all angles
+    'functionality': 0.40,  // Low - product must stay same, slight context changes allowed
+    'lifestyle': 0.45,      // Medium-low - product preserved, background/scene can change
+    'human-interaction': 0.50, // Medium - product preserved, person/scene generated
+  };
+
   return prompts.map((prompt, index) => ({
     id: `generated-${prompt.id}`,
     name: prompt.name,
@@ -288,7 +316,7 @@ export function getGeneratedStylesFromPrompts(prompts: GeneratedPrompt[]): any[]
     prompt: prompt.prompt.replace(/\n/g, ' ').trim(),
     negativePrompt: prompt.negativePrompt,
     aspectRatio: prompt.aspectRatio,
-    strength: prompt.imageType === 'human-interaction' ? 0.65 : 0.55, // Higher strength for human shots
+    strength: strengthByType[prompt.imageType] || 0.40, // Default to low strength for product preservation
   }));
 }
 
