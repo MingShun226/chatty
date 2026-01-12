@@ -196,6 +196,9 @@ export function generateProfessionalPrompts(
   // Single product instruction for lifestyle shots
   const singleProductRule = `IMPORTANT: Show only ONE product in this image. If the input has multiple products/colors, pick the MAIN featured product (usually the one in front or most prominent). Do NOT show multiple products or multiple color variants in the same lifestyle scene.`;
 
+  // Product identification section - explicitly state what the product is
+  const productIdentification = `PRODUCT: ${productName}${colors ? `\nCOLORS: ${colors}` : ''}${features ? `\nKEY FEATURES: ${features}` : ''}`;
+
   const prompts: GeneratedPrompt[] = [
     // IMAGE 1 — E-Commerce Hero Image
     {
@@ -207,7 +210,9 @@ export function generateProfessionalPrompts(
       aspectRatio: '1:1',
       prompt: `${strictPreservation}
 
-TASK: Place the IDENTICAL product from input image on a clean white studio background.
+${productIdentification}
+
+TASK: Place the IDENTICAL ${productName} from input image on a clean white studio background.
 
 PRODUCT PRESERVATION CHECKLIST:
 - Product shape: EXACT same silhouette and proportions
@@ -232,7 +237,9 @@ STYLE: Premium e-commerce product photography for Shopee/Lazada Malaysia.${userR
       aspectRatio: '1:1',
       prompt: `${strictPreservation}
 
-TASK: Display ALL products from the input image in a clean arranged layout.
+${productIdentification}
+
+TASK: Display ALL ${productName} variants from the input image in a clean arranged layout.
 
 CRITICAL - MULTI-PRODUCT PRESERVATION:
 - If input shows multiple products (e.g., 4 suitcases of different colors), show ALL of them
@@ -258,7 +265,9 @@ STYLE: E-commerce multi-product showcase for Shopee/Lazada detail images.${userR
       aspectRatio: '1:1',
       prompt: `${strictPreservation}
 
-TASK: Showcase the IDENTICAL product from input with emphasis on its features.
+${productIdentification}
+
+TASK: Showcase the IDENTICAL ${productName} from input with emphasis on its features.
 
 PRODUCT PRESERVATION:
 - Use the EXACT product from input image - do not recreate
@@ -286,13 +295,15 @@ STYLE: Technical product photography for feature explanation.${userRequirements}
       aspectRatio: '4:5',
       prompt: `${strictPreservation}
 
+${productIdentification}
+
 ${singleProductRule}
 
-TASK: Place ONE product from input image in a realistic lifestyle setting.
+TASK: Place ONE ${productName} from input image in a realistic lifestyle setting.
 
 CRITICAL PRODUCT RULES:
-- Show ONLY ONE product (not multiple colors/variants)
-- The product MUST be the identical design from the input image
+- Show ONLY ONE ${productName} (not multiple colors/variants)
+- The ${productName} MUST be the identical design from the input image
 - ${colorPreservation}
 - Product must be REALISTIC SIZE (normal proportions, not oversized)
 
@@ -321,13 +332,15 @@ COMPOSITION: Single product clearly visible and in focus, natural placement in s
       aspectRatio: '9:16',
       prompt: `${strictPreservation}
 
+${productIdentification}
+
 ${singleProductRule}
 
-TASK: Show a person naturally using/holding ONE product from input image.
+TASK: Show a person naturally using/holding ONE ${productName} from input image.
 
 CRITICAL PRODUCT RULES:
-- Show ONLY ONE product (pick the main/featured one from input)
-- The product MUST be identical design from input image
+- Show ONLY ONE ${productName} (pick the main/featured one from input)
+- The ${productName} MUST be identical design from input image
 - ${colorPreservation}
 - Product must be clearly visible and recognizable
 

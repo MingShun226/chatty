@@ -56,10 +56,29 @@ export function AnalysisStep({
   const generateRecommendations = (analysis: ProductAnalysis): StyleRecommendation[] => {
     // Merge user-provided info with AI analysis
     // User input takes priority if provided
+
+    // Parse user description into key features if provided
+    // Split by newlines, dashes, or commas to extract individual features
+    const userFeatures: string[] = [];
+    if (userProductDescription?.trim()) {
+      const lines = userProductDescription.trim().split(/[\n\r]+/);
+      lines.forEach(line => {
+        // Clean up each line - remove leading dashes, bullets, numbers
+        const cleaned = line.replace(/^[-•*\d.)\s]+/, '').trim();
+        if (cleaned.length > 0) {
+          userFeatures.push(cleaned);
+        }
+      });
+    }
+
     const enhancedAnalysis: ProductAnalysis = {
       ...analysis,
       // Use user's product name if provided, otherwise AI-detected name
       productName: userProductName?.trim() || analysis.productName,
+      // Merge user features with AI-detected features (user features first)
+      keyFeatures: userFeatures.length > 0
+        ? [...userFeatures, ...analysis.keyFeatures.filter(f => !userFeatures.some(uf => uf.toLowerCase().includes(f.toLowerCase())))]
+        : analysis.keyFeatures,
       // Append user description to AI description if provided
       detailedDescription: userProductDescription?.trim()
         ? `${userProductDescription.trim()}. ${analysis.detailedDescription || ''}`
