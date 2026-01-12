@@ -227,11 +227,11 @@ STYLE: Premium e-commerce product photography for Shopee/Lazada Malaysia.${userR
       negativePrompt: `${strictNegative}, people, hands, text overlay, watermark, distortion, blurry, low quality, cartoon, illustration, cluttered background, gradient background, colored background`,
     },
 
-    // IMAGE 2 — Multi-Product Clean Display (renamed from 4-Angle)
+    // IMAGE 2 — Product Detail/Close-up View
     {
       id: 'multi-angle',
-      name: 'Product Collection Display',
-      purpose: 'Show all products clearly - important for SEA buyers',
+      name: 'Product Detail Close-up',
+      purpose: 'Show product details, texture and quality - builds trust with buyers',
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Amazon'],
       imageType: 'multi-angle',
       aspectRatio: '1:1',
@@ -239,20 +239,28 @@ STYLE: Premium e-commerce product photography for Shopee/Lazada Malaysia.${userR
 
 ${productIdentification}
 
-TASK: Display ALL ${productName} variants from the input image in a clean arranged layout.
+TASK: Create a detailed close-up view of the ${productName} that showcases its quality and craftsmanship.
 
-CRITICAL - MULTI-PRODUCT PRESERVATION:
-- If input shows multiple products (e.g., 4 suitcases of different colors), show ALL of them
-- Each product must be the EXACT same design as in input image
-- ${colors ? `Colors MUST be: ${colors} - preserve each color exactly` : 'Preserve all original product colors'}
-- Do NOT substitute any colors (orange stays orange, not yellow)
-- Do NOT change the arrangement or remove any products
+PRODUCT PRESERVATION:
+- Show the EXACT same ${productName} from input - do not modify or recreate
+- ${colorPreservation}
+- Maintain all design elements, patterns, textures, and branding
 
-LAYOUT: Clean organized display, products clearly separated
-BACKGROUND: Pure white background, consistent lighting across all products
-QUALITY: Professional product photography, realistic shadows, high detail
-STYLE: E-commerce multi-product showcase for Shopee/Lazada detail images.${userRequirements}`,
-      negativePrompt: `${strictNegative}, single product only, missing products, rearranged products, people, text, clutter, watermark, inconsistent lighting, different backgrounds, blurry, low quality`,
+CLOSE-UP REQUIREMENTS:
+- Focus on the product's premium details: texture, stitching, material quality, finish
+- Show the product from a slightly different angle than the hero shot
+- Emphasize craftsmanship and build quality
+- Capture fine details that demonstrate value
+
+COMPOSITION:
+- Single product, slightly angled view
+- Clean white or light gradient background
+- Professional studio lighting that highlights texture and materials
+- Sharp focus on product details
+
+QUALITY: Ultra-sharp, high detail, professional product photography
+STYLE: Premium e-commerce detail shot for Shopee/Lazada Malaysia.${userRequirements}`,
+      negativePrompt: `${strictNegative}, multiple products, duplicated products, grid layout, collage, people, text, clutter, watermark, blurry, low quality, flat lighting`,
     },
 
     // IMAGE 3 — Functionality Highlight
