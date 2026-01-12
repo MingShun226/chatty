@@ -51,6 +51,9 @@ export interface StyleRecommendation {
 
 export interface WizardState {
   productImage: string | null;
+  productName: string;
+  productDescription: string;
+  additionalRequirements: string;
   productAnalysis: ProductAnalysis | null;
   recommendations: StyleRecommendation[];
   selectedStyles: ExtendedAdvertisingStyle[];
@@ -76,6 +79,9 @@ export function AdvertisingWizard({ onJobStarted, onClose }: AdvertisingWizardPr
   // Wizard data state
   const [wizardState, setWizardState] = useState<WizardState>({
     productImage: null,
+    productName: '',
+    productDescription: '',
+    additionalRequirements: '',
     productAnalysis: null,
     recommendations: [],
     selectedStyles: [],
@@ -131,6 +137,9 @@ export function AdvertisingWizard({ onJobStarted, onClose }: AdvertisingWizardPr
     setCurrentStep(0);
     setWizardState({
       productImage: null,
+      productName: '',
+      productDescription: '',
+      additionalRequirements: '',
       productAnalysis: null,
       recommendations: [],
       selectedStyles: [],
@@ -175,13 +184,22 @@ export function AdvertisingWizard({ onJobStarted, onClose }: AdvertisingWizardPr
         return (
           <UploadStep
             productImage={wizardState.productImage}
+            productName={wizardState.productName}
+            productDescription={wizardState.productDescription}
+            additionalRequirements={wizardState.additionalRequirements}
             onImageChange={(image) => updateWizardState({ productImage: image })}
+            onProductNameChange={(name) => updateWizardState({ productName: name })}
+            onProductDescriptionChange={(desc) => updateWizardState({ productDescription: desc })}
+            onAdditionalRequirementsChange={(req) => updateWizardState({ additionalRequirements: req })}
           />
         );
       case 1:
         return (
           <AnalysisStep
             productImage={wizardState.productImage!}
+            productName={wizardState.productName}
+            productDescription={wizardState.productDescription}
+            additionalRequirements={wizardState.additionalRequirements}
             productAnalysis={wizardState.productAnalysis}
             recommendations={wizardState.recommendations}
             isAnalyzing={wizardState.isAnalyzing}

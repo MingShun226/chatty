@@ -154,8 +154,13 @@ function getFunctionalityHighlight(productName: string, features: string[], cate
 
 /**
  * Generate 5 professional advertising prompts based on product analysis
+ * @param analysis - The product analysis from AI vision
+ * @param additionalRequirements - Optional user-provided requirements/style preferences
  */
-export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGenerationResult {
+export function generateProfessionalPrompts(
+  analysis: ProductAnalysis,
+  additionalRequirements?: string
+): PromptGenerationResult {
   const productName = analysis.productName;
   const category = analysis.category || 'General';
   const colors = formatColors(analysis.colors);
@@ -167,6 +172,11 @@ export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGe
   const functionalityHighlight = getFunctionalityHighlight(productName, analysis.keyFeatures, category);
 
   const productSummary = `Product: ${productName}\nCategory: ${category}${colors ? `\nColor: ${colors}` : ''}${features ? `\nKey Features: ${features}` : ''}\nMarket: Malaysia`;
+
+  // User's additional requirements/preferences - will be appended to each prompt
+  const userRequirements = additionalRequirements
+    ? `\n\nUSER STYLE REQUIREMENTS: ${additionalRequirements}`
+    : '';
 
   // CRITICAL: Ultra-specific product preservation instructions
   // This is the most important part - AI must NOT modify the product
@@ -208,7 +218,7 @@ PRODUCT PRESERVATION CHECKLIST:
 BACKGROUND: Clean pure white (#FFFFFF) studio background with soft professional lighting.
 LIGHTING: Soft diffused studio light, realistic natural shadow beneath product.
 QUALITY: Ultra high resolution, sharp edges, no dust, no fingerprints, flawless surface.
-STYLE: Premium e-commerce product photography for Shopee/Lazada Malaysia.`,
+STYLE: Premium e-commerce product photography for Shopee/Lazada Malaysia.${userRequirements}`,
       negativePrompt: `${strictNegative}, people, hands, text overlay, watermark, distortion, blurry, low quality, cartoon, illustration, cluttered background, gradient background, colored background`,
     },
 
@@ -234,7 +244,7 @@ CRITICAL - MULTI-PRODUCT PRESERVATION:
 LAYOUT: Clean organized display, products clearly separated
 BACKGROUND: Pure white background, consistent lighting across all products
 QUALITY: Professional product photography, realistic shadows, high detail
-STYLE: E-commerce multi-product showcase for Shopee/Lazada detail images.`,
+STYLE: E-commerce multi-product showcase for Shopee/Lazada detail images.${userRequirements}`,
       negativePrompt: `${strictNegative}, single product only, missing products, rearranged products, people, text, clutter, watermark, inconsistent lighting, different backgrounds, blurry, low quality`,
     },
 
@@ -262,7 +272,7 @@ ${functionalityHighlight}
 
 BACKGROUND: Light neutral background, clean and minimal
 LIGHTING: Bright, even lighting to show details clearly
-STYLE: Technical product photography for feature explanation.`,
+STYLE: Technical product photography for feature explanation.${userRequirements}`,
       negativePrompt: `${strictNegative}, people, excessive text, cartoon style, watermark, cluttered background, blurry, low quality, artistic interpretation`,
     },
 
@@ -297,7 +307,7 @@ SCENE SETTING:
 - Mood: Comfortable, practical, everyday usage feeling
 - Style: Instagram/TikTok-friendly lifestyle photography
 
-COMPOSITION: Single product clearly visible and in focus, natural placement in scene.`,
+COMPOSITION: Single product clearly visible and in focus, natural placement in scene.${userRequirements}`,
       negativePrompt: `${strictNegative}, ${scaleNegative}, multiple products, multiple colors, product collection, text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality, generic product, stock photo`,
     },
 
@@ -334,7 +344,7 @@ PERSON & SCENE:
 - Realistic skin tones, friendly expression
 - Modern social media advertisement style
 
-FOCUS: Single product clearly visible and in sharp focus, realistic proportions.`,
+FOCUS: Single product clearly visible and in sharp focus, realistic proportions.${userRequirements}`,
       negativePrompt: `${strictNegative}, ${scaleNegative}, multiple products, multiple colors, holding multiple items, exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon, holding different product, wrong product`,
     },
   ];

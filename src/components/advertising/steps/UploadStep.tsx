@@ -1,13 +1,31 @@
 import React from 'react';
-import { Upload, Image as ImageIcon, X } from 'lucide-react';
+import { Upload, Image as ImageIcon, X, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface UploadStepProps {
   productImage: string | null;
+  productName: string;
+  productDescription: string;
+  additionalRequirements: string;
   onImageChange: (image: string | null) => void;
+  onProductNameChange: (name: string) => void;
+  onProductDescriptionChange: (description: string) => void;
+  onAdditionalRequirementsChange: (requirements: string) => void;
 }
 
-export function UploadStep({ productImage, onImageChange }: UploadStepProps) {
+export function UploadStep({
+  productImage,
+  productName,
+  productDescription,
+  additionalRequirements,
+  onImageChange,
+  onProductNameChange,
+  onProductDescriptionChange,
+  onAdditionalRequirementsChange
+}: UploadStepProps) {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -127,6 +145,61 @@ export function UploadStep({ productImage, onImageChange }: UploadStepProps) {
         </div>
       )}
 
+      {/* Product Information Section - Optional */}
+      <div className="border rounded-lg p-4 mt-6 bg-gray-50">
+        <div className="flex items-center gap-2 mb-4">
+          <Info className="h-4 w-4 text-purple-600" />
+          <h4 className="font-medium text-gray-900">Product Information (Optional but Recommended)</h4>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Help our AI generate more accurate advertising images by providing product details.
+        </p>
+
+        <div className="space-y-4">
+          {/* Product Name */}
+          <div className="space-y-2">
+            <Label htmlFor="product-name" className="text-sm font-medium">
+              Product Name
+            </Label>
+            <Input
+              id="product-name"
+              placeholder="e.g., Samsonite Luggage Set, iPhone 15 Pro Max Case"
+              value={productName}
+              onChange={(e) => onProductNameChange(e.target.value)}
+              className="bg-white"
+            />
+          </div>
+
+          {/* Product Description */}
+          <div className="space-y-2">
+            <Label htmlFor="product-description" className="text-sm font-medium">
+              Product Description
+            </Label>
+            <Textarea
+              id="product-description"
+              placeholder="Describe your product: materials, colors, key features, target audience, etc. e.g., 'Premium 4-piece hardshell luggage set in vibrant orange, teal, pink, and purple colors. Features 360-degree spinner wheels, TSA-approved locks, and expandable design.'"
+              value={productDescription}
+              onChange={(e) => onProductDescriptionChange(e.target.value)}
+              className="bg-white min-h-[100px]"
+            />
+          </div>
+
+          {/* Additional Requirements */}
+          <div className="space-y-2">
+            <Label htmlFor="additional-requirements" className="text-sm font-medium">
+              Additional Requirements / Style Preferences
+            </Label>
+            <Textarea
+              id="additional-requirements"
+              placeholder="Any specific requirements for the ad images. e.g., 'Target Malaysian young professionals, show product in modern urban settings, emphasize premium quality and durability, use warm lighting'"
+              value={additionalRequirements}
+              onChange={(e) => onAdditionalRequirementsChange(e.target.value)}
+              className="bg-white min-h-[80px]"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Tips section */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
         <h4 className="font-medium text-blue-900 mb-2">Tips for best results:</h4>
@@ -135,6 +208,7 @@ export function UploadStep({ productImage, onImageChange }: UploadStepProps) {
           <li>• White or neutral background works best</li>
           <li>• Show the product from its best angle</li>
           <li>• Higher resolution images produce better results</li>
+          <li>• Fill in the product info above for more accurate AI-generated ads</li>
         </ul>
       </div>
     </div>

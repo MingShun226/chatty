@@ -8,6 +8,9 @@ import { StyleRecommendation } from '../AdvertisingWizard';
 
 interface AnalysisStepProps {
   productImage: string;
+  productName?: string;
+  productDescription?: string;
+  additionalRequirements?: string;
   productAnalysis: ProductAnalysis | null;
   recommendations: StyleRecommendation[];
   isAnalyzing: boolean;
@@ -35,6 +38,9 @@ const IMAGE_TYPE_COLORS: Record<string, string> = {
 
 export function AnalysisStep({
   productImage,
+  productName: userProductName,
+  productDescription: userProductDescription,
+  additionalRequirements,
   productAnalysis,
   recommendations,
   isAnalyzing,
@@ -48,7 +54,19 @@ export function AnalysisStep({
 
   // Generate professional prompts and convert to style recommendations
   const generateRecommendations = (analysis: ProductAnalysis): StyleRecommendation[] => {
-    const result = generateProfessionalPrompts(analysis);
+    // Merge user-provided info with AI analysis
+    // User input takes priority if provided
+    const enhancedAnalysis: ProductAnalysis = {
+      ...analysis,
+      // Use user's product name if provided, otherwise AI-detected name
+      productName: userProductName?.trim() || analysis.productName,
+      // Append user description to AI description if provided
+      detailedDescription: userProductDescription?.trim()
+        ? `${userProductDescription.trim()}. ${analysis.detailedDescription || ''}`
+        : analysis.detailedDescription,
+    };
+
+    const result = generateProfessionalPrompts(enhancedAnalysis, additionalRequirements?.trim());
     setGeneratedPrompts(result.prompts);
     setProductSummary(result.productSummary);
 
