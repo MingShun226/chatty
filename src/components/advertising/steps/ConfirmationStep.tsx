@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Rocket, Settings, Image, Clock, Sparkles, Loader2, CheckCircle, Upload } from 'lucide-react';
+import { Rocket, Settings, Image, Clock, Sparkles, Loader2, CheckCircle, Upload, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { WizardState } from '../AdvertisingWizard';
 import { useAuth } from '@/hooks/useAuth';
+
 import { supabase } from '@/integrations/supabase/client';
+
+// Cost per image in USD (USD 0.10 for 5 images = USD 0.02 per image)
+const COST_PER_IMAGE_USD = 0.02;
+// USD to MYR exchange rate (approximate)
+const USD_TO_MYR_RATE = 4.0;
 
 // Helper function to upload base64 image to storage and get public URL
 async function uploadImageToStorage(
@@ -94,6 +100,10 @@ export function ConfirmationStep({
 
   // Estimate generation time (rough: 10-15 seconds per image)
   const estimatedMinutes = Math.ceil((totalImages * 12) / 60);
+
+  // Calculate cost
+  const costUSD = totalImages * COST_PER_IMAGE_USD;
+  const costMYR = costUSD * USD_TO_MYR_RATE;
 
   // Start background job
   const handleStartGeneration = async () => {
@@ -253,7 +263,7 @@ export function ConfirmationStep({
 
       {/* Generation Summary */}
       <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
           <div>
             <div className="text-3xl font-bold text-purple-700">{totalImages}</div>
             <div className="text-sm text-gray-600">Images</div>
@@ -271,6 +281,10 @@ export function ConfirmationStep({
           <div>
             <div className="text-3xl font-bold text-orange-700">~{estimatedMinutes}m</div>
             <div className="text-sm text-gray-600">Est. Time</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-emerald-700">RM{costMYR.toFixed(2)}</div>
+            <div className="text-sm text-gray-600">~${costUSD.toFixed(2)} USD</div>
           </div>
         </div>
 
@@ -348,6 +362,24 @@ export function ConfirmationStep({
               Images will be generated in the background. You can leave this page and
               continue using the app. We'll notify you when all images are ready in
               your gallery.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Cost Info */}
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <DollarSign className="h-5 w-5 text-emerald-600 mt-0.5" />
+          <div>
+            <h4 className="font-medium text-emerald-900">Generation Cost</h4>
+            <p className="text-sm text-emerald-800 mt-1">
+              Each batch of <strong>5 images</strong> costs approximately <strong>RM 0.40</strong> (USD 0.10).
+              Your current selection of <strong>{totalImages} images</strong> will cost approximately{' '}
+              <strong>RM {costMYR.toFixed(2)}</strong> (~${costUSD.toFixed(2)} USD).
+            </p>
+            <p className="text-xs text-emerald-700 mt-2">
+              Cost is based on AI image generation API usage. Higher quality settings may affect generation time but not cost.
             </p>
           </div>
         </div>
