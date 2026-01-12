@@ -168,10 +168,17 @@ export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGe
 
   const productSummary = `Product: ${productName}\nCategory: ${category}${colors ? `\nColor: ${colors}` : ''}${features ? `\nKey Features: ${features}` : ''}\nMarket: Malaysia`;
 
-  // CRITICAL: Product preservation instructions that MUST be included
-  const productPreservation = `CRITICAL: Keep the EXACT same product design from the input image. Do NOT modify, redesign, or recreate the product. Preserve all original details: exact shape, proportions, colors, textures, logos, branding, buttons, handles, and all design elements.`;
+  // CRITICAL: Ultra-specific product preservation instructions
+  // This is the most important part - AI must NOT modify the product
+  const strictPreservation = `ABSOLUTE REQUIREMENT: This is an image-to-image transformation. The product in the output MUST be pixel-perfect identical to the input image. DO NOT generate a new product. DO NOT create variations. DO NOT change any colors. DO NOT modify the design. Copy the EXACT product from the input and only change the background/context.`;
 
-  const preservationNegative = 'different product, modified design, wrong colors, altered shape, redesigned product, different model, changed proportions, missing features, added features';
+  // Color-specific preservation based on analyzed colors
+  const colorPreservation = colors
+    ? `STRICT COLOR MATCH: The product colors MUST be exactly ${colors}. Do not substitute, brighten, darken, or change any colors. Orange must stay orange (not yellow). Blue must stay blue. Pink must stay pink. Preserve the exact color values from the input image.`
+    : `Preserve all original product colors exactly as shown in input image.`;
+
+  // Detailed negative prompt to prevent common AI mistakes
+  const strictNegative = 'different product, redesigned product, modified design, color changes, wrong colors, yellow instead of orange, different shade, altered proportions, different shape, new design, generic product, stock photo product, similar product, product variation, different model, changed features, missing details, added details, simplified design, different brand, removed logos, changed handles, different wheels, modified buttons';
 
   const prompts: GeneratedPrompt[] = [
     // IMAGE 1 — E-Commerce Hero Image
@@ -182,104 +189,132 @@ export function generateProfessionalPrompts(analysis: ProductAnalysis): PromptGe
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Temu Malaysia'],
       imageType: 'hero',
       aspectRatio: '1:1',
-      prompt: `${productPreservation}
-Premium product advertisement photo, the EXACT ${productName.toLowerCase()} from input image centered,
-clean pure white background, soft professional studio lighting,
-ultra high resolution, realistic natural shadow beneath product,
-${colors ? `maintain exact ${colors.toLowerCase()} colors as shown in original, ` : ''}
-${materialRendering},
-keep all original product details, logos, and branding visible,
-no dust, no fingerprints, flawless surface,
-sharp edges, clean silhouette,
-minimal and modern style,
-high-end e-commerce product image,
-optimized for Shopee and Lazada Malaysia main listing image.`,
-      negativePrompt: `${preservationNegative}, people, hands, text overlay, watermark, distortion, blurry, low quality, cartoon, illustration, cluttered background`,
+      prompt: `${strictPreservation}
+
+TASK: Place the IDENTICAL product from input image on a clean white studio background.
+
+PRODUCT PRESERVATION CHECKLIST:
+- Product shape: EXACT same silhouette and proportions
+- Product colors: ${colors ? `EXACTLY ${colors} - no substitutions` : 'Identical to input'}
+- Product details: ALL logos, text, buttons, handles, wheels, patterns must be preserved
+- Product materials: ${materialRendering}
+
+BACKGROUND: Clean pure white (#FFFFFF) studio background with soft professional lighting.
+LIGHTING: Soft diffused studio light, realistic natural shadow beneath product.
+QUALITY: Ultra high resolution, sharp edges, no dust, no fingerprints, flawless surface.
+STYLE: Premium e-commerce product photography for Shopee/Lazada Malaysia.`,
+      negativePrompt: `${strictNegative}, people, hands, text overlay, watermark, distortion, blurry, low quality, cartoon, illustration, cluttered background, gradient background, colored background`,
     },
 
-    // IMAGE 2 — 4-Angle Showcase
+    // IMAGE 2 — Multi-Product Clean Display (renamed from 4-Angle)
     {
       id: 'multi-angle',
-      name: '4-Angle Showcase',
-      purpose: 'Show multiple POVs clearly - important for SEA buyers',
+      name: 'Product Collection Display',
+      purpose: 'Show all products clearly - important for SEA buyers',
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Amazon'],
       imageType: 'multi-angle',
       aspectRatio: '1:1',
-      prompt: `${productPreservation}
-Product showcase layout, the EXACT same ${productName.toLowerCase()} from input image shown from multiple angles,
-maintain identical product design in all views,
-pure white background across all frames,
-consistent soft studio lighting,
-${colors ? `preserve exact ${colors.toLowerCase()} color tones as original, ` : ''}
-keep all original logos, branding, buttons, and design features,
-realistic shadows, clean reflections,
-professional product photography style,
-clear structure and symmetry,
-designed for e-commerce detail image sections.`,
-      negativePrompt: `${preservationNegative}, people, text, clutter, watermark, inconsistent lighting, different backgrounds, blurry, low quality, different products in each frame`,
+      prompt: `${strictPreservation}
+
+TASK: Display ALL products from the input image in a clean arranged layout.
+
+CRITICAL - MULTI-PRODUCT PRESERVATION:
+- If input shows multiple products (e.g., 4 suitcases of different colors), show ALL of them
+- Each product must be the EXACT same design as in input image
+- ${colors ? `Colors MUST be: ${colors} - preserve each color exactly` : 'Preserve all original product colors'}
+- Do NOT substitute any colors (orange stays orange, not yellow)
+- Do NOT change the arrangement or remove any products
+
+LAYOUT: Clean organized display, products clearly separated
+BACKGROUND: Pure white background, consistent lighting across all products
+QUALITY: Professional product photography, realistic shadows, high detail
+STYLE: E-commerce multi-product showcase for Shopee/Lazada detail images.`,
+      negativePrompt: `${strictNegative}, single product only, missing products, rearranged products, people, text, clutter, watermark, inconsistent lighting, different backgrounds, blurry, low quality`,
     },
 
     // IMAGE 3 — Functionality Highlight
     {
       id: 'functionality',
-      name: 'Functionality Highlight',
-      purpose: 'Show what it does, not just how it looks',
+      name: 'Feature Highlight',
+      purpose: 'Show product features and details clearly',
       platforms: ['Shopee Malaysia', 'Lazada Malaysia', 'Amazon'],
       imageType: 'functionality',
       aspectRatio: '1:1',
-      prompt: `${productPreservation}
-Product functionality advertisement image, the EXACT ${productName.toLowerCase()} from input image as main focus,
-clean light background,
-${functionalityHighlight},
-${features ? `highlighting ${features.toLowerCase()}, ` : ''}
-keep all original product design details intact,
-modern commercial product photography,
-realistic lighting, high clarity,
-technology-focused advertising style,
-ideal for Amazon-style and Shopee feature explanation images.`,
-      negativePrompt: `${preservationNegative}, people, excessive text, cartoon style, watermark, cluttered background, blurry, low quality`,
+      prompt: `${strictPreservation}
+
+TASK: Showcase the IDENTICAL product from input with emphasis on its features.
+
+PRODUCT PRESERVATION:
+- Use the EXACT product from input image - do not recreate
+- ${colorPreservation}
+- Preserve all design elements: ${features ? features : 'all visible features'}
+
+FEATURE EMPHASIS:
+${functionalityHighlight}
+- Show product details clearly: buttons, ports, handles, textures
+- Clean angles that highlight functionality
+
+BACKGROUND: Light neutral background, clean and minimal
+LIGHTING: Bright, even lighting to show details clearly
+STYLE: Technical product photography for feature explanation.`,
+      negativePrompt: `${strictNegative}, people, excessive text, cartoon style, watermark, cluttered background, blurry, low quality, artistic interpretation`,
     },
 
     // IMAGE 4 — Lifestyle Usage Scenario
     {
       id: 'lifestyle',
-      name: 'Lifestyle Usage Scenario',
-      purpose: 'Emotional selling - "I need this" moment for Malaysian consumers',
+      name: 'Lifestyle Scene',
+      purpose: 'Show product in real-world use - emotional selling',
       platforms: ['Instagram Malaysia', 'Facebook Malaysia', 'TikTok Malaysia'],
       imageType: 'lifestyle',
       aspectRatio: '4:5',
-      prompt: `${productPreservation}
-Lifestyle product advertisement, the EXACT ${productName.toLowerCase()} from input image shown in use,
-${lifestyleContext},
-warm natural daylight,
-clean and realistic background,
-the product must be the IDENTICAL design from the input image,
-natural shadows and lighting,
-comfortable, practical, everyday usage feeling,
-Instagram and TikTok-friendly lifestyle photography style,
-appealing to Malaysian consumers.`,
-      negativePrompt: `${preservationNegative}, text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality, generic product`,
+      prompt: `${strictPreservation}
+
+TASK: Place the EXACT product from input image in a lifestyle setting.
+
+CRITICAL PRODUCT RULES:
+- The product MUST be the identical item from the input image
+- ${colorPreservation}
+- Do NOT use a generic or similar-looking product
+- All product details (logos, design, shape) must match input exactly
+
+SCENE SETTING:
+- Location: ${lifestyleContext}
+- Lighting: Warm natural daylight
+- Mood: Comfortable, practical, everyday usage feeling
+- Style: Instagram/TikTok-friendly lifestyle photography
+
+COMPOSITION: Product clearly visible and in focus, natural placement in scene.`,
+      negativePrompt: `${strictNegative}, text overlay, watermark, clutter, artificial lighting, studio background, blurry, low quality, generic product, stock photo`,
     },
 
     // IMAGE 5 — Human Interaction Shot
     {
       id: 'human-interaction',
-      name: 'Influencer / Human Interaction Shot',
-      purpose: 'TikTok / Instagram / Reels / Trust-building image',
+      name: 'Influencer Style Shot',
+      purpose: 'TikTok / Instagram / Trust-building image',
       platforms: ['TikTok Malaysia', 'Instagram Malaysia', 'Facebook Malaysia'],
       imageType: 'human-interaction',
       aspectRatio: '9:16',
-      prompt: `${productPreservation}
-${humanInteraction},
-the person is holding/using the EXACT same ${productName.toLowerCase()} from the input image,
-bright and clean background,
-soft natural lighting,
-realistic skin tones,
-product clearly visible and in focus with all original design details preserved,
-modern social media advertisement photography,
-friendly and relatable lifestyle mood,
-ideal for TikTok Malaysia and Instagram ads.`,
-      negativePrompt: `${preservationNegative}, exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon, generic product`,
+      prompt: `${strictPreservation}
+
+TASK: Show a person naturally using/holding the EXACT product from input image.
+
+CRITICAL PRODUCT RULES:
+- The product in the person's hands MUST be identical to input image
+- ${colorPreservation}
+- Product must be clearly visible and recognizable
+- ALL product details must match: shape, color, design, logos
+
+PERSON & SCENE:
+- ${humanInteraction}
+- Young Asian person, natural and relaxed pose
+- Bright clean background, soft natural lighting
+- Realistic skin tones, friendly expression
+- Modern social media advertisement style
+
+FOCUS: Product should be clearly visible and in sharp focus.`,
+      negativePrompt: `${strictNegative}, exaggerated beauty filters, text overlay, watermark, unnatural poses, artificial skin, blurry, low quality, cartoon, holding different product, wrong product`,
     },
   ];
 
