@@ -440,17 +440,6 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Description and Refresh */}
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground">
-          AI-powered contact tagging and automatic follow-up system
-        </p>
-        <Button variant="outline" onClick={loadData} disabled={isLoading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
