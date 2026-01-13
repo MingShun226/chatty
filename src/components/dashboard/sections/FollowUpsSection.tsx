@@ -646,10 +646,10 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                       </TableHead>
                       <TableHead>Contact</TableHead>
                       <TableHead>Tags</TableHead>
-                      <TableHead>Sentiment</TableHead>
+                      <TableHead>Mood</TableHead>
                       <TableHead>Summary</TableHead>
                       <TableHead>Last Message</TableHead>
-                      <TableHead>Follow-up Status</TableHead>
+                      <TableHead>Next Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -696,7 +696,9 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                         </TableCell>
                         <TableCell>
                           <Badge className={getSentimentColor(contact.ai_sentiment)}>
-                            {contact.ai_sentiment || 'unknown'}
+                            {contact.ai_sentiment === 'positive' ? '😊 Happy' :
+                             contact.ai_sentiment === 'negative' ? '😟 Unhappy' :
+                             contact.ai_sentiment === 'neutral' ? '😐 Neutral' : '❓ Unknown'}
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-[200px]">
@@ -715,15 +717,15 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                           {contact.followup_due_at ? (
                             <Badge variant="outline" className="text-amber-600 border-amber-600">
                               <Clock className="w-3 h-3 mr-1" />
-                              Due {formatTimeAgo(contact.followup_due_at)}
+                              Pending
                             </Badge>
                           ) : contact.last_followup_at ? (
                             <Badge variant="outline" className="text-green-600 border-green-600">
                               <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Sent {formatTimeAgo(contact.last_followup_at)}
+                              Sent
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-muted-foreground text-sm">No follow-up</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1269,11 +1271,13 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                 )}
               </div>
 
-              {/* Sentiment */}
+              {/* Customer Mood */}
               <div className="space-y-2">
-                <Label>Sentiment</Label>
+                <Label>Customer Mood</Label>
                 <Badge className={getSentimentColor(selectedContact.ai_sentiment)}>
-                  {selectedContact.ai_sentiment || 'unknown'}
+                  {selectedContact.ai_sentiment === 'positive' ? '😊 Happy' :
+                   selectedContact.ai_sentiment === 'negative' ? '😟 Unhappy' :
+                   selectedContact.ai_sentiment === 'neutral' ? '😐 Neutral' : '❓ Unknown'}
                 </Badge>
               </div>
 
@@ -1305,8 +1309,8 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                 </div>
                 {selectedContact.followup_due_at && (
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Follow-up Due</Label>
-                    <div className="text-amber-600">{formatTimeAgo(selectedContact.followup_due_at)}</div>
+                    <Label className="text-xs text-muted-foreground">Next Follow-up</Label>
+                    <div className="text-amber-600">Pending ({formatTimeAgo(selectedContact.followup_due_at)})</div>
                   </div>
                 )}
               </div>
