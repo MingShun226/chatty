@@ -313,84 +313,98 @@ serve(async (req) => {
       }
 
       case 'knowledge': {
-        if (!query) {
-          // Return all knowledge chunks if no query (limited)
-          const { data: chunks, error: chunksError } = await supabase
-            .from('document_chunks')
-            .select('chunk_text, chunk_index, page_number, section_title, knowledge_file_id')
-            .eq('avatar_id', chatbotId)
-            .eq('user_id', userId)
-            .order('chunk_index', { ascending: true })
-            .limit(limit)
+        // Fetch ALL knowledge files with download URLs
+        const { data: knowledgeFiles, error: filesError } = await supabase
+          .from('avatar_knowledge_files')
+          .select('id, file_name, original_name, file_path, content_type, processing_status, file_size, uploaded_at')
+          .eq('avatar_id', chatbotId)
+          .eq('user_id', userId)
+          .eq('is_linked', true)
 
-          if (chunksError) {
-            console.error('Error fetching knowledge chunks:', chunksError)
-            throw new Error('Failed to fetch knowledge base')
-          }
+        if (filesError) {
+          console.error('Error fetching knowledge files:', filesError)
+        }
 
-          responseData = {
-            type: 'knowledge',
-            count: chunks?.length || 0,
-            query: null,
-            items: (chunks || []).map(chunk => ({
-              content: chunk.chunk_text,
-              chunk_index: chunk.chunk_index,
-              page_number: chunk.page_number,
-              section_title: chunk.section_title,
-              file_id: chunk.knowledge_file_id
-            }))
-          }
-        } else {
-          // Use vector search if query provided
-          const { data: chunks, error: searchError } = await supabase
-            .rpc('search_knowledge_chunks', {
-              p_user_id: userId,
-              p_avatar_id: chatbotId,
-              p_query: query,
-              p_limit: limit,
-              p_threshold: 0.5
-            })
+        // Generate public/signed URLs for each file
+        const filesWithUrls = await Promise.all(
+          (knowledgeFiles || []).map(async (file) => {
+            let fileUrl = null
+            if (file.file_path) {
+              // Try public URL first
+              const { data: publicUrlData } = supabase.storage
+                .from('avatar-files')
+                .getPublicUrl(file.file_path)
 
-          if (searchError) {
-            console.error('Error searching knowledge base:', searchError)
-            // Fallback to text search
-            const { data: textChunks } = await supabase
-              .from('document_chunks')
-              .select('chunk_text, chunk_index, page_number, section_title, knowledge_file_id')
-              .eq('avatar_id', chatbotId)
-              .eq('user_id', userId)
-              .ilike('chunk_text', `%${query}%`)
-              .limit(limit)
-
-            responseData = {
-              type: 'knowledge',
-              count: textChunks?.length || 0,
-              query: query,
-              search_method: 'text_search',
-              items: (textChunks || []).map(chunk => ({
-                content: chunk.chunk_text,
-                chunk_index: chunk.chunk_index,
-                page_number: chunk.page_number,
-                section_title: chunk.section_title,
-                file_id: chunk.knowledge_file_id
-              }))
+              if (publicUrlData?.publicUrl) {
+                fileUrl = publicUrlData.publicUrl
+              } else {
+                // Fallback to signed URL (1 hour expiry)
+                const { data: signedUrlData } = await supabase.storage
+                  .from('avatar-files')
+                  .createSignedUrl(file.file_path, 3600)
+                fileUrl = signedUrlData?.signedUrl || null
+              }
             }
-          } else {
-            responseData = {
-              type: 'knowledge',
-              count: chunks?.length || 0,
-              query: query,
-              search_method: 'vector_search',
-              items: (chunks || []).map((chunk: any) => ({
-                content: chunk.chunk_text,
-                similarity: chunk.similarity,
-                chunk_index: chunk.chunk_index,
-                page_number: chunk.page_number,
-                section_title: chunk.section_title,
-                file_id: chunk.knowledge_file_id
-              }))
+            return {
+              id: file.id,
+              name: file.original_name || file.file_name,
+              type: file.content_type,
+              status: file.processing_status,
+              size: file.file_size,
+              uploaded_at: file.uploaded_at,
+              download_url: fileUrl
             }
+          })
+        )
+
+        // Fetch ALL knowledge chunks (no limit by default, but respect limit param if provided)
+        const { data: allChunks, error: chunksError } = await supabase
+          .from('document_chunks')
+          .select('chunk_text, chunk_index, page_number, section_title, knowledge_file_id')
+          .eq('avatar_id', chatbotId)
+          .eq('user_id', userId)
+          .order('knowledge_file_id', { ascending: true })
+          .order('chunk_index', { ascending: true })
+
+        if (chunksError) {
+          console.error('Error fetching knowledge chunks:', chunksError)
+          throw new Error('Failed to fetch knowledge base')
+        }
+
+        // Group chunks by file for easier AI processing
+        const chunksByFile: Record<string, any[]> = {}
+        for (const chunk of (allChunks || [])) {
+          const fileId = chunk.knowledge_file_id
+          if (!chunksByFile[fileId]) {
+            chunksByFile[fileId] = []
           }
+          chunksByFile[fileId].push({
+            content: chunk.chunk_text,
+            chunk_index: chunk.chunk_index,
+            page_number: chunk.page_number,
+            section_title: chunk.section_title
+          })
+        }
+
+        // Combine files with their chunks
+        const knowledgeData = filesWithUrls.map(file => ({
+          ...file,
+          chunks: chunksByFile[file.id] || [],
+          chunks_count: (chunksByFile[file.id] || []).length
+        }))
+
+        responseData = {
+          type: 'knowledge',
+          files_count: filesWithUrls.length,
+          total_chunks: allChunks?.length || 0,
+          files: knowledgeData,
+          // Also provide flat chunks array if query is provided for backward compatibility
+          ...(query ? {
+            query: query,
+            search_hint: 'Use the chunks content to find relevant information. Return the file download_url to users when they need the document.'
+          } : {
+            usage_hint: 'Search through file chunks to find relevant information. Share download_url with users when they need the actual document.'
+          })
         }
         break
       }

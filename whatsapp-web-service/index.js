@@ -1317,15 +1317,58 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
     console.log(`Analyzing contact for tagging: ${phoneNumber}`)
 
     // Check if auto-tagging is enabled for this chatbot
-    const { data: settings } = await supabase
+    let { data: settings, error: settingsError } = await supabase
       .from('followup_settings')
       .select('*')
       .eq('chatbot_id', chatbotId)
-      .single()
+      .maybeSingle()
 
-    // If no settings exist or auto-tagging is disabled, skip
+    // If settings table doesn't exist, skip silently (migration not run yet)
+    if (settingsError && settingsError.code === '42P01') {
+      console.log('Follow-up tables not found - migration may not be run yet')
+      return
+    }
+
+    // Auto-create settings if they don't exist (default to enabled)
+    if (!settings && userId) {
+      console.log('Creating default follow-up settings for chatbot:', chatbotId)
+      const { data: newSettings, error: createError } = await supabase
+        .from('followup_settings')
+        .insert({
+          chatbot_id: chatbotId,
+          user_id: userId,
+          auto_tagging_enabled: true,
+          auto_followup_enabled: true,
+          business_hours_only: true,
+          start_hour: 9,
+          end_hour: 21,
+          max_followups_per_contact: 3,
+          ai_model: 'gpt-4o-mini'
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        console.log('Could not create settings:', createError.message)
+        return
+      }
+      settings = newSettings
+
+      // Also initialize default tags
+      try {
+        await supabase.rpc('initialize_default_tags', {
+          p_chatbot_id: chatbotId,
+          p_user_id: userId
+        })
+        console.log('Default tags initialized for chatbot:', chatbotId)
+      } catch (tagError) {
+        console.log('Could not initialize default tags:', tagError.message)
+      }
+    }
+
+    // If auto-tagging is disabled, skip
     if (!settings?.auto_tagging_enabled) {
-      console.log('Auto-tagging disabled or no settings found')
+      console.log('Auto-tagging disabled for this chatbot')
       return
     }
 

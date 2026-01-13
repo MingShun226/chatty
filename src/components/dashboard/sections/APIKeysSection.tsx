@@ -532,13 +532,13 @@ const APIKeysSection = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">GET</Badge>
-                        <code className="text-sm font-semibold">Search Knowledge Base</code>
+                        <code className="text-sm font-semibold">Get Knowledge Base</code>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          const curl = `curl "${API_BASE_URL}/chatbot-data?type=knowledge&chatbot_id=${selectedDocsAvatar}&query=YOUR_SEARCH_QUERY" \\\n  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\\n  -H "x-api-key: YOUR_API_KEY"`;
+                          const curl = `curl "${API_BASE_URL}/chatbot-data?type=knowledge&chatbot_id=${selectedDocsAvatar}" \\\n  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\\n  -H "x-api-key: YOUR_API_KEY"`;
                           navigator.clipboard.writeText(curl);
                           toast({ title: 'Copied!', description: 'Knowledge API curl command copied' });
                         }}
@@ -547,13 +547,16 @@ const APIKeysSection = () => {
                       </Button>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Search knowledge base with semantic search. Replace <code className="bg-muted px-1">YOUR_SEARCH_QUERY</code> with the question.
+                      Fetches all knowledge base files (PDFs) with download URLs and all text chunks. AI can search through chunks and share document URLs with users.
                     </p>
                     <pre className="text-xs overflow-x-auto bg-muted p-3 rounded-lg">
-{`curl "${API_BASE_URL}/chatbot-data?type=knowledge&chatbot_id=${selectedDocsAvatar}&query=YOUR_SEARCH_QUERY" \\
+{`curl "${API_BASE_URL}/chatbot-data?type=knowledge&chatbot_id=${selectedDocsAvatar}" \\
   -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\
   -H "x-api-key: YOUR_API_KEY"`}
                     </pre>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Response includes: files with <code className="bg-muted px-1">download_url</code>, and all <code className="bg-muted px-1">chunks</code> grouped by file.
+                    </p>
                   </div>
                 </div>
               )}
@@ -576,7 +579,6 @@ const APIKeysSection = () => {
                     <li><code className="bg-muted px-1">YOUR_API_KEY</code> → Your platform API key (pk_live_...)</li>
                     <li><code className="bg-muted px-1">YOUR_SEARCH_TERM</code> → Product search query</li>
                     <li><code className="bg-muted px-1">YOUR_PROMO_CODE</code> → Promo code to validate</li>
-                    <li><code className="bg-muted px-1">YOUR_SEARCH_QUERY</code> → Knowledge base query</li>
                   </ul>
                 </div>
                 <div className="p-3 border rounded-lg">
@@ -621,7 +623,8 @@ Tools to add:
 1. search_products → /chatbot-data?type=products&chatbot_id={id}&query={query}
 2. get_promotions → /chatbot-data?type=promotions&chatbot_id={id}
 3. validate_promo → /chatbot-data?type=validate_promo&chatbot_id={id}&promo_code={code}
-4. search_knowledge → /chatbot-data?type=knowledge&chatbot_id={id}&query={query}`}
+4. get_knowledge → /chatbot-data?type=knowledge&chatbot_id={id}
+   (Returns all files with download URLs + all chunks. AI searches through chunks locally.)`}
                   </pre>
                 </div>
               </div>
