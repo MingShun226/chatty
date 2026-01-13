@@ -2032,6 +2032,122 @@ app.post('/api/followups/initialize-tags', async (req, res) => {
   }
 })
 
+// ====================================================
+// CHAT HISTORY API (For n8n integration)
+// ====================================================
+
+/**
+ * GET /api/chat-history
+ * Fetch conversation history for a chatbot+phone in n8n-compatible format
+ *
+ * Query params:
+ * - chatbotId: UUID of the chatbot
+ * - phoneNumber: Customer phone number (with or without @s.whatsapp.net)
+ * - limit: Number of messages to fetch (default 20, max 100)
+ *
+ * Returns: Array of { role: 'user'|'assistant', content: string }
+ */
+app.get('/api/chat-history', async (req, res) => {
+  try {
+    const { chatbotId, phoneNumber, limit = 20 } = req.query
+
+    if (!chatbotId || !phoneNumber) {
+      return res.status(400).json({
+        error: 'chatbotId and phoneNumber are required',
+        example: '/api/chat-history?chatbotId=xxx&phoneNumber=60123456789'
+      })
+    }
+
+    // Clean phone number - handle both formats
+    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const phoneWithSuffix = `${cleanPhone}@s.whatsapp.net`
+
+    // Fetch messages from whatsapp_web_messages
+    const { data: messages, error } = await supabase
+      .from('whatsapp_web_messages')
+      .select('content, direction, timestamp')
+      .eq('chatbot_id', chatbotId)
+      .or(`from_number.eq.${phoneWithSuffix},to_number.eq.${phoneWithSuffix}`)
+      .order('timestamp', { ascending: true })
+      .limit(Math.min(parseInt(limit), 100))
+
+    if (error) {
+      console.error('Error fetching chat history:', error)
+      return res.status(500).json({ error: 'Failed to fetch chat history' })
+    }
+
+    // Convert to n8n AI Agent format: { role, content }
+    const chatHistory = (messages || []).map(msg => ({
+      role: msg.direction === 'inbound' ? 'user' : 'assistant',
+      content: msg.content || ''
+    }))
+
+    res.json({
+      success: true,
+      chatbotId,
+      phoneNumber: cleanPhone,
+      messageCount: chatHistory.length,
+      chatHistory
+    })
+
+  } catch (err) {
+    console.error('Error in /api/chat-history:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * POST /api/chat-history
+ * Same as GET but accepts body params (for n8n HTTP Request POST)
+ */
+app.post('/api/chat-history', async (req, res) => {
+  try {
+    const { chatbotId, phoneNumber, limit = 20 } = req.body
+
+    if (!chatbotId || !phoneNumber) {
+      return res.status(400).json({
+        error: 'chatbotId and phoneNumber are required'
+      })
+    }
+
+    // Clean phone number
+    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const phoneWithSuffix = `${cleanPhone}@s.whatsapp.net`
+
+    // Fetch messages
+    const { data: messages, error } = await supabase
+      .from('whatsapp_web_messages')
+      .select('content, direction, timestamp')
+      .eq('chatbot_id', chatbotId)
+      .or(`from_number.eq.${phoneWithSuffix},to_number.eq.${phoneWithSuffix}`)
+      .order('timestamp', { ascending: true })
+      .limit(Math.min(parseInt(limit), 100))
+
+    if (error) {
+      console.error('Error fetching chat history:', error)
+      return res.status(500).json({ error: 'Failed to fetch chat history' })
+    }
+
+    // Convert to n8n format
+    const chatHistory = (messages || []).map(msg => ({
+      role: msg.direction === 'inbound' ? 'user' : 'assistant',
+      content: msg.content || ''
+    }))
+
+    res.json({
+      success: true,
+      chatbotId,
+      phoneNumber: cleanPhone,
+      messageCount: chatHistory.length,
+      chatHistory
+    })
+
+  } catch (err) {
+    console.error('Error in /api/chat-history:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Scheduled follow-up processor (runs every hour)
 let followupProcessorInterval = null
 
