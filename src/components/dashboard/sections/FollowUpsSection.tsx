@@ -68,6 +68,7 @@ import {
   createTag,
   updateTag,
   deleteTag,
+  updateContact,
   initializeDefaultTags,
   sendFollowUpByTag,
   sendFollowUpToContacts,
@@ -116,6 +117,12 @@ const FollowUpsSection = () => {
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  // Contact detail dialog
+  const [selectedContact, setSelectedContact] = useState<ContactProfile | null>(null);
+  const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
+  const [editingContactName, setEditingContactName] = useState('');
+  const [isSavingContact, setIsSavingContact] = useState(false);
 
   // Tag form state
   const [tagForm, setTagForm] = useState({
@@ -418,6 +425,41 @@ const FollowUpsSection = () => {
     }
   };
 
+  // Open contact detail dialog
+  const openContactDetail = (contact: ContactProfile) => {
+    setSelectedContact(contact);
+    setEditingContactName(contact.contact_name || '');
+    setIsContactDialogOpen(true);
+  };
+
+  // Save contact name
+  const handleSaveContactName = async () => {
+    if (!selectedContact) return;
+
+    setIsSavingContact(true);
+    try {
+      await updateContact(selectedContact.id, { contact_name: editingContactName || null });
+
+      // Update local state
+      setContacts(contacts.map(c =>
+        c.id === selectedContact.id
+          ? { ...c, contact_name: editingContactName || null }
+          : c
+      ));
+      setSelectedContact({ ...selectedContact, contact_name: editingContactName || null });
+
+      toast({ title: 'Contact name saved' });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save contact name',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
   if (!user) {
     return <div className="p-4">Please log in to access follow-ups.</div>;
   }
@@ -622,8 +664,14 @@ const FollowUpsSection = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <div className="font-medium">{contact.contact_name || 'Unknown'}</div>
+                          <div
+                            className="cursor-pointer hover:bg-muted/50 rounded p-1 -m-1"
+                            onClick={() => openContactDetail(contact)}
+                          >
+                            <div className="font-medium flex items-center gap-1">
+                              {contact.contact_name || 'Unknown'}
+                              <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                            </div>
                             <div className="text-sm text-muted-foreground">{contact.phone_number}</div>
                           </div>
                         </TableCell>
@@ -652,7 +700,13 @@ const FollowUpsSection = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-[200px]">
-                          <p className="text-sm truncate">{contact.ai_summary || '-'}</p>
+                          <p
+                            className="text-sm truncate cursor-pointer hover:text-primary"
+                            onClick={() => openContactDetail(contact)}
+                            title="Click to view full summary"
+                          >
+                            {contact.ai_summary || '-'}
+                          </p>
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">{formatTimeAgo(contact.last_message_at)}</div>
@@ -1094,6 +1148,128 @@ const FollowUpsSection = () => {
                   Send Follow-ups
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contact Detail Dialog */}
+      <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Contact Details</DialogTitle>
+            <DialogDescription>
+              View and edit contact information
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedContact && (
+            <div className="space-y-4">
+              {/* Editable Contact Name */}
+              <div className="space-y-2">
+                <Label>Contact Name</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={editingContactName}
+                    onChange={(e) => setEditingContactName(e.target.value)}
+                    placeholder="Enter contact name..."
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleSaveContactName}
+                    disabled={isSavingContact || editingContactName === (selectedContact.contact_name || '')}
+                    size="sm"
+                  >
+                    {isSavingContact ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Save'
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Phone Number */}
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <div className="text-sm bg-muted px-3 py-2 rounded">
+                  {selectedContact.phone_number}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="flex flex-wrap gap-1">
+                  {selectedContact.tags.length > 0 ? (
+                    selectedContact.tags.map(tagName => {
+                      const tagConfig = tags.find(t => t.tag_name === tagName);
+                      return (
+                        <Badge
+                          key={tagName}
+                          variant="outline"
+                          style={{
+                            borderColor: tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280',
+                            color: tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280'
+                          }}
+                        >
+                          {tagName}
+                        </Badge>
+                      );
+                    })
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No tags</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Sentiment */}
+              <div className="space-y-2">
+                <Label>Sentiment</Label>
+                <Badge className={getSentimentColor(selectedContact.ai_sentiment)}>
+                  {selectedContact.ai_sentiment || 'unknown'}
+                </Badge>
+              </div>
+
+              {/* Full Summary */}
+              <div className="space-y-2">
+                <Label>AI Summary</Label>
+                <div className="text-sm bg-muted px-3 py-2 rounded whitespace-pre-wrap">
+                  {selectedContact.ai_summary || 'No summary available'}
+                </div>
+              </div>
+
+              {/* Message Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Messages</Label>
+                  <div className="text-sm font-medium">{selectedContact.message_count || 0}</div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Follow-ups Sent</Label>
+                  <div className="text-sm font-medium">{selectedContact.followup_count || 0}</div>
+                </div>
+              </div>
+
+              {/* Timestamps */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Last Message</Label>
+                  <div>{formatTimeAgo(selectedContact.last_message_at)}</div>
+                </div>
+                {selectedContact.followup_due_at && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Follow-up Due</Label>
+                    <div className="text-amber-600">{formatTimeAgo(selectedContact.followup_due_at)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsContactDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

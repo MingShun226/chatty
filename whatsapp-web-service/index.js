@@ -1374,41 +1374,51 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
       return
     }
 
-    // Get last 20 messages for analysis
-    // Note: conversations table stores text in format "user: message | assistant: response"
-    const { data: messages } = await supabase
-      .from('conversations')
-      .select('text, timestamp')
-      .eq('avatar_id', chatbotId)
-      .eq('phone_number', cleanPhoneNumber)
+    // Get last 40 messages for analysis (inbound + outbound combined)
+    // Read from whatsapp_web_messages table where messages are actually stored
+    const { data: messages, error: messagesError } = await supabase
+      .from('whatsapp_web_messages')
+      .select('content, direction, timestamp, from_number')
+      .eq('chatbot_id', chatbotId)
+      .eq('from_number', phoneNumber)  // Use original format with @s.whatsapp.net for matching
       .order('timestamp', { ascending: false })
-      .limit(20)
+      .limit(40)
 
-    if (!messages || messages.length < 1) {
-      console.log('Not enough messages for analysis')
+    // Also check with cleaned phone number format
+    let allMessages = messages || []
+    if (allMessages.length === 0) {
+      const { data: cleanedMessages } = await supabase
+        .from('whatsapp_web_messages')
+        .select('content, direction, timestamp, from_number, to_number')
+        .eq('chatbot_id', chatbotId)
+        .or(`from_number.eq.${phoneNumber},to_number.eq.${phoneNumber}`)
+        .order('timestamp', { ascending: false })
+        .limit(40)
+      allMessages = cleanedMessages || []
+    }
+
+    if (!allMessages || allMessages.length < 1) {
+      console.log('Not enough messages for analysis (checked whatsapp_web_messages)')
       return
     }
 
-    // Reverse to chronological order
-    const chronologicalMessages = messages.reverse()
+    console.log(`Found ${allMessages.length} messages for analysis`)
 
-    // Parse the text field to extract user/assistant messages
-    // Format is: "user: message | assistant: response"
+    // Reverse to chronological order
+    const chronologicalMessages = allMessages.reverse()
+
+    // Build conversation text from inbound (user) and outbound (assistant) messages
     const conversationText = chronologicalMessages
       .map(m => {
-        const text = m.text || ''
-        // Parse the combined format
-        const parts = text.split(' | ')
-        const lines = []
-        for (const part of parts) {
-          if (part.startsWith('user: ')) {
-            lines.push(`Customer: ${part.substring(6)}`)
-          } else if (part.startsWith('assistant: ')) {
-            lines.push(`Assistant: ${part.substring(11)}`)
-          }
+        const content = m.content || ''
+        if (m.direction === 'inbound') {
+          return `Customer: ${content}`
+        } else if (m.direction === 'outbound') {
+          return `Assistant: ${content}`
         }
-        return lines.join('\n')
+        return ''
       })
+      .filter(line => line !== '')
       .join('\n')
 
     // Get available tags for this chatbot
@@ -1505,12 +1515,12 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
       }
     }
 
-    // Get current message count
+    // Get current message count from whatsapp_web_messages
     const { count: messageCount } = await supabase
-      .from('conversations')
+      .from('whatsapp_web_messages')
       .select('*', { count: 'exact', head: true })
-      .eq('avatar_id', chatbotId)
-      .eq('phone_number', cleanPhoneNumber)
+      .eq('chatbot_id', chatbotId)
+      .or(`from_number.eq.${phoneNumber},to_number.eq.${phoneNumber}`)
 
     // Upsert contact profile (store cleaned phone number for consistency)
     const { error: upsertError } = await supabase
@@ -1561,30 +1571,31 @@ async function generateFollowUpMessage(contact, tagConfig) {
       return tagConfig.followup_template
     }
 
-    // Get recent conversation for context
-    // Note: conversations table stores text in format "user: message | assistant: response"
+    // Get recent conversation for context from whatsapp_web_messages
+    // Phone number in contact_profiles is stored without @s.whatsapp.net
+    const phoneWithSuffix = contact.phone_number.includes('@')
+      ? contact.phone_number
+      : `${contact.phone_number}@s.whatsapp.net`
+
     const { data: recentMessages } = await supabase
-      .from('conversations')
-      .select('text')
-      .eq('avatar_id', contact.chatbot_id)
-      .eq('phone_number', contact.phone_number)
+      .from('whatsapp_web_messages')
+      .select('content, direction')
+      .eq('chatbot_id', contact.chatbot_id)
+      .or(`from_number.eq.${phoneWithSuffix},to_number.eq.${phoneWithSuffix}`)
       .order('timestamp', { ascending: false })
-      .limit(10)
+      .limit(20)
 
     const conversationContext = recentMessages?.reverse()
       .map(m => {
-        const text = m.text || ''
-        const parts = text.split(' | ')
-        const lines = []
-        for (const part of parts) {
-          if (part.startsWith('user: ')) {
-            lines.push(`Customer: ${part.substring(6)}`)
-          } else if (part.startsWith('assistant: ')) {
-            lines.push(`Assistant: ${part.substring(11)}`)
-          }
+        const content = m.content || ''
+        if (m.direction === 'inbound') {
+          return `Customer: ${content}`
+        } else if (m.direction === 'outbound') {
+          return `Assistant: ${content}`
         }
-        return lines.join('\n')
+        return ''
       })
+      .filter(line => line !== '')
       .join('\n') || ''
 
     const prompt = `Generate a natural, friendly WhatsApp follow-up message for this customer.
