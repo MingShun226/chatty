@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,10 +19,13 @@ import {
   Save,
   Plus,
   X,
-  Loader2
+  Loader2,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog';
 
 interface ChatbotSettingsModernProps {
   chatbot: any;
@@ -30,7 +34,10 @@ interface ChatbotSettingsModernProps {
 
 export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsModernProps) {
   const [saving, setSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -99,6 +106,37 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
   const updateFormData = (updates: Partial<typeof formData>) => {
     setFormData({ ...formData, ...updates });
     setHasChanges(true);
+  };
+
+  const handleDeleteChatbot = async () => {
+    try {
+      setDeleting(true);
+
+      // Use soft delete function
+      const { error } = await supabase.rpc('soft_delete_avatar', {
+        avatar_id_param: chatbot.id,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Chatbot Deleted",
+        description: `${chatbot.name} has been moved to trash. It will be permanently deleted after 90 days.`,
+      });
+
+      setDeleteDialogOpen(false);
+      // Navigate to dashboard after deletion
+      navigate('/');
+    } catch (error: any) {
+      console.error('Error deleting chatbot:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete chatbot",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const addComplianceRule = () => {
@@ -341,6 +379,46 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
           </Button>
         </div>
       )}
+
+      {/* Danger Zone */}
+      <div className="space-y-4 pt-8 mt-8 border-t border-destructive/20">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            Danger Zone
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Permanently delete this chatbot and all its data
+          </p>
+        </div>
+        <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Delete Chatbot</p>
+              <p className="text-sm text-muted-foreground">
+                Once deleted, this chatbot will be moved to trash for 90 days before permanent deletion.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Chatbot
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteChatbot}
+        title="Delete Chatbot"
+        description="Are you sure you want to delete"
+        itemName={chatbot?.name || 'this chatbot'}
+      />
     </div>
   );
 }
