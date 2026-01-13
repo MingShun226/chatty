@@ -44,33 +44,22 @@ const messageBatchBuffers = new Map()
 
 /**
  * Sync message to n8n Postgres Chat Memory format
- * This allows n8n and follow-up system to share the same conversation history
+ * Uses a SINGLE shared table (n8n_chat_history) for ALL chatbots
+ * Session key format: {chatbotId}_{phoneNumber} to separate conversations
  *
  * @param {string} chatbotId - UUID of the chatbot
- * @param {string} phoneNumber - Phone number (session key for n8n)
+ * @param {string} phoneNumber - Phone number
  * @param {string} role - 'user' or 'assistant'
  * @param {string} content - Message content
- * @param {string} tableName - n8n chat history table name (e.g., 'chat_history_wendy')
  */
-async function syncToN8nChatHistory(chatbotId, phoneNumber, role, content, tableName) {
+async function syncToN8nChatHistory(chatbotId, phoneNumber, role, content) {
   try {
-    if (!tableName) {
-      // Get table name from chatbot settings or use default
-      const { data: chatbot } = await supabase
-        .from('avatars')
-        .select('n8n_chat_table')
-        .eq('id', chatbotId)
-        .single()
+    // Clean phone number
+    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
 
-      tableName = chatbot?.n8n_chat_table
-      if (!tableName) {
-        // No n8n table configured, skip sync
-        return
-      }
-    }
-
-    // Clean phone number for session key
-    const sessionKey = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    // Session key combines chatbot ID and phone for unique conversations
+    // Format: {chatbotId}_{phoneNumber}
+    const sessionKey = `${chatbotId}_${cleanPhone}`
 
     // n8n Postgres Chat Memory format
     const messageData = {
@@ -78,18 +67,18 @@ async function syncToN8nChatHistory(chatbotId, phoneNumber, role, content, table
       data: { content: content }
     }
 
-    // Insert into n8n chat history table
+    // Insert into shared n8n chat history table
     const { error } = await supabase
-      .from(tableName)
+      .from('n8n_chat_history')
       .insert({
         session_id: sessionKey,
         message: messageData
       })
 
     if (error) {
-      // Table might not exist yet, n8n will create it on first run
-      if (error.code !== '42P01') { // 42P01 = table doesn't exist
-        console.error(`Error syncing to n8n chat history (${tableName}):`, error.message)
+      // Table might not exist yet - log only if it's not a "table doesn't exist" error
+      if (error.code !== '42P01') {
+        console.error('Error syncing to n8n chat history:', error.message)
       }
     }
   } catch (err) {
@@ -558,8 +547,8 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
             console.error('Error storing message:', error)
           }
 
-          // Sync to n8n chat history table (if configured)
-          await syncToN8nChatHistory(chatbotId, fromNumber, 'user', messageText, null)
+          // Sync to n8n chat history (shared table for all chatbots)
+          await syncToN8nChatHistory(chatbotId, fromNumber, 'user', messageText)
 
           // Process message with chatbot (pass media data if available)
           await processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData)
@@ -1218,9 +1207,9 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
 
     console.log(`Reply sent successfully (${sentChunks.length} message${sentChunks.length > 1 ? 's' : ''})`)
 
-    // Sync bot reply to n8n chat history (join chunks into full reply)
+    // Sync bot reply to n8n chat history (shared table for all chatbots)
     const fullReply = sentChunks.join('\n')
-    await syncToN8nChatHistory(chatbotId, fromNumber, 'assistant', fullReply, null)
+    await syncToN8nChatHistory(chatbotId, fromNumber, 'assistant', fullReply)
 
     // Analyze and tag contact for smart follow-ups (async, don't wait)
     analyzeAndTagContact(chatbotId, fromNumber, userId, sessionId)
