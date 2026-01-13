@@ -52,7 +52,7 @@ const navigationItems = [
       { id: 'chatbot-finetune', label: 'Prompt Engineer', icon: Wand2, path: '/chatbot/prompt-engineer' },
       { id: 'chatbot-model-training', label: 'Model Training', icon: Zap, path: '/chatbot/model-training' },
       { id: 'chatbot-whatsapp', label: 'WhatsApp Integration', icon: MessageCircle, path: '/chatbot/whatsapp' },
-      { id: 'chatbot-followups', label: 'Smart Follow-ups', icon: UserPlus, path: '/chatbot/followups' },
+      { id: 'chatbot-followups', label: 'Follow-ups', icon: UserPlus, path: '/chatbot/followups' },
       { id: 'chatbot-test', label: 'Test Chat', icon: TestTube, path: '/chatbot/test' },
     ]
   },

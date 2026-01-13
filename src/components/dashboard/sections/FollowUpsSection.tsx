@@ -469,7 +469,7 @@ const FollowUpsSection = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Smart Follow-Ups</h2>
+          <h2 className="text-2xl font-bold">Follow-Ups</h2>
           <p className="text-muted-foreground">
             AI-powered contact tagging and automatic follow-up system
           </p>
