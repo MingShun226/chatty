@@ -21,7 +21,9 @@ import {
   X,
   Loader2,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,8 +38,20 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
   const [saving, setSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast({ title: 'Copied to clipboard' });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast({ title: 'Failed to copy', variant: 'destructive' });
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -206,6 +220,28 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
           </Button>
         </div>
       )}
+
+      {/* Chatbot ID */}
+      <div className="p-4 bg-muted/50 rounded-lg border">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-xs text-muted-foreground">Chatbot ID</Label>
+            <p className="font-mono text-sm">{chatbot?.id || '-'}</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => copyToClipboard(chatbot?.id || '')}
+            disabled={!chatbot?.id}
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-green-500" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
 
       {/* Basic Information */}
       <div className="space-y-6">
