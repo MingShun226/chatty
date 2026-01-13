@@ -161,7 +161,15 @@ const FollowUpsSection = () => {
       setAvatars(data || []);
 
       if (data && data.length > 0) {
-        setSelectedAvatarId(data[0].id);
+        // Check if there's a previously selected chatbot in localStorage
+        const savedChatbotId = localStorage.getItem('chatbot_selected_id');
+
+        // Use saved chatbot if it exists and is in the list, otherwise use first chatbot
+        if (savedChatbotId && data.some(a => a.id === savedChatbotId)) {
+          setSelectedAvatarId(savedChatbotId);
+        } else {
+          setSelectedAvatarId(data[0].id);
+        }
       }
     } catch (error) {
       console.error('Error loading avatars:', error);
@@ -476,7 +484,10 @@ const FollowUpsSection = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <Select value={selectedAvatarId} onValueChange={setSelectedAvatarId}>
+          <Select value={selectedAvatarId} onValueChange={(value) => {
+            setSelectedAvatarId(value);
+            localStorage.setItem('chatbot_selected_id', value);
+          }}>
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Select chatbot" />
             </SelectTrigger>
