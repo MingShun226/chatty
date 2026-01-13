@@ -1740,8 +1740,11 @@ app.post('/api/followups/process-auto', async (req, res) => {
         const followupMessage = await generateFollowUpMessage(contact, tagConfig)
         console.log(`Sending follow-up to ${contact.phone_number}: "${followupMessage.substring(0, 50)}..."`)
 
-        // Send message
-        await sendWhatsAppMessage(socketData.sock, contact.phone_number, followupMessage)
+        // Send message - add @s.whatsapp.net suffix if not present
+        const phoneJid = contact.phone_number.includes('@')
+          ? contact.phone_number
+          : `${contact.phone_number}@s.whatsapp.net`
+        await sendWhatsAppMessage(socketData.sock, phoneJid, followupMessage)
 
         // Log to follow-up history
         await supabase.from('followup_history').insert({
@@ -1846,8 +1849,11 @@ app.post('/api/followups/send-by-tag', async (req, res) => {
         // Use custom message or generate one
         const message = customMessage || await generateFollowUpMessage(contact, tagConfig)
 
-        // Send message
-        await sendWhatsAppMessage(socketData.sock, contact.phone_number, message)
+        // Send message - add @s.whatsapp.net suffix if not present
+        const phoneJid = contact.phone_number.includes('@')
+          ? contact.phone_number
+          : `${contact.phone_number}@s.whatsapp.net`
+        await sendWhatsAppMessage(socketData.sock, phoneJid, message)
 
         // Log to history
         await supabase.from('followup_history').insert({
