@@ -1314,7 +1314,9 @@ app.get('/api/health', (req, res) => {
  */
 async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
   try {
-    console.log(`Analyzing contact for tagging: ${phoneNumber}`)
+    // Clean phone number - remove @s.whatsapp.net suffix if present
+    const cleanPhoneNumber = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    console.log(`Analyzing contact for tagging: ${phoneNumber} (cleaned: ${cleanPhoneNumber})`)
 
     // Check if auto-tagging is enabled for this chatbot
     let { data: settings, error: settingsError } = await supabase
@@ -1373,15 +1375,16 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
     }
 
     // Get last 20 messages for analysis
+    // Note: conversations table stores text in format "user: message | assistant: response"
     const { data: messages } = await supabase
       .from('conversations')
-      .select('role, content, timestamp')
+      .select('text, timestamp')
       .eq('avatar_id', chatbotId)
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', cleanPhoneNumber)
       .order('timestamp', { ascending: false })
       .limit(20)
 
-    if (!messages || messages.length < 2) {
+    if (!messages || messages.length < 1) {
       console.log('Not enough messages for analysis')
       return
     }
@@ -1389,9 +1392,23 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
     // Reverse to chronological order
     const chronologicalMessages = messages.reverse()
 
-    // Format messages for AI analysis
+    // Parse the text field to extract user/assistant messages
+    // Format is: "user: message | assistant: response"
     const conversationText = chronologicalMessages
-      .map(m => `${m.role === 'user' ? 'Customer' : 'Assistant'}: ${m.content}`)
+      .map(m => {
+        const text = m.text || ''
+        // Parse the combined format
+        const parts = text.split(' | ')
+        const lines = []
+        for (const part of parts) {
+          if (part.startsWith('user: ')) {
+            lines.push(`Customer: ${part.substring(6)}`)
+          } else if (part.startsWith('assistant: ')) {
+            lines.push(`Assistant: ${part.substring(11)}`)
+          }
+        }
+        return lines.join('\n')
+      })
       .join('\n')
 
     // Get available tags for this chatbot
@@ -1493,14 +1510,14 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
       .from('conversations')
       .select('*', { count: 'exact', head: true })
       .eq('avatar_id', chatbotId)
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', cleanPhoneNumber)
 
-    // Upsert contact profile
+    // Upsert contact profile (store cleaned phone number for consistency)
     const { error: upsertError } = await supabase
       .from('contact_profiles')
       .upsert({
         chatbot_id: chatbotId,
-        phone_number: phoneNumber,
+        phone_number: cleanPhoneNumber,
         user_id: userId,
         session_id: sessionId,
         tags: analysis.tags || [],
@@ -1545,16 +1562,29 @@ async function generateFollowUpMessage(contact, tagConfig) {
     }
 
     // Get recent conversation for context
+    // Note: conversations table stores text in format "user: message | assistant: response"
     const { data: recentMessages } = await supabase
       .from('conversations')
-      .select('role, content')
+      .select('text')
       .eq('avatar_id', contact.chatbot_id)
       .eq('phone_number', contact.phone_number)
       .order('timestamp', { ascending: false })
       .limit(10)
 
     const conversationContext = recentMessages?.reverse()
-      .map(m => `${m.role === 'user' ? 'Customer' : 'Assistant'}: ${m.content}`)
+      .map(m => {
+        const text = m.text || ''
+        const parts = text.split(' | ')
+        const lines = []
+        for (const part of parts) {
+          if (part.startsWith('user: ')) {
+            lines.push(`Customer: ${part.substring(6)}`)
+          } else if (part.startsWith('assistant: ')) {
+            lines.push(`Assistant: ${part.substring(11)}`)
+          }
+        }
+        return lines.join('\n')
+      })
       .join('\n') || ''
 
     const prompt = `Generate a natural, friendly WhatsApp follow-up message for this customer.
