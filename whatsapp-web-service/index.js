@@ -43,6 +43,62 @@ const whatsappSockets = new Map() // sessionId -> { sock, chatbotId, userId }
 const messageBatchBuffers = new Map()
 
 /**
+ * Sync message to n8n Postgres Chat Memory format
+ * This allows n8n and follow-up system to share the same conversation history
+ *
+ * @param {string} chatbotId - UUID of the chatbot
+ * @param {string} phoneNumber - Phone number (session key for n8n)
+ * @param {string} role - 'user' or 'assistant'
+ * @param {string} content - Message content
+ * @param {string} tableName - n8n chat history table name (e.g., 'chat_history_wendy')
+ */
+async function syncToN8nChatHistory(chatbotId, phoneNumber, role, content, tableName) {
+  try {
+    if (!tableName) {
+      // Get table name from chatbot settings or use default
+      const { data: chatbot } = await supabase
+        .from('avatars')
+        .select('n8n_chat_table')
+        .eq('id', chatbotId)
+        .single()
+
+      tableName = chatbot?.n8n_chat_table
+      if (!tableName) {
+        // No n8n table configured, skip sync
+        return
+      }
+    }
+
+    // Clean phone number for session key
+    const sessionKey = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+
+    // n8n Postgres Chat Memory format
+    const messageData = {
+      type: role === 'user' ? 'human' : 'ai',
+      data: { content: content }
+    }
+
+    // Insert into n8n chat history table
+    const { error } = await supabase
+      .from(tableName)
+      .insert({
+        session_id: sessionKey,
+        message: messageData
+      })
+
+    if (error) {
+      // Table might not exist yet, n8n will create it on first run
+      if (error.code !== '42P01') { // 42P01 = table doesn't exist
+        console.error(`Error syncing to n8n chat history (${tableName}):`, error.message)
+      }
+    }
+  } catch (err) {
+    // Non-critical - don't fail the main operation
+    console.error('Error in syncToN8nChatHistory:', err.message)
+  }
+}
+
+/**
  * Upload media (image/video/document) to Supabase Storage
  * Returns the public URL of the uploaded file
  */
@@ -501,6 +557,9 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
           if (error) {
             console.error('Error storing message:', error)
           }
+
+          // Sync to n8n chat history table (if configured)
+          await syncToN8nChatHistory(chatbotId, fromNumber, 'user', messageText, null)
 
           // Process message with chatbot (pass media data if available)
           await processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData)
@@ -1158,6 +1217,10 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
     }
 
     console.log(`Reply sent successfully (${sentChunks.length} message${sentChunks.length > 1 ? 's' : ''})`)
+
+    // Sync bot reply to n8n chat history (join chunks into full reply)
+    const fullReply = sentChunks.join('\n')
+    await syncToN8nChatHistory(chatbotId, fromNumber, 'assistant', fullReply, null)
 
     // Analyze and tag contact for smart follow-ups (async, don't wait)
     analyzeAndTagContact(chatbotId, fromNumber, userId, sessionId)
