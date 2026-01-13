@@ -165,18 +165,28 @@ const FollowUpsSection = () => {
 
     setIsLoading(true);
     try {
-      // Load session
-      const { data: sessionData } = await supabase
-        .from('whatsapp_web_sessions')
-        .select('session_id, status')
-        .eq('chatbot_id', selectedAvatarId)
-        .eq('status', 'connected')
-        .single();
+      // Try to load session (table may not exist yet)
+      let sessionData = null;
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_web_sessions')
+          .select('session_id, status')
+          .eq('chatbot_id', selectedAvatarId)
+          .eq('status', 'connected')
+          .single();
+
+        if (!error) {
+          sessionData = data;
+        }
+      } catch {
+        // Table might not exist, continue without session
+        console.log('WhatsApp sessions table not available');
+      }
 
       setActiveSession(sessionData);
 
-      // Load all data in parallel
-      const [contactsData, tagsData, settingsData, historyData, statsData] = await Promise.all([
+      // Load all data in parallel (with error handling for tables that may not exist)
+      const [contactsResult, tagsResult, settingsResult, historyResult, statsResult] = await Promise.allSettled([
         getContacts(selectedAvatarId, { limit: 100 }),
         getTags(selectedAvatarId),
         getSettings(selectedAvatarId),
@@ -184,23 +194,43 @@ const FollowUpsSection = () => {
         getStats(selectedAvatarId)
       ]);
 
+      // Extract data from settled promises, defaulting to empty/null if failed
+      const contactsData = contactsResult.status === 'fulfilled' ? contactsResult.value : [];
+      const tagsData = tagsResult.status === 'fulfilled' ? tagsResult.value : [];
+      const settingsData = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+      const historyData = historyResult.status === 'fulfilled' ? historyResult.value : [];
+      const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
+
       setContacts(contactsData);
       setTags(tagsData);
       setSettings(settingsData);
       setHistory(historyData);
       setStats(statsData);
 
-      // Initialize default tags if none exist
-      if (tagsData.length === 0 && user) {
-        await initializeDefaultTags(selectedAvatarId, user.id);
-        const newTags = await getTags(selectedAvatarId);
-        setTags(newTags);
+      // Initialize default tags if none exist (only if tables are available)
+      if (tagsData.length === 0 && user && tagsResult.status === 'fulfilled') {
+        try {
+          await initializeDefaultTags(selectedAvatarId, user.id);
+          const newTags = await getTags(selectedAvatarId);
+          setTags(newTags);
+        } catch {
+          console.log('Could not initialize tags - tables may not exist');
+        }
+      }
+
+      // Show warning if tables don't exist
+      if (contactsResult.status === 'rejected' || tagsResult.status === 'rejected') {
+        toast({
+          title: 'Setup Required',
+          description: 'Follow-up tables not found. Please run the database migration.',
+          variant: 'default'
+        });
       }
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load follow-up data',
+        description: 'Failed to load follow-up data. Tables may need to be created.',
         variant: 'destructive'
       });
     } finally {
