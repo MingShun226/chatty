@@ -834,6 +834,10 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
  */
 async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null) {
   try {
+    // Get userId from socket data (for AI tagging)
+    const socketData = whatsappSockets.get(sessionId)
+    const userId = socketData?.userId
+
     // Get chatbot details with all related data
     const { data: chatbot } = await supabase
       .from('avatars')
@@ -1154,6 +1158,11 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
     }
 
     console.log(`Reply sent successfully (${sentChunks.length} message${sentChunks.length > 1 ? 's' : ''})`)
+
+    // Analyze and tag contact for smart follow-ups (async, don't wait)
+    analyzeAndTagContact(chatbotId, fromNumber, userId, sessionId)
+      .catch(err => console.error('Error in background tagging:', err))
+
   } catch (err) {
     console.error('Error processing inbound message:', err)
   }
@@ -1296,6 +1305,672 @@ app.get('/api/health', (req, res) => {
 })
 
 // ====================================================
+// SMART FOLLOW-UP SYSTEM WITH AI TAGGING
+// ====================================================
+
+/**
+ * Analyze conversation and update contact profile with AI-assigned tags
+ * Called after each message exchange
+ */
+async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
+  try {
+    console.log(`Analyzing contact for tagging: ${phoneNumber}`)
+
+    // Check if auto-tagging is enabled for this chatbot
+    const { data: settings } = await supabase
+      .from('followup_settings')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .single()
+
+    // If no settings exist or auto-tagging is disabled, skip
+    if (!settings?.auto_tagging_enabled) {
+      console.log('Auto-tagging disabled or no settings found')
+      return
+    }
+
+    // Get last 20 messages for analysis
+    const { data: messages } = await supabase
+      .from('conversations')
+      .select('role, content, timestamp')
+      .eq('avatar_id', chatbotId)
+      .eq('phone_number', phoneNumber)
+      .order('timestamp', { ascending: false })
+      .limit(20)
+
+    if (!messages || messages.length < 2) {
+      console.log('Not enough messages for analysis')
+      return
+    }
+
+    // Reverse to chronological order
+    const chronologicalMessages = messages.reverse()
+
+    // Format messages for AI analysis
+    const conversationText = chronologicalMessages
+      .map(m => `${m.role === 'user' ? 'Customer' : 'Assistant'}: ${m.content}`)
+      .join('\n')
+
+    // Get available tags for this chatbot
+    const { data: availableTags } = await supabase
+      .from('followup_tags')
+      .select('tag_name, description, auto_followup, followup_delay_hours')
+      .eq('chatbot_id', chatbotId)
+
+    const tagDescriptions = (availableTags || [])
+      .map(t => `- ${t.tag_name}: ${t.description}`)
+      .join('\n')
+
+    // Call OpenAI for analysis (using the AI model configured in settings)
+    const aiModel = settings.ai_model || 'gpt-4o-mini'
+    const analysisPrompt = `Analyze this WhatsApp conversation and categorize the contact.
+
+CONVERSATION:
+${conversationText}
+
+Available tags to choose from:
+${tagDescriptions || `- purchase_intent: Showed interest but hasn't bought yet
+- purchased: Completed a purchase/order
+- needs_support: Has question or issue needing resolution
+- price_sensitive: Mentioned budget, price concerns
+- comparing: Comparing options, researching
+- satisfied: Expressed satisfaction
+- churning: Negative sentiment, might leave
+- inactive: Conversation went cold
+- new_lead: First-time inquiry
+- returning: Previous customer coming back`}
+
+Analyze and respond ONLY with valid JSON (no markdown, no explanation):
+{
+  "tags": ["tag1", "tag2"],
+  "primaryTag": "most_relevant_tag",
+  "sentiment": "positive" | "neutral" | "negative",
+  "summary": "Brief 1-2 sentence summary of conversation state",
+  "shouldAutoFollowUp": true/false,
+  "suggestedFollowUp": "Natural follow-up message if applicable",
+  "confidence": 0.0-1.0
+}`
+
+    // Use OpenAI API directly (or could use an edge function)
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+    if (!OPENAI_API_KEY) {
+      console.log('OpenAI API key not configured, skipping AI analysis')
+      return
+    }
+
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: aiModel,
+        messages: [
+          { role: 'system', content: 'You are a customer analysis AI. Analyze conversations and respond with JSON only.' },
+          { role: 'user', content: analysisPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      })
+    })
+
+    if (!aiResponse.ok) {
+      console.error('OpenAI API error:', await aiResponse.text())
+      return
+    }
+
+    const aiResult = await aiResponse.json()
+    let analysis
+    try {
+      const content = aiResult.choices[0].message.content
+      // Clean up any markdown formatting
+      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      analysis = JSON.parse(cleanContent)
+    } catch (parseErr) {
+      console.error('Error parsing AI response:', parseErr)
+      return
+    }
+
+    console.log('AI Analysis result:', analysis)
+
+    // Calculate follow-up due time based on primary tag
+    let followupDueAt = null
+    if (analysis.shouldAutoFollowUp && analysis.primaryTag) {
+      const tagConfig = availableTags?.find(t => t.tag_name === analysis.primaryTag)
+      if (tagConfig?.auto_followup) {
+        const delayHours = tagConfig.followup_delay_hours || 24
+        followupDueAt = new Date(Date.now() + delayHours * 60 * 60 * 1000).toISOString()
+        console.log(`Follow-up scheduled for ${delayHours}h from now: ${followupDueAt}`)
+      }
+    }
+
+    // Get current message count
+    const { count: messageCount } = await supabase
+      .from('conversations')
+      .select('*', { count: 'exact', head: true })
+      .eq('avatar_id', chatbotId)
+      .eq('phone_number', phoneNumber)
+
+    // Upsert contact profile
+    const { error: upsertError } = await supabase
+      .from('contact_profiles')
+      .upsert({
+        chatbot_id: chatbotId,
+        phone_number: phoneNumber,
+        user_id: userId,
+        session_id: sessionId,
+        tags: analysis.tags || [],
+        primary_tag: analysis.primaryTag,
+        last_message_at: new Date().toISOString(),
+        last_message_role: 'user',
+        message_count: messageCount || 0,
+        ai_summary: analysis.summary,
+        ai_sentiment: analysis.sentiment,
+        ai_analysis: analysis,
+        analyzed_at: new Date().toISOString(),
+        followup_due_at: followupDueAt,
+        // Reset followup count if user replied (new conversation thread)
+        followup_count: 0
+      }, { onConflict: 'chatbot_id,phone_number' })
+
+    if (upsertError) {
+      console.error('Error upserting contact profile:', upsertError)
+    } else {
+      console.log(`Contact profile updated with tags: ${analysis.tags?.join(', ')}`)
+    }
+
+  } catch (err) {
+    console.error('Error in analyzeAndTagContact:', err)
+  }
+}
+
+/**
+ * Generate AI follow-up message based on contact context
+ */
+async function generateFollowUpMessage(contact, tagConfig) {
+  try {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+    if (!OPENAI_API_KEY) {
+      // Return default template if no AI
+      return tagConfig?.followup_template || "Hi! Just checking in. How can I help you today?"
+    }
+
+    // If tag has a template, use it
+    if (tagConfig?.followup_template) {
+      return tagConfig.followup_template
+    }
+
+    // Get recent conversation for context
+    const { data: recentMessages } = await supabase
+      .from('conversations')
+      .select('role, content')
+      .eq('avatar_id', contact.chatbot_id)
+      .eq('phone_number', contact.phone_number)
+      .order('timestamp', { ascending: false })
+      .limit(10)
+
+    const conversationContext = recentMessages?.reverse()
+      .map(m => `${m.role === 'user' ? 'Customer' : 'Assistant'}: ${m.content}`)
+      .join('\n') || ''
+
+    const prompt = `Generate a natural, friendly WhatsApp follow-up message for this customer.
+
+Context:
+- Primary tag: ${contact.primary_tag}
+- Summary: ${contact.ai_summary || 'No summary available'}
+- Sentiment: ${contact.ai_sentiment || 'neutral'}
+
+Recent conversation:
+${conversationContext}
+
+Generate a short, natural follow-up message (1-2 sentences) in the same language as the conversation.
+The message should be helpful, not pushy. Don't use emojis excessively.
+Respond with ONLY the message text, no quotes or explanation.`
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 150
+      })
+    })
+
+    if (!response.ok) {
+      console.error('Error generating follow-up message')
+      return "Hi! Just checking in. Is there anything I can help you with?"
+    }
+
+    const result = await response.json()
+    return result.choices[0].message.content.trim()
+
+  } catch (err) {
+    console.error('Error generating follow-up message:', err)
+    return "Hi! Just checking in. Is there anything I can help you with?"
+  }
+}
+
+/**
+ * Check if current time is within business hours
+ */
+function isWithinBusinessHours(settings) {
+  if (!settings?.business_hours_only) return true
+
+  const now = new Date()
+  const hour = now.getHours()
+  const startHour = settings.start_hour || 9
+  const endHour = settings.end_hour || 21
+
+  return hour >= startHour && hour < endHour
+}
+
+/**
+ * POST /api/followups/process-auto
+ * Process automatic follow-ups for all chatbots
+ */
+app.post('/api/followups/process-auto', async (req, res) => {
+  try {
+    console.log('Processing automatic follow-ups...')
+
+    // Get all contacts due for follow-up
+    const { data: dueContacts, error: fetchError } = await supabase
+      .from('contact_profiles')
+      .select(`
+        *,
+        followup_settings:followup_settings!contact_profiles_chatbot_id_fkey(*)
+      `)
+      .eq('auto_followup_enabled', true)
+      .not('followup_due_at', 'is', null)
+      .lte('followup_due_at', new Date().toISOString())
+
+    if (fetchError) {
+      console.error('Error fetching due contacts:', fetchError)
+      return res.status(500).json({ error: 'Failed to fetch due contacts' })
+    }
+
+    if (!dueContacts || dueContacts.length === 0) {
+      console.log('No contacts due for follow-up')
+      return res.json({ processed: 0, message: 'No follow-ups due' })
+    }
+
+    console.log(`Found ${dueContacts.length} contact(s) due for follow-up`)
+
+    let processed = 0
+    let skipped = 0
+
+    for (const contact of dueContacts) {
+      try {
+        // Get settings for this chatbot
+        const { data: settings } = await supabase
+          .from('followup_settings')
+          .select('*')
+          .eq('chatbot_id', contact.chatbot_id)
+          .single()
+
+        // Check if auto-followup is enabled
+        if (!settings?.auto_followup_enabled) {
+          console.log(`Auto follow-up disabled for chatbot ${contact.chatbot_id}`)
+          skipped++
+          continue
+        }
+
+        // Check max follow-ups
+        if (contact.followup_count >= (settings.max_followups_per_contact || 3)) {
+          console.log(`Max follow-ups reached for ${contact.phone_number}`)
+          skipped++
+          continue
+        }
+
+        // Check business hours
+        if (!isWithinBusinessHours(settings)) {
+          console.log('Outside business hours, skipping')
+          skipped++
+          continue
+        }
+
+        // Get socket for this session
+        const socketData = whatsappSockets.get(contact.session_id)
+        if (!socketData) {
+          console.log(`No active socket for session ${contact.session_id}`)
+          skipped++
+          continue
+        }
+
+        // Get tag configuration
+        const { data: tagConfig } = await supabase
+          .from('followup_tags')
+          .select('*')
+          .eq('chatbot_id', contact.chatbot_id)
+          .eq('tag_name', contact.primary_tag)
+          .single()
+
+        // Generate follow-up message
+        const followupMessage = await generateFollowUpMessage(contact, tagConfig)
+        console.log(`Sending follow-up to ${contact.phone_number}: "${followupMessage.substring(0, 50)}..."`)
+
+        // Send message
+        await sendWhatsAppMessage(socketData.sock, contact.phone_number, followupMessage)
+
+        // Log to follow-up history
+        await supabase.from('followup_history').insert({
+          contact_id: contact.id,
+          user_id: contact.user_id,
+          chatbot_id: contact.chatbot_id,
+          trigger_type: 'auto',
+          trigger_tag: contact.primary_tag,
+          message_sent: followupMessage
+        })
+
+        // Update contact profile
+        await supabase
+          .from('contact_profiles')
+          .update({
+            last_followup_at: new Date().toISOString(),
+            followup_count: (contact.followup_count || 0) + 1,
+            followup_due_at: null // Reset until next message
+          })
+          .eq('id', contact.id)
+
+        processed++
+        console.log(`Follow-up sent successfully to ${contact.phone_number}`)
+
+      } catch (contactErr) {
+        console.error(`Error processing follow-up for ${contact.phone_number}:`, contactErr)
+        skipped++
+      }
+    }
+
+    res.json({
+      success: true,
+      processed,
+      skipped,
+      message: `Processed ${processed} follow-up(s), skipped ${skipped}`
+    })
+
+  } catch (err) {
+    console.error('Error in /api/followups/process-auto:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * POST /api/followups/send-by-tag
+ * Manually send follow-up to contacts by tag or specific contact IDs
+ */
+app.post('/api/followups/send-by-tag', async (req, res) => {
+  try {
+    const { chatbotId, sessionId, tag, customMessage, contactIds, userId } = req.body
+
+    if (!chatbotId || !sessionId) {
+      return res.status(400).json({ error: 'chatbotId and sessionId are required' })
+    }
+
+    // Get socket
+    const socketData = whatsappSockets.get(sessionId)
+    if (!socketData) {
+      return res.status(404).json({ error: 'Session not found or not connected' })
+    }
+
+    // Build query for contacts
+    let query = supabase
+      .from('contact_profiles')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+
+    if (contactIds && contactIds.length > 0) {
+      query = query.in('id', contactIds)
+    } else if (tag) {
+      query = query.contains('tags', [tag])
+    } else {
+      return res.status(400).json({ error: 'Either tag or contactIds must be provided' })
+    }
+
+    const { data: contacts, error: fetchError } = await query
+
+    if (fetchError) {
+      console.error('Error fetching contacts:', fetchError)
+      return res.status(500).json({ error: 'Failed to fetch contacts' })
+    }
+
+    if (!contacts || contacts.length === 0) {
+      return res.json({ sent: 0, message: 'No contacts found' })
+    }
+
+    console.log(`Sending manual follow-up to ${contacts.length} contact(s)`)
+
+    let sent = 0
+    let failed = 0
+
+    for (const contact of contacts) {
+      try {
+        // Get tag configuration
+        const { data: tagConfig } = await supabase
+          .from('followup_tags')
+          .select('*')
+          .eq('chatbot_id', chatbotId)
+          .eq('tag_name', contact.primary_tag)
+          .single()
+
+        // Use custom message or generate one
+        const message = customMessage || await generateFollowUpMessage(contact, tagConfig)
+
+        // Send message
+        await sendWhatsAppMessage(socketData.sock, contact.phone_number, message)
+
+        // Log to history
+        await supabase.from('followup_history').insert({
+          contact_id: contact.id,
+          user_id: userId || contact.user_id,
+          chatbot_id: chatbotId,
+          trigger_type: 'manual',
+          trigger_tag: tag || 'custom',
+          message_sent: message
+        })
+
+        // Update contact
+        await supabase
+          .from('contact_profiles')
+          .update({
+            last_followup_at: new Date().toISOString(),
+            followup_count: (contact.followup_count || 0) + 1
+          })
+          .eq('id', contact.id)
+
+        sent++
+        console.log(`Follow-up sent to ${contact.phone_number}`)
+
+        // Add delay between messages (anti-spam)
+        await new Promise(resolve => setTimeout(resolve, 3000))
+
+      } catch (contactErr) {
+        console.error(`Error sending to ${contact.phone_number}:`, contactErr)
+        failed++
+      }
+    }
+
+    res.json({
+      success: true,
+      sent,
+      failed,
+      message: `Sent ${sent} follow-up(s), failed ${failed}`
+    })
+
+  } catch (err) {
+    console.error('Error in /api/followups/send-by-tag:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * GET /api/followups/contacts
+ * Get contacts with tags for a chatbot
+ */
+app.get('/api/followups/contacts', async (req, res) => {
+  try {
+    const { chatbotId, tag, limit = 100 } = req.query
+
+    if (!chatbotId) {
+      return res.status(400).json({ error: 'chatbotId is required' })
+    }
+
+    let query = supabase
+      .from('contact_profiles')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .order('last_message_at', { ascending: false })
+      .limit(parseInt(limit))
+
+    if (tag) {
+      query = query.contains('tags', [tag])
+    }
+
+    const { data: contacts, error } = await query
+
+    if (error) {
+      console.error('Error fetching contacts:', error)
+      return res.status(500).json({ error: 'Failed to fetch contacts' })
+    }
+
+    res.json({
+      success: true,
+      count: contacts?.length || 0,
+      contacts: contacts || []
+    })
+
+  } catch (err) {
+    console.error('Error in /api/followups/contacts:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * GET /api/followups/stats
+ * Get follow-up statistics for a chatbot
+ */
+app.get('/api/followups/stats', async (req, res) => {
+  try {
+    const { chatbotId } = req.query
+
+    if (!chatbotId) {
+      return res.status(400).json({ error: 'chatbotId is required' })
+    }
+
+    // Get contact count by tag
+    const { data: tagStats } = await supabase
+      .rpc('get_contact_stats_by_tag', { p_chatbot_id: chatbotId })
+
+    // Get total contacts
+    const { count: totalContacts } = await supabase
+      .from('contact_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('chatbot_id', chatbotId)
+
+    // Get pending follow-ups
+    const { count: pendingFollowups } = await supabase
+      .from('contact_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('chatbot_id', chatbotId)
+      .not('followup_due_at', 'is', null)
+      .lte('followup_due_at', new Date().toISOString())
+
+    // Get sent follow-ups in last 24h
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { count: sentLast24h } = await supabase
+      .from('followup_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('chatbot_id', chatbotId)
+      .gte('sent_at', yesterday)
+
+    res.json({
+      success: true,
+      stats: {
+        totalContacts: totalContacts || 0,
+        pendingFollowups: pendingFollowups || 0,
+        sentLast24h: sentLast24h || 0,
+        byTag: tagStats || []
+      }
+    })
+
+  } catch (err) {
+    console.error('Error in /api/followups/stats:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * POST /api/followups/initialize-tags
+ * Initialize default tags for a chatbot
+ */
+app.post('/api/followups/initialize-tags', async (req, res) => {
+  try {
+    const { chatbotId, userId } = req.body
+
+    if (!chatbotId || !userId) {
+      return res.status(400).json({ error: 'chatbotId and userId are required' })
+    }
+
+    // Call the database function to initialize default tags
+    const { error } = await supabase
+      .rpc('initialize_default_tags', {
+        p_chatbot_id: chatbotId,
+        p_user_id: userId
+      })
+
+    if (error) {
+      console.error('Error initializing tags:', error)
+      return res.status(500).json({ error: 'Failed to initialize tags' })
+    }
+
+    // Also create default settings if not exists
+    await supabase
+      .from('followup_settings')
+      .upsert({
+        chatbot_id: chatbotId,
+        user_id: userId,
+        auto_tagging_enabled: true,
+        auto_followup_enabled: true
+      }, { onConflict: 'chatbot_id' })
+
+    res.json({ success: true, message: 'Default tags initialized' })
+
+  } catch (err) {
+    console.error('Error in /api/followups/initialize-tags:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Scheduled follow-up processor (runs every hour)
+let followupProcessorInterval = null
+
+function startFollowupProcessor() {
+  // Process follow-ups every hour
+  followupProcessorInterval = setInterval(async () => {
+    console.log('Running scheduled follow-up processor...')
+    try {
+      // Call our own endpoint
+      const response = await fetch(`http://localhost:${PORT}/api/followups/process-auto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const result = await response.json()
+      console.log('Scheduled follow-up result:', result)
+    } catch (err) {
+      console.error('Error in scheduled follow-up processor:', err)
+    }
+  }, 60 * 60 * 1000) // Every hour
+
+  console.log('Follow-up processor scheduled (runs every hour)')
+}
+
+// ====================================================
 // STARTUP
 // ====================================================
 
@@ -1330,6 +2005,9 @@ async function startServer() {
   app.listen(PORT, () => {
     console.log(`WhatsApp Web Service running on port ${PORT}`)
     console.log(`Health check: http://localhost:${PORT}/api/health`)
+
+    // Start the follow-up processor after server is ready
+    startFollowupProcessor()
   })
 }
 

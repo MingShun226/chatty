@@ -28,6 +28,7 @@ import ChatbotKnowledge from '@/pages/chatbot/ChatbotKnowledge';
 import ChatbotPromptEngineer from '@/pages/chatbot/ChatbotPromptEngineer';
 import ChatbotModelTraining from '@/pages/chatbot/ChatbotModelTraining';
 import WhatsAppIntegration from '@/pages/chatbot/WhatsAppIntegration';
+import ChatbotFollowups from '@/pages/chatbot/ChatbotFollowups';
 import ChatbotTest from '@/pages/chatbot/ChatbotTest';
 
 // Admin imports
@@ -146,6 +147,10 @@ function App() {
           <Route
             path="/chatbot/whatsapp"
             element={user ? <WhatsAppIntegration /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/followups"
+            element={user ? <ChatbotFollowups /> : <Navigate to="/auth" />}
           />
           <Route
             path="/chatbot/test"
