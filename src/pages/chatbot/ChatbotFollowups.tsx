@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
+import { ChatbotPageLayout } from '@/components/business-chatbot/ChatbotPageLayout';
 import FollowUpsSection from '@/components/dashboard/sections/FollowUpsSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -31,7 +32,11 @@ const ChatbotFollowups = () => {
 
       <main className={`${isCollapsed ? 'ml-16' : 'ml-56'} overflow-auto transition-all duration-300`}>
         <div className="p-8 max-w-7xl mx-auto">
-          <FollowUpsSection />
+          <ChatbotPageLayout title="Follow-Ups">
+            {(chatbot) => (
+              <FollowUpsSection chatbot={chatbot} />
+            )}
+          </ChatbotPageLayout>
         </div>
       </main>
     </div>

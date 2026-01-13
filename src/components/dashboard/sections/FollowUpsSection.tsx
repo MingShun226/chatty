@@ -77,23 +77,24 @@ import {
   DEFAULT_TAG_COLORS
 } from '@/services/followupService';
 
-interface Avatar {
-  id: string;
-  name: string;
-}
-
 interface WhatsAppSession {
   session_id: string;
   status: string;
 }
 
-const FollowUpsSection = () => {
+interface FollowUpsSectionProps {
+  chatbot: {
+    id: string;
+    name: string;
+    company_name?: string;
+  };
+}
+
+const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // State
-  const [avatars, setAvatars] = useState<Avatar[]>([]);
-  const [selectedAvatarId, setSelectedAvatarId] = useState<string>('');
+  // State - use chatbot.id from props
   const [activeSession, setActiveSession] = useState<WhatsAppSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -134,50 +135,15 @@ const FollowUpsSection = () => {
     followup_template: ''
   });
 
-  // Load avatars on mount
+  // Load data when chatbot changes
   useEffect(() => {
-    if (user) {
-      loadAvatars();
-    }
-  }, [user]);
-
-  // Load data when avatar changes
-  useEffect(() => {
-    if (selectedAvatarId) {
+    if (chatbot?.id && user) {
       loadData();
     }
-  }, [selectedAvatarId]);
-
-  const loadAvatars = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('avatars')
-        .select('id, name')
-        .eq('user_id', user?.id)
-        .is('deleted_at', null) // Exclude soft-deleted chatbots
-        .order('name');
-
-      if (error) throw error;
-      setAvatars(data || []);
-
-      if (data && data.length > 0) {
-        // Check if there's a previously selected chatbot in localStorage
-        const savedChatbotId = localStorage.getItem('chatbot_selected_id');
-
-        // Use saved chatbot if it exists and is in the list, otherwise use first chatbot
-        if (savedChatbotId && data.some(a => a.id === savedChatbotId)) {
-          setSelectedAvatarId(savedChatbotId);
-        } else {
-          setSelectedAvatarId(data[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading avatars:', error);
-    }
-  };
+  }, [chatbot?.id, user]);
 
   const loadData = async () => {
-    if (!selectedAvatarId) return;
+    if (!chatbot?.id) return;
 
     setIsLoading(true);
     try {
@@ -187,7 +153,7 @@ const FollowUpsSection = () => {
         const { data, error } = await supabase
           .from('whatsapp_web_sessions')
           .select('session_id, status')
-          .eq('chatbot_id', selectedAvatarId)
+          .eq('chatbot_id', chatbot.id)
           .eq('status', 'connected')
           .maybeSingle(); // Use maybeSingle() to avoid 406 error when no rows found
 
@@ -203,11 +169,11 @@ const FollowUpsSection = () => {
 
       // Load all data in parallel (with error handling for tables that may not exist)
       const [contactsResult, tagsResult, settingsResult, historyResult, statsResult] = await Promise.allSettled([
-        getContacts(selectedAvatarId, { limit: 100 }),
-        getTags(selectedAvatarId),
-        getSettings(selectedAvatarId),
-        getHistory(selectedAvatarId, { limit: 50 }),
-        getStats(selectedAvatarId)
+        getContacts(chatbot.id, { limit: 100 }),
+        getTags(chatbot.id),
+        getSettings(chatbot.id),
+        getHistory(chatbot.id, { limit: 50 }),
+        getStats(chatbot.id)
       ]);
 
       // Extract data from settled promises, defaulting to empty/null if failed
@@ -226,8 +192,8 @@ const FollowUpsSection = () => {
       // Initialize default tags if none exist (only if tables are available)
       if (tagsData.length === 0 && user && tagsResult.status === 'fulfilled') {
         try {
-          await initializeDefaultTags(selectedAvatarId, user.id);
-          const newTags = await getTags(selectedAvatarId);
+          await initializeDefaultTags(chatbot.id, user.id);
+          const newTags = await getTags(chatbot.id);
           setTags(newTags);
         } catch {
           console.log('Could not initialize tags - tables may not exist');
@@ -265,10 +231,10 @@ const FollowUpsSection = () => {
 
   // Handle settings change
   const handleSettingsChange = async (key: keyof FollowupSettings, value: unknown) => {
-    if (!selectedAvatarId || !user) return;
+    if (!chatbot.id || !user) return;
 
     try {
-      const newSettings = await upsertSettings(selectedAvatarId, user.id, {
+      const newSettings = await upsertSettings(chatbot.id, user.id, {
         ...settings,
         [key]: value
       });
@@ -285,18 +251,18 @@ const FollowUpsSection = () => {
 
   // Handle tag create/update
   const handleSaveTag = async () => {
-    if (!selectedAvatarId || !user || !tagForm.tag_name) return;
+    if (!chatbot.id || !user || !tagForm.tag_name) return;
 
     try {
       if (editingTag) {
         await updateTag(editingTag.id, tagForm);
         toast({ title: 'Tag updated' });
       } else {
-        await createTag(selectedAvatarId, user.id, tagForm);
+        await createTag(chatbot.id, user.id, tagForm);
         toast({ title: 'Tag created' });
       }
 
-      const newTags = await getTags(selectedAvatarId);
+      const newTags = await getTags(chatbot.id);
       setTags(newTags);
       setIsTagDialogOpen(false);
       resetTagForm();
@@ -315,7 +281,7 @@ const FollowUpsSection = () => {
 
     try {
       await deleteTag(tagId);
-      const newTags = await getTags(selectedAvatarId);
+      const newTags = await getTags(chatbot.id);
       setTags(newTags);
       toast({ title: 'Tag deleted' });
     } catch (error) {
@@ -356,7 +322,7 @@ const FollowUpsSection = () => {
 
   // Handle send follow-up
   const handleSendFollowUp = async () => {
-    if (!activeSession || !selectedAvatarId) {
+    if (!activeSession || !chatbot.id) {
       toast({
         title: 'Error',
         description: 'No active WhatsApp session',
@@ -370,7 +336,7 @@ const FollowUpsSection = () => {
       let result;
       if (selectedContacts.size > 0) {
         result = await sendFollowUpToContacts(
-          selectedAvatarId,
+          chatbot.id,
           activeSession.session_id,
           Array.from(selectedContacts),
           customMessage || undefined,
@@ -378,7 +344,7 @@ const FollowUpsSection = () => {
         );
       } else if (selectedTagFilter !== 'all') {
         result = await sendFollowUpByTag(
-          selectedAvatarId,
+          chatbot.id,
           activeSession.session_id,
           selectedTagFilter,
           customMessage || undefined,
@@ -474,37 +440,15 @@ const FollowUpsSection = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Follow-Ups</h2>
-          <p className="text-muted-foreground">
-            AI-powered contact tagging and automatic follow-up system
-          </p>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Select value={selectedAvatarId} onValueChange={(value) => {
-            setSelectedAvatarId(value);
-            localStorage.setItem('chatbot_selected_id', value);
-          }}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select chatbot" />
-            </SelectTrigger>
-            <SelectContent>
-              {avatars.map(avatar => (
-                <SelectItem key={avatar.id} value={avatar.id}>
-                  {avatar.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button variant="outline" onClick={loadData} disabled={isLoading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+      {/* Description and Refresh */}
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground">
+          AI-powered contact tagging and automatic follow-up system
+        </p>
+        <Button variant="outline" onClick={loadData} disabled={isLoading}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Stats Cards */}
