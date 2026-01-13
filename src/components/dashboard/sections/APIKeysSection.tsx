@@ -72,6 +72,13 @@ const APIKeysSection = () => {
   const [description, setDescription] = useState('');
   const [selectedScopes, setSelectedScopes] = useState<string[]>(['chat', 'config', 'products', 'promotions', 'knowledge']);
 
+  // Docs state
+  const [selectedDocsAvatar, setSelectedDocsAvatar] = useState<string>('');
+
+  // Constants
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA';
+  const API_BASE_URL = 'https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1';
+
   useEffect(() => {
     if (user) {
       loadAPIKeys();
@@ -399,211 +406,191 @@ const APIKeysSection = () => {
 
         {/* API Documentation Tab */}
         <TabsContent value="docs" className="space-y-6">
+          {/* Avatar Selector */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
-                API Endpoints
+                Chatbot Data API
               </CardTitle>
               <CardDescription>
-                Your API base URL: <code className="bg-muted px-2 py-1 rounded">https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1</code>
+                Copy-ready curl commands for your AI agent to fetch data on-demand
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Chat Endpoint */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge>POST</Badge>
-                  <code className="text-sm">/avatar-chat</code>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Send a message to an avatar and get a response. Includes RAG knowledge base, memories, and trained prompt versions.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <p className="text-sm font-medium">Example Request:</p>
-                  <pre className="text-xs overflow-x-auto">
-{`curl -X POST https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/avatar-chat \\
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA" \\
-  -H "x-api-key: pk_live_YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "avatar_id": "your-avatar-uuid",
-    "message": "Hello!",
-    "model": "gpt-4o-mini"
-  }'`}
-                  </pre>
-                </div>
+              {/* Avatar Selection */}
+              <div className="space-y-2">
+                <Label>Select Chatbot</Label>
+                <Select value={selectedDocsAvatar} onValueChange={setSelectedDocsAvatar}>
+                  <SelectTrigger className="w-full md:w-[400px]">
+                    <SelectValue placeholder="Select a chatbot to generate curl commands" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {avatars.map(avatar => (
+                      <SelectItem key={avatar.id} value={avatar.id}>
+                        {avatar.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!selectedDocsAvatar && (
+                  <p className="text-xs text-amber-600">Please select a chatbot to see copy-ready curl commands</p>
+                )}
               </div>
 
-              {/* Chatbot Data API - Products */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">GET</Badge>
-                  <code className="text-sm">/chatbot-data?type=products</code>
-                  <Badge variant="secondary" className="text-xs">NEW</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Search or list products for a chatbot. Use this when customer asks about products.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <p className="text-sm font-medium">Parameters:</p>
-                  <ul className="text-xs space-y-1 list-disc list-inside">
-                    <li><code>chatbot_id</code> - Required. The chatbot UUID</li>
-                    <li><code>query</code> - Optional. Search term for product name/category/SKU</li>
-                    <li><code>category</code> - Optional. Filter by category</li>
-                    <li><code>limit</code> - Optional. Max results (default: 20)</li>
-                  </ul>
-                  <pre className="text-xs overflow-x-auto mt-2">
-{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=products&chatbot_id=YOUR_ID&query=phone" \\
-  -H "Authorization: Bearer {anon_key}" \\
-  -H "x-api-key: pk_live_YOUR_KEY"`}
-                  </pre>
-                </div>
-              </div>
+              {selectedDocsAvatar && (
+                <div className="space-y-6">
+                  {/* Products API */}
+                  <div className="space-y-3 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">GET</Badge>
+                        <code className="text-sm font-semibold">Search Products</code>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const curl = `curl "${API_BASE_URL}/chatbot-data?type=products&chatbot_id=${selectedDocsAvatar}&query=YOUR_SEARCH_TERM&limit=20" \\\n  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\\n  -H "x-api-key: YOUR_API_KEY"`;
+                          navigator.clipboard.writeText(curl);
+                          toast({ title: 'Copied!', description: 'Products API curl command copied' });
+                        }}
+                      >
+                        <Copy className="w-4 h-4 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Search products by name, category, or SKU. Replace <code className="bg-muted px-1">YOUR_SEARCH_TERM</code> with the search query.
+                    </p>
+                    <pre className="text-xs overflow-x-auto bg-muted p-3 rounded-lg">
+{`curl "${API_BASE_URL}/chatbot-data?type=products&chatbot_id=${selectedDocsAvatar}&query=YOUR_SEARCH_TERM&limit=20" \\
+  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\
+  -H "x-api-key: YOUR_API_KEY"`}
+                    </pre>
+                  </div>
 
-              {/* Chatbot Data API - Promotions */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">GET</Badge>
-                  <code className="text-sm">/chatbot-data?type=promotions</code>
-                  <Badge variant="secondary" className="text-xs">NEW</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Get active promotions. Use this when customer asks about sales, discounts, or promo codes.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <pre className="text-xs overflow-x-auto">
-{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=promotions&chatbot_id=YOUR_ID" \\
-  -H "Authorization: Bearer {anon_key}" \\
-  -H "x-api-key: pk_live_YOUR_KEY"`}
-                  </pre>
-                </div>
-              </div>
+                  {/* Promotions API */}
+                  <div className="space-y-3 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">GET</Badge>
+                        <code className="text-sm font-semibold">Get Promotions</code>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const curl = `curl "${API_BASE_URL}/chatbot-data?type=promotions&chatbot_id=${selectedDocsAvatar}" \\\n  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\\n  -H "x-api-key: YOUR_API_KEY"`;
+                          navigator.clipboard.writeText(curl);
+                          toast({ title: 'Copied!', description: 'Promotions API curl command copied' });
+                        }}
+                      >
+                        <Copy className="w-4 h-4 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Get all active promotions, discounts, and special offers.
+                    </p>
+                    <pre className="text-xs overflow-x-auto bg-muted p-3 rounded-lg">
+{`curl "${API_BASE_URL}/chatbot-data?type=promotions&chatbot_id=${selectedDocsAvatar}" \\
+  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\
+  -H "x-api-key: YOUR_API_KEY"`}
+                    </pre>
+                  </div>
 
-              {/* Chatbot Data API - Validate Promo */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">GET</Badge>
-                  <code className="text-sm">/chatbot-data?type=validate_promo</code>
-                  <Badge variant="secondary" className="text-xs">NEW</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Validate a specific promo code. Use when customer provides a code.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <pre className="text-xs overflow-x-auto">
-{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=validate_promo&chatbot_id=YOUR_ID&promo_code=CNY2024" \\
-  -H "Authorization: Bearer {anon_key}" \\
-  -H "x-api-key: pk_live_YOUR_KEY"`}
-                  </pre>
-                </div>
-              </div>
+                  {/* Validate Promo API */}
+                  <div className="space-y-3 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">GET</Badge>
+                        <code className="text-sm font-semibold">Validate Promo Code</code>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const curl = `curl "${API_BASE_URL}/chatbot-data?type=validate_promo&chatbot_id=${selectedDocsAvatar}&promo_code=YOUR_PROMO_CODE" \\\n  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\\n  -H "x-api-key: YOUR_API_KEY"`;
+                          navigator.clipboard.writeText(curl);
+                          toast({ title: 'Copied!', description: 'Validate Promo API curl command copied' });
+                        }}
+                      >
+                        <Copy className="w-4 h-4 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Check if a promo code is valid. Replace <code className="bg-muted px-1">YOUR_PROMO_CODE</code> with the code to validate.
+                    </p>
+                    <pre className="text-xs overflow-x-auto bg-muted p-3 rounded-lg">
+{`curl "${API_BASE_URL}/chatbot-data?type=validate_promo&chatbot_id=${selectedDocsAvatar}&promo_code=YOUR_PROMO_CODE" \\
+  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\
+  -H "x-api-key: YOUR_API_KEY"`}
+                    </pre>
+                  </div>
 
-              {/* Chatbot Data API - Knowledge */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">GET</Badge>
-                  <code className="text-sm">/chatbot-data?type=knowledge</code>
-                  <Badge variant="secondary" className="text-xs">NEW</Badge>
+                  {/* Knowledge API */}
+                  <div className="space-y-3 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">GET</Badge>
+                        <code className="text-sm font-semibold">Search Knowledge Base</code>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const curl = `curl "${API_BASE_URL}/chatbot-data?type=knowledge&chatbot_id=${selectedDocsAvatar}&query=YOUR_SEARCH_QUERY" \\\n  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\\n  -H "x-api-key: YOUR_API_KEY"`;
+                          navigator.clipboard.writeText(curl);
+                          toast({ title: 'Copied!', description: 'Knowledge API curl command copied' });
+                        }}
+                      >
+                        <Copy className="w-4 h-4 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Search knowledge base with semantic search. Replace <code className="bg-muted px-1">YOUR_SEARCH_QUERY</code> with the question.
+                    </p>
+                    <pre className="text-xs overflow-x-auto bg-muted p-3 rounded-lg">
+{`curl "${API_BASE_URL}/chatbot-data?type=knowledge&chatbot_id=${selectedDocsAvatar}&query=YOUR_SEARCH_QUERY" \\
+  -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \\
+  -H "x-api-key: YOUR_API_KEY"`}
+                    </pre>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Search the knowledge base. Uses vector search for semantic matching.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <pre className="text-xs overflow-x-auto">
-{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=knowledge&chatbot_id=YOUR_ID&query=return policy" \\
-  -H "Authorization: Bearer {anon_key}" \\
-  -H "x-api-key: pk_live_YOUR_KEY"`}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Config Endpoint */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">GET</Badge>
-                  <code className="text-sm">/avatar-config</code>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Get full avatar configuration including active prompt, ALL knowledge base chunks, and ALL memories with images.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <p className="text-sm font-medium">Example Request:</p>
-                  <pre className="text-xs overflow-x-auto">
-{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/avatar-config?avatar_id=YOUR_AVATAR_ID" \\
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA" \\
-  -H "x-api-key: pk_live_YOUR_KEY"`}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Get Conversation Endpoint */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">GET</Badge>
-                  <code className="text-sm">/avatar-conversations</code>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Get conversation history for a specific phone number with this avatar.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <p className="text-sm font-medium">Example Request:</p>
-                  <pre className="text-xs overflow-x-auto">
-{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/avatar-conversations?avatar_id=YOUR_AVATAR_ID&phone_number=%2B60123456789" \\
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA" \\
-  -H "x-api-key: pk_live_YOUR_KEY"`}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Save Conversation Endpoint */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Badge>POST</Badge>
-                  <code className="text-sm">/avatar-conversations</code>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Save updated conversation transcript after each message exchange.
-                </p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <p className="text-sm font-medium">Example Request:</p>
-                  <pre className="text-xs overflow-x-auto">
-{`curl -X POST https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/avatar-conversations \\
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA" \\
-  -H "x-api-key: pk_live_YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "avatar_id": "your-avatar-uuid",
-    "phone_number": "+60123456789",
-    "conversation_content": "user: hey | assistant: hello || user: how are you | assistant: great!"
-  }'`}
-                  </pre>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Authentication */}
+          {/* Quick Reference */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Key className="w-5 h-5" />
-                Authentication
+                Quick Reference
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                All API requests require 3 headers (2 for authentication + 1 for content type):
-              </p>
-              <div className="bg-muted p-4 rounded-lg space-y-2">
-                <code className="text-xs block">Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... (Supabase anon key)</code>
-                <code className="text-xs block">x-api-key: pk_live_your_api_key_here (AvatarLab API key)</code>
-                <code className="text-xs block">Content-Type: application/json</code>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="p-3 border rounded-lg">
+                  <p className="text-sm font-medium mb-2">Replace in curl commands:</p>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li><code className="bg-muted px-1">YOUR_API_KEY</code> → Your platform API key (pk_live_...)</li>
+                    <li><code className="bg-muted px-1">YOUR_SEARCH_TERM</code> → Product search query</li>
+                    <li><code className="bg-muted px-1">YOUR_PROMO_CODE</code> → Promo code to validate</li>
+                    <li><code className="bg-muted px-1">YOUR_SEARCH_QUERY</code> → Knowledge base query</li>
+                  </ul>
+                </div>
+                <div className="p-3 border rounded-lg">
+                  <p className="text-sm font-medium mb-2">Required Headers:</p>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li><code className="bg-muted px-1">Authorization</code> → Supabase anon key (already filled)</li>
+                    <li><code className="bg-muted px-1">x-api-key</code> → Your platform API key</li>
+                  </ul>
+                </div>
               </div>
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Keep your API keys secret! Never commit them to version control or share them publicly. Get your Supabase anon key from Supabase Dashboard → Settings → API.
+                  The chatbot ID and Authorization header are already filled in. You only need to replace <strong>YOUR_API_KEY</strong> with your platform API key from the API Keys tab.
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -614,85 +601,31 @@ const APIKeysSection = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="w-5 h-5" />
-                n8n Integration Guide
+                n8n AI Agent Setup
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Add these as HTTP Request tools in your n8n AI Agent. The agent will call these APIs when it needs product, promotion, or knowledge data.
+              </p>
               <div className="space-y-3">
-                <p className="text-sm font-medium">Step 1: Set up HTTP Request node</p>
-                <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
-                  <li>Method: POST</li>
-                  <li>URL: <code className="bg-muted px-1">https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/avatar-chat</code></li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Step 2: Add Headers (3 required)</p>
-                <div className="bg-muted p-3 rounded-lg space-y-1">
-                  <code className="text-xs block">Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</code>
-                  <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
-                  <code className="text-xs block">Content-Type: application/json</code>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Note: Authorization header uses your Supabase anon key (from Supabase Dashboard → Settings → API)
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Step 3: Configure Request Body</p>
+                <p className="text-sm font-medium">Tool Configuration:</p>
                 <div className="bg-muted p-3 rounded-lg">
                   <pre className="text-xs overflow-x-auto">
-{`{
-  "avatar_id": "your-avatar-uuid",
-  "message": "{{ $json.message }}",
-  "conversation_history": []
-}`}
+{`Method: GET
+Headers:
+  - Authorization: Bearer ${SUPABASE_ANON_KEY}
+  - x-api-key: {your_api_key}
+
+Tools to add:
+1. search_products → /chatbot-data?type=products&chatbot_id={id}&query={query}
+2. get_promotions → /chatbot-data?type=promotions&chatbot_id={id}
+3. validate_promo → /chatbot-data?type=validate_promo&chatbot_id={id}&promo_code={code}
+4. search_knowledge → /chatbot-data?type=knowledge&chatbot_id={id}&query={query}`}
                   </pre>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Step 4: Connect to WhatsApp/Telegram</p>
-                <p className="text-sm text-muted-foreground">
-                  Use n8n's WhatsApp or Telegram trigger nodes to receive messages, then connect to this HTTP node to get avatar responses.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Response Format */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Code className="w-5 h-5" />
-                Response Format
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">Successful response example:</p>
-              <div className="bg-muted p-4 rounded-lg">
-                <pre className="text-xs overflow-x-auto">
-{`{
-  "success": true,
-  "avatar_id": "uuid-here",
-  "message": "Hi! I'm Sarah...",
-  "metadata": {
-    "model": "gpt-4o-mini",
-    "knowledge_chunks_used": 3,
-    "memories_accessed": 5
-  }
-}`}
-                </pre>
-              </div>
-
-              <p className="text-sm font-medium mt-4">Error response example:</p>
-              <div className="bg-muted p-4 rounded-lg">
-                <pre className="text-xs overflow-x-auto">
-{`{
-  "error": "Invalid or inactive API key"
-}`}
-                </pre>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
