@@ -173,9 +173,9 @@ const FollowUpsSection = () => {
           .select('session_id, status')
           .eq('chatbot_id', selectedAvatarId)
           .eq('status', 'connected')
-          .single();
+          .maybeSingle(); // Use maybeSingle() to avoid 406 error when no rows found
 
-        if (!error) {
+        if (!error && data) {
           sessionData = data;
         }
       } catch {
