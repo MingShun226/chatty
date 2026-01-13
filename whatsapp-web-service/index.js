@@ -1361,6 +1361,84 @@ app.get('/api/health', (req, res) => {
 // ====================================================
 
 /**
+ * Send WhatsApp notification to admin when high-priority intent is detected
+ * @param {string} chatbotId - UUID of the chatbot
+ * @param {string} sessionId - WhatsApp session ID
+ * @param {string} customerPhone - Customer's phone number
+ * @param {object} analysis - AI analysis result
+ */
+async function sendAdminNotification(chatbotId, sessionId, customerPhone, analysis) {
+  try {
+    // Get notification settings for this chatbot
+    const { data: settings } = await supabase
+      .from('followup_settings')
+      .select('notification_enabled, notification_phone_number, notify_on_purchase_intent, notify_on_wants_human')
+      .eq('chatbot_id', chatbotId)
+      .single()
+
+    if (!settings?.notification_enabled || !settings?.notification_phone_number) {
+      return // Notifications not enabled or no phone configured
+    }
+
+    // Check if we should notify for this intent
+    const shouldNotifyPurchase = settings.notify_on_purchase_intent && analysis.wantsToBuy
+    const shouldNotifyHuman = settings.notify_on_wants_human && analysis.wantsHumanAgent
+
+    if (!shouldNotifyPurchase && !shouldNotifyHuman) {
+      return // No matching trigger
+    }
+
+    // Get chatbot name for the notification
+    const { data: chatbot } = await supabase
+      .from('avatars')
+      .select('name')
+      .eq('id', chatbotId)
+      .single()
+
+    const chatbotName = chatbot?.name || 'Chatbot'
+
+    // Build notification message
+    let alertType = ''
+    if (shouldNotifyPurchase && shouldNotifyHuman) {
+      alertType = '🛒 wants to BUY and 👤 speak to agent'
+    } else if (shouldNotifyPurchase) {
+      alertType = '🛒 wants to BUY'
+    } else {
+      alertType = '👤 wants to speak to HUMAN AGENT'
+    }
+
+    const notificationMessage = `🔔 *${chatbotName} Alert*
+
+Customer: ${customerPhone}
+Intent: ${alertType}
+
+Summary: ${analysis.summary || 'No summary available'}
+
+Reply to this customer now!`
+
+    // Get the WhatsApp socket for this session
+    const sessionData = whatsappSockets.get(sessionId)
+    const sock = sessionData?.sock
+    if (!sock) {
+      console.error('No active session to send admin notification')
+      return
+    }
+
+    // Format admin phone number for WhatsApp (add @s.whatsapp.net suffix)
+    const adminPhone = settings.notification_phone_number.replace(/[^0-9]/g, '')
+    const adminJid = adminPhone + '@s.whatsapp.net'
+
+    // Send WhatsApp message to admin
+    await sock.sendMessage(adminJid, { text: notificationMessage })
+
+    console.log(`Admin notification sent to ${settings.notification_phone_number} for customer ${customerPhone}`)
+
+  } catch (err) {
+    console.error('Error sending admin notification:', err.message)
+  }
+}
+
+/**
  * Analyze conversation and update contact profile with AI-assigned tags
  * Called after each message exchange
  */
@@ -1497,6 +1575,10 @@ ${tagDescriptions || `- hot_lead: High interest, likely to convert (asking about
 - needs_help: Has questions or issues to resolve
 - inactive: Conversation went cold, no recent engagement`}
 
+SPECIAL DETECTION RULES (check the LATEST customer messages carefully):
+- wantsToBuy = true if customer explicitly wants to purchase NOW: "I want to buy", "how to order", "ready to purchase", "take my order", "checkout", "I'll buy it", "I want to order", "how do I pay"
+- wantsHumanAgent = true if customer requested human support: "speak to human", "talk to agent", "real person", "customer service", "live support", "speak to someone", "talk to real", "human please", "actual person"
+
 Analyze and respond ONLY with valid JSON (no markdown, no explanation):
 {
   "tags": ["tag1", "tag2"],
@@ -1505,7 +1587,9 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
   "summary": "Brief 1-2 sentence summary of conversation state",
   "shouldAutoFollowUp": true/false,
   "suggestedFollowUp": "Natural follow-up message if applicable",
-  "confidence": 0.0-1.0
+  "confidence": 0.0-1.0,
+  "wantsToBuy": true/false,
+  "wantsHumanAgent": true/false
 }`
 
     // Use OpenAI API directly (or could use an edge function)
@@ -1595,6 +1679,12 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
       console.error('Error upserting contact profile:', upsertError)
     } else {
       console.log(`Contact profile updated with tags: ${analysis.tags?.join(', ')}`)
+
+      // Send admin notification if high-priority intent detected
+      if (analysis.wantsToBuy || analysis.wantsHumanAgent) {
+        console.log(`High-priority intent detected - wantsToBuy: ${analysis.wantsToBuy}, wantsHumanAgent: ${analysis.wantsHumanAgent}`)
+        await sendAdminNotification(chatbotId, sessionId, cleanPhoneNumber, analysis)
+      }
     }
 
   } catch (err) {

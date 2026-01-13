@@ -48,7 +48,8 @@ import {
   XCircle,
   Filter,
   Search,
-  X
+  X,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -1003,6 +1004,78 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Admin Notifications Section */}
+              <div className="border-t pt-6 mt-6">
+                <h4 className="font-medium mb-4 flex items-center gap-2">
+                  <Bell className="w-4 h-4" />
+                  Admin Notifications
+                </h4>
+
+                <div className="space-y-4">
+                  {/* Enable Notifications Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Enable WhatsApp Notifications</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Receive WhatsApp alerts when customers need attention
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings?.notification_enabled ?? false}
+                      onCheckedChange={(checked) => handleSettingsChange('notification_enabled', checked)}
+                    />
+                  </div>
+
+                  {/* Phone Number Input - Only show if notifications enabled */}
+                  {settings?.notification_enabled && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Admin Phone Number</Label>
+                        <Input
+                          placeholder="e.g. 60123456789"
+                          value={settings?.notification_phone_number || ''}
+                          onChange={(e) => handleSettingsChange('notification_phone_number', e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter phone number with country code (no + symbol). Notifications will be sent via WhatsApp.
+                        </p>
+                      </div>
+
+                      {/* Notification Triggers */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Notify me when:</Label>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">Customer wants to buy</span>
+                            <p className="text-xs text-muted-foreground">
+                              "I want to buy", "how to order", "ready to purchase"
+                            </p>
+                          </div>
+                          <Switch
+                            checked={settings?.notify_on_purchase_intent ?? true}
+                            onCheckedChange={(checked) => handleSettingsChange('notify_on_purchase_intent', checked)}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">Customer wants human agent</span>
+                            <p className="text-xs text-muted-foreground">
+                              "speak to human", "talk to agent", "real person"
+                            </p>
+                          </div>
+                          <Switch
+                            checked={settings?.notify_on_wants_human ?? true}
+                            onCheckedChange={(checked) => handleSettingsChange('notify_on_wants_human', checked)}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

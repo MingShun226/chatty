@@ -70,6 +70,11 @@ export interface FollowupSettings {
   end_hour: number
   max_followups_per_contact: number
   ai_model: string
+  // Admin notification fields
+  notification_enabled: boolean
+  notification_phone_number: string | null
+  notify_on_purchase_intent: boolean
+  notify_on_wants_human: boolean
   created_at: string
   updated_at: string
 }
