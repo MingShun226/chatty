@@ -130,6 +130,10 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const [selectedContactTags, setSelectedContactTags] = useState<string[]>([]);
   const [isSavingTags, setIsSavingTags] = useState(false);
 
+  // Notification phone number state (local state to avoid saving on every keystroke)
+  const [notificationPhone, setNotificationPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
   // Tag form state
   const [tagForm, setTagForm] = useState({
     tag_name: '',
@@ -146,6 +150,45 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
       loadData();
     }
   }, [chatbot?.id, user]);
+
+  // Sync notification phone state when settings load
+  useEffect(() => {
+    if (settings?.notification_phone_number !== undefined) {
+      setNotificationPhone(settings.notification_phone_number || '');
+      setPhoneError('');
+    }
+  }, [settings?.notification_phone_number]);
+
+  // Validate and save notification phone number
+  const handlePhoneBlur = async () => {
+    // Clear error first
+    setPhoneError('');
+
+    // If empty, just save empty
+    if (!notificationPhone.trim()) {
+      if (settings?.notification_phone_number) {
+        await handleSettingsChange('notification_phone_number', '');
+      }
+      return;
+    }
+
+    // Remove any non-digit characters for validation
+    const cleanPhone = notificationPhone.replace(/[^0-9]/g, '');
+
+    // Validate: must start with 60 and be 10-12 digits
+    if (!cleanPhone.startsWith('60')) {
+      setPhoneError('Phone number must start with 60 (Malaysia)');
+      return;
+    }
+
+    if (cleanPhone.length < 10 || cleanPhone.length > 12) {
+      setPhoneError('Phone number must be 10-12 digits');
+      return;
+    }
+
+    // Save the cleaned phone number
+    await handleSettingsChange('notification_phone_number', cleanPhone);
+  };
 
   const loadData = async () => {
     if (!chatbot?.id) return;
@@ -1035,12 +1078,21 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                         <Label>Admin Phone Number</Label>
                         <Input
                           placeholder="e.g. 60123456789"
-                          value={settings?.notification_phone_number || ''}
-                          onChange={(e) => handleSettingsChange('notification_phone_number', e.target.value)}
+                          value={notificationPhone}
+                          onChange={(e) => {
+                            setNotificationPhone(e.target.value);
+                            setPhoneError(''); // Clear error while typing
+                          }}
+                          onBlur={handlePhoneBlur}
+                          className={phoneError ? 'border-red-500' : ''}
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Enter phone number with country code (no + symbol). Notifications will be sent via WhatsApp.
-                        </p>
+                        {phoneError ? (
+                          <p className="text-xs text-red-500">{phoneError}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Enter Malaysia phone number starting with 60 (e.g. 60123456789)
+                          </p>
+                        )}
                       </div>
 
                       {/* Notification Triggers */}
