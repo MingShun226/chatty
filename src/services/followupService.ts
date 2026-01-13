@@ -525,19 +525,14 @@ export function getSentimentColor(sentiment?: string): string {
 }
 
 /**
- * Get default tag colors
+ * Get default tag colors (simplified 5 tags)
  */
 export const DEFAULT_TAG_COLORS: Record<string, string> = {
-  purchase_intent: '#f59e0b',
-  purchased: '#10b981',
-  needs_support: '#ef4444',
-  price_sensitive: '#8b5cf6',
-  comparing: '#3b82f6',
-  satisfied: '#22c55e',
-  churning: '#dc2626',
-  inactive: '#6b7280',
-  new_lead: '#06b6d4',
-  returning: '#a855f7'
+  hot_lead: '#f59e0b',
+  new_lead: '#3b82f6',
+  customer: '#10b981',
+  needs_help: '#ef4444',
+  inactive: '#6b7280'
 }
 
 /**

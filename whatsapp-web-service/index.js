@@ -1439,16 +1439,11 @@ CONVERSATION:
 ${conversationText}
 
 Available tags to choose from:
-${tagDescriptions || `- purchase_intent: Showed interest but hasn't bought yet
-- purchased: Completed a purchase/order
-- needs_support: Has question or issue needing resolution
-- price_sensitive: Mentioned budget, price concerns
-- comparing: Comparing options, researching
-- satisfied: Expressed satisfaction
-- churning: Negative sentiment, might leave
-- inactive: Conversation went cold
-- new_lead: First-time inquiry
-- returning: Previous customer coming back`}
+${tagDescriptions || `- hot_lead: High interest, likely to convert (asking about prices, features, availability)
+- new_lead: First-time inquiry, just getting information
+- customer: Already purchased or existing customer
+- needs_help: Has questions or issues to resolve
+- inactive: Conversation went cold, no recent engagement`}
 
 Analyze and respond ONLY with valid JSON (no markdown, no explanation):
 {
