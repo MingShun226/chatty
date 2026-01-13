@@ -64,6 +64,7 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
         .from('avatars')
         .select('id, name, chatbot_type, industry, company_name')
         .eq('user_id', user?.id)
+        .is('deleted_at', null) // Exclude soft-deleted chatbots
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -92,6 +93,7 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
         .select('*')
         .eq('id', chatbotId)
         .eq('user_id', user?.id)
+        .is('deleted_at', null) // Exclude soft-deleted chatbots
         .single();
 
       if (error) {

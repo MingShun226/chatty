@@ -147,6 +147,7 @@ const FollowUpsSection = () => {
         .from('avatars')
         .select('id, name')
         .eq('user_id', user?.id)
+        .is('deleted_at', null) // Exclude soft-deleted chatbots
         .order('name');
 
       if (error) throw error;
