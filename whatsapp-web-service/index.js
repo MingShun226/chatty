@@ -454,10 +454,9 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
               console.error('Error processing document:', downloadErr.message)
             }
           } else if (msgContent.stickerMessage) {
-            // Sticker message
-            messageType = 'sticker'
-            messageText = '[Sticker received]'
-            console.log(`Sticker received from ${fromNumber}`)
+            // Sticker message - ignore and don't send to webhook
+            console.log(`Sticker received from ${fromNumber} - ignoring`)
+            continue
           } else if (msgContent.locationMessage) {
             // Location message
             messageType = 'location'
@@ -752,12 +751,18 @@ async function sendWhatsAppMessage(sock, toNumber, text, delimiter = null, wpm =
  * Process batched messages (combine and send to n8n)
  */
 async function processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock) {
-  // Combine all messages with line breaks
-  const combinedMessage = messages.join('\n')
+  // Messages are objects with { text, type, media } structure
+  // Extract text from each message and combine with line breaks
+  const combinedMessage = messages.map(m => m.text).join('\n')
   console.log(`Processing ${messages.length} batched messages as: "${combinedMessage}"`)
 
-  // Process as single message
-  await processMessageWithChatbot(sessionId, chatbotId, fromNumber, combinedMessage, sock)
+  // Get the last message's type and media (for context)
+  const lastMessage = messages[messages.length - 1]
+  const messageType = lastMessage?.type || 'text'
+  const mediaData = lastMessage?.media || null
+
+  // Process as single message with the last message's media context
+  await processMessageWithChatbot(sessionId, chatbotId, fromNumber, combinedMessage, sock, messageType, mediaData)
 }
 
 /**
@@ -841,38 +846,25 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
       return
     }
 
-    // Get products for this chatbot
-    const { data: products, error: productsError } = await supabase
-      .from('chatbot_products')
-      .select('*')
-      .eq('chatbot_id', chatbotId)
-
-    if (productsError) {
-      console.error('Error fetching products:', productsError)
-    } else {
-      console.log(`Fetched ${products?.length || 0} products for chatbot ${chatbotId}`)
-    }
-
-    // Get knowledge base for this chatbot
-    const { data: knowledgeBase, error: knowledgeError } = await supabase
-      .from('avatar_knowledge_files')
+    // Get active prompt version (from Prompt Engineer page)
+    const { data: activePromptVersion } = await supabase
+      .from('avatar_prompt_versions')
       .select('*')
       .eq('avatar_id', chatbotId)
+      .eq('is_active', true)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .single()
 
-    if (knowledgeError) {
-      console.error('Error fetching knowledge base:', knowledgeError)
+    if (activePromptVersion) {
+      console.log(`Using active prompt version: v${activePromptVersion.version_number} for chatbot ${chatbotId}`)
     } else {
-      console.log(`Fetched ${knowledgeBase?.length || 0} knowledge base files for chatbot ${chatbotId}`)
+      console.log(`No active prompt version found for chatbot ${chatbotId}, using default avatar settings`)
     }
 
-    // Get conversation history for this user
-    const { data: conversationHistory } = await supabase
-      .from('whatsapp_web_messages')
-      .select('*')
-      .eq('chatbot_id', chatbotId)
-      .eq('from_number', fromNumber)
-      .order('timestamp', { ascending: false })
-      .limit(10)
+    // NOTE: Products, knowledge base, and conversation history are NOT sent in webhook anymore
+    // The AI agent should fetch these on-demand via the chatbot-data API endpoints
+    // This reduces webhook payload size and improves performance
 
     // Check if n8n webhook URL is configured for this chatbot (SaaS multi-tenant)
     const n8nWebhookUrl = chatbot.n8n_enabled ? chatbot.n8n_webhook_url : null
@@ -910,26 +902,47 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
             is_voice_note: mediaData.isVoiceNote || false
           } : null,
 
-          // Chatbot configuration
+          // Chatbot configuration (using active prompt version if available)
           chatbot: {
             id: chatbot.id,
             name: chatbot.name,
             company_name: chatbot.company_name,
             industry: chatbot.industry,
-            system_prompt: chatbot.system_prompt,
-            business_context: chatbot.business_context,
-            compliance_rules: chatbot.compliance_rules,
-            response_guidelines: chatbot.response_guidelines
+            // Use active prompt version's system_prompt, fallback to avatar's default
+            system_prompt: activePromptVersion?.system_prompt || chatbot.system_prompt,
+            business_context: activePromptVersion?.business_context || chatbot.business_context,
+            compliance_rules: activePromptVersion?.compliance_rules || chatbot.compliance_rules,
+            response_guidelines: activePromptVersion?.response_guidelines || chatbot.response_guidelines,
+            // Include additional prompt version fields if available
+            personality_traits: activePromptVersion?.personality_traits || chatbot.personality_traits,
+            behavior_rules: activePromptVersion?.behavior_rules || null,
+            prompt_version: activePromptVersion ? `v${activePromptVersion.version_number}` : null
           },
 
-          // Products
-          products: products || [],
-
-          // Knowledge base
-          knowledge_base: knowledgeBase || [],
-
-          // Conversation history
-          conversation_history: conversationHistory || []
+          // API endpoints for fetching data on-demand (use HTTP tool in AI agent)
+          // These require x-api-key header with your platform API key
+          api: {
+            base_url: 'https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1',
+            chatbot_id: chatbotId,
+            endpoints: {
+              // Search/list products
+              products: `/chatbot-data?type=products&chatbot_id=${chatbotId}&query={search_term}&limit=20`,
+              // Get product categories
+              categories: `/chatbot-data?type=categories&chatbot_id=${chatbotId}`,
+              // Get active promotions
+              promotions: `/chatbot-data?type=promotions&chatbot_id=${chatbotId}`,
+              // Validate promo code
+              validate_promo: `/chatbot-data?type=validate_promo&chatbot_id=${chatbotId}&promo_code={code}`,
+              // Search knowledge base
+              knowledge: `/chatbot-data?type=knowledge&chatbot_id=${chatbotId}&query={search_term}`,
+              // Get conversation history
+              conversations: `/avatar-conversations?avatar_id=${chatbotId}&phone_number=${encodeURIComponent(fromNumber)}`
+            },
+            headers_required: [
+              'Authorization: Bearer {supabase_anon_key}',
+              'x-api-key: {your_platform_api_key}'
+            ]
+          }
         })
       })
 

@@ -70,7 +70,7 @@ const APIKeysSection = () => {
   const [keyName, setKeyName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState<string>('all');
   const [description, setDescription] = useState('');
-  const [selectedScopes, setSelectedScopes] = useState<string[]>(['chat', 'config', 'knowledge']);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(['chat', 'config', 'products', 'promotions', 'knowledge']);
 
   useEffect(() => {
     if (user) {
@@ -180,7 +180,7 @@ const APIKeysSection = () => {
       setKeyName('');
       setSelectedAvatar('all');
       setDescription('');
-      setSelectedScopes(['chat', 'config', 'knowledge']);
+      setSelectedScopes(['chat', 'config', 'products', 'promotions', 'knowledge']);
 
       await loadAPIKeys();
 
@@ -435,6 +435,89 @@ const APIKeysSection = () => {
                 </div>
               </div>
 
+              {/* Chatbot Data API - Products */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">GET</Badge>
+                  <code className="text-sm">/chatbot-data?type=products</code>
+                  <Badge variant="secondary" className="text-xs">NEW</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Search or list products for a chatbot. Use this when customer asks about products.
+                </p>
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <p className="text-sm font-medium">Parameters:</p>
+                  <ul className="text-xs space-y-1 list-disc list-inside">
+                    <li><code>chatbot_id</code> - Required. The chatbot UUID</li>
+                    <li><code>query</code> - Optional. Search term for product name/category/SKU</li>
+                    <li><code>category</code> - Optional. Filter by category</li>
+                    <li><code>limit</code> - Optional. Max results (default: 20)</li>
+                  </ul>
+                  <pre className="text-xs overflow-x-auto mt-2">
+{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=products&chatbot_id=YOUR_ID&query=phone" \\
+  -H "Authorization: Bearer {anon_key}" \\
+  -H "x-api-key: pk_live_YOUR_KEY"`}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Chatbot Data API - Promotions */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">GET</Badge>
+                  <code className="text-sm">/chatbot-data?type=promotions</code>
+                  <Badge variant="secondary" className="text-xs">NEW</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Get active promotions. Use this when customer asks about sales, discounts, or promo codes.
+                </p>
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <pre className="text-xs overflow-x-auto">
+{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=promotions&chatbot_id=YOUR_ID" \\
+  -H "Authorization: Bearer {anon_key}" \\
+  -H "x-api-key: pk_live_YOUR_KEY"`}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Chatbot Data API - Validate Promo */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">GET</Badge>
+                  <code className="text-sm">/chatbot-data?type=validate_promo</code>
+                  <Badge variant="secondary" className="text-xs">NEW</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Validate a specific promo code. Use when customer provides a code.
+                </p>
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <pre className="text-xs overflow-x-auto">
+{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=validate_promo&chatbot_id=YOUR_ID&promo_code=CNY2024" \\
+  -H "Authorization: Bearer {anon_key}" \\
+  -H "x-api-key: pk_live_YOUR_KEY"`}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Chatbot Data API - Knowledge */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">GET</Badge>
+                  <code className="text-sm">/chatbot-data?type=knowledge</code>
+                  <Badge variant="secondary" className="text-xs">NEW</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Search the knowledge base. Uses vector search for semantic matching.
+                </p>
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <pre className="text-xs overflow-x-auto">
+{`curl "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data?type=knowledge&chatbot_id=YOUR_ID&query=return policy" \\
+  -H "Authorization: Bearer {anon_key}" \\
+  -H "x-api-key: pk_live_YOUR_KEY"`}
+                  </pre>
+                </div>
+              </div>
+
               {/* Config Endpoint */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -659,21 +742,31 @@ const APIKeysSection = () => {
             <div className="space-y-2">
               <Label>Permissions</Label>
               <div className="space-y-2">
-                {['chat', 'config', 'knowledge', 'memories'].map(scope => (
-                  <label key={scope} className="flex items-center gap-2 cursor-pointer">
+                {[
+                  { id: 'chat', label: 'Chat', description: 'Send messages to avatar' },
+                  { id: 'config', label: 'Config', description: 'Read avatar configuration' },
+                  { id: 'products', label: 'Products', description: 'Access product catalog' },
+                  { id: 'promotions', label: 'Promotions', description: 'Access promotions & promo codes' },
+                  { id: 'knowledge', label: 'Knowledge', description: 'Search knowledge base' },
+                  { id: 'memories', label: 'Memories', description: 'Access avatar memories' }
+                ].map(scope => (
+                  <label key={scope.id} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={selectedScopes.includes(scope)}
+                      checked={selectedScopes.includes(scope.id)}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedScopes([...selectedScopes, scope]);
+                          setSelectedScopes([...selectedScopes, scope.id]);
                         } else {
-                          setSelectedScopes(selectedScopes.filter(s => s !== scope));
+                          setSelectedScopes(selectedScopes.filter(s => s !== scope.id));
                         }
                       }}
                       className="w-4 h-4"
                     />
-                    <span className="text-sm capitalize">{scope}</span>
+                    <div>
+                      <span className="text-sm font-medium">{scope.label}</span>
+                      <span className="text-xs text-muted-foreground ml-2">- {scope.description}</span>
+                    </div>
                   </label>
                 ))}
               </div>

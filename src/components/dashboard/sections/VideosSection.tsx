@@ -21,7 +21,9 @@ import {
   ExternalLink,
   Settings,
   Languages,
-  Layers
+  Layers,
+  Rocket,
+  Wrench
 } from 'lucide-react';
 import { MultiImageUploadBox } from '@/components/ui/multi-image-upload-box';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +33,7 @@ import { generateVideo, VideoProvider } from '@/services/videoGeneration';
 import VideoGallery from './VideoGallery';
 import TemplateLibrary from '@/components/templates/TemplateLibrary';
 import { VideoTemplate } from '@/config/templates';
+import { VideoWizard } from '@/components/video/VideoWizard';
 
 // Build video service providers from KIE.AI config
 const VIDEO_SERVICES = KIE_VIDEO_SERVICES.map(service => ({
@@ -223,15 +226,27 @@ const VideosSection = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="generate" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
-          <TabsTrigger value="templates" className="gap-1">
+      <Tabs defaultValue="ai-wizard" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+          <TabsTrigger value="ai-wizard" className="flex items-center gap-1">
+            <Rocket className="h-3 w-3" />
+            AI Wizard
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-1">
             <Layers className="h-3 w-3" />
             Templates
           </TabsTrigger>
-          <TabsTrigger value="generate">Generate</TabsTrigger>
+          <TabsTrigger value="generate" className="flex items-center gap-1">
+            <Wrench className="h-3 w-3" />
+            Manual
+          </TabsTrigger>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
         </TabsList>
+
+        {/* AI Wizard Tab */}
+        <TabsContent value="ai-wizard" className="space-y-6">
+          <VideoWizard />
+        </TabsContent>
 
         {/* Templates Tab */}
         <TabsContent value="templates" className="space-y-6">
