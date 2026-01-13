@@ -47,7 +47,8 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
-  Search
+  Search,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
