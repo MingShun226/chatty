@@ -123,7 +123,10 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const [selectedContact, setSelectedContact] = useState<ContactProfile | null>(null);
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [editingContactName, setEditingContactName] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
   const [isSavingContact, setIsSavingContact] = useState(false);
+  const [selectedContactTags, setSelectedContactTags] = useState<string[]>([]);
+  const [isSavingTags, setIsSavingTags] = useState(false);
 
   // Tag form state
   const [tagForm, setTagForm] = useState({
@@ -403,6 +406,8 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const openContactDetail = (contact: ContactProfile) => {
     setSelectedContact(contact);
     setEditingContactName(contact.contact_name || '');
+    setIsEditingName(false); // Don't auto-edit if name exists
+    setSelectedContactTags(contact.tags || []);
     setIsContactDialogOpen(true);
   };
 
@@ -421,6 +426,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
           : c
       ));
       setSelectedContact({ ...selectedContact, contact_name: editingContactName || null });
+      setIsEditingName(false);
 
       toast({ title: 'Contact name saved' });
     } catch (error) {
@@ -431,6 +437,55 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
       });
     } finally {
       setIsSavingContact(false);
+    }
+  };
+
+  // Toggle tag for contact (max 3 tags)
+  const handleToggleContactTag = (tagName: string) => {
+    setSelectedContactTags(prev => {
+      if (prev.includes(tagName)) {
+        // Remove tag
+        return prev.filter(t => t !== tagName);
+      } else {
+        // Add tag (max 3)
+        if (prev.length >= 3) {
+          toast({
+            title: 'Maximum tags reached',
+            description: 'A contact can have maximum 3 tags',
+            variant: 'destructive'
+          });
+          return prev;
+        }
+        return [...prev, tagName];
+      }
+    });
+  };
+
+  // Save contact tags
+  const handleSaveContactTags = async () => {
+    if (!selectedContact) return;
+
+    setIsSavingTags(true);
+    try {
+      await updateContact(selectedContact.id, { tags: selectedContactTags });
+
+      // Update local state
+      setContacts(contacts.map(c =>
+        c.id === selectedContact.id
+          ? { ...c, tags: selectedContactTags }
+          : c
+      ));
+      setSelectedContact({ ...selectedContact, tags: selectedContactTags });
+
+      toast({ title: 'Tags saved' });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save tags',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingTags(false);
     }
   };
 
@@ -877,7 +932,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                 <div>
                   <Label>Business Hours Only</Label>
                   <p className="text-sm text-muted-foreground">
-                    Only send follow-ups during business hours
+                    Only send follow-ups during business hours (Malaysia Time, UTC+8)
                   </p>
                 </div>
                 <Switch
@@ -889,7 +944,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
               {settings?.business_hours_only && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Start Hour</Label>
+                    <Label>Start Hour <span className="text-xs text-muted-foreground">(MYT)</span></Label>
                     <Select
                       value={String(settings?.start_hour ?? 9)}
                       onValueChange={(v) => handleSettingsChange('start_hour', parseInt(v))}
@@ -907,7 +962,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>End Hour</Label>
+                    <Label>End Hour <span className="text-xs text-muted-foreground">(MYT)</span></Label>
                     <Select
                       value={String(settings?.end_hour ?? 21)}
                       onValueChange={(v) => handleSettingsChange('end_hour', parseInt(v))}
@@ -1109,28 +1164,56 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
 
           {selectedContact && (
             <div className="space-y-4">
-              {/* Editable Contact Name */}
+              {/* Contact Name - Read-only by default */}
               <div className="space-y-2">
                 <Label>Contact Name</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={editingContactName}
-                    onChange={(e) => setEditingContactName(e.target.value)}
-                    placeholder="Enter contact name..."
-                    className="flex-1"
-                  />
-                  <Button
-                    onClick={handleSaveContactName}
-                    disabled={isSavingContact || editingContactName === (selectedContact.contact_name || '')}
-                    size="sm"
-                  >
-                    {isSavingContact ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      'Save'
-                    )}
-                  </Button>
-                </div>
+                {isEditingName ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={editingContactName}
+                      onChange={(e) => setEditingContactName(e.target.value)}
+                      placeholder="Enter contact name..."
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button
+                      onClick={handleSaveContactName}
+                      disabled={isSavingContact}
+                      size="sm"
+                    >
+                      {isSavingContact ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Save'
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setIsEditingName(false);
+                        setEditingContactName(selectedContact.contact_name || '');
+                      }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm bg-muted px-3 py-2 rounded flex-1">
+                      {selectedContact.contact_name || <span className="text-muted-foreground">No name set</span>}
+                    </div>
+                    <Button
+                      onClick={() => setIsEditingName(true)}
+                      variant="outline"
+                      size="sm"
+                      className="ml-2"
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" />
+                      Change Name
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Phone Number */}
@@ -1141,30 +1224,48 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                 </div>
               </div>
 
-              {/* Tags */}
+              {/* Manual Tag Selection */}
               <div className="space-y-2">
-                <Label>Tags</Label>
-                <div className="flex flex-wrap gap-1">
-                  {selectedContact.tags.length > 0 ? (
-                    selectedContact.tags.map(tagName => {
-                      const tagConfig = tags.find(t => t.tag_name === tagName);
-                      return (
-                        <Badge
-                          key={tagName}
-                          variant="outline"
-                          style={{
-                            borderColor: tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280',
-                            color: tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280'
-                          }}
-                        >
-                          {tagName}
-                        </Badge>
-                      );
-                    })
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No tags</span>
+                <div className="flex items-center justify-between">
+                  <Label>Tags <span className="text-xs text-muted-foreground">(max 3)</span></Label>
+                  {JSON.stringify(selectedContactTags) !== JSON.stringify(selectedContact.tags) && (
+                    <Button
+                      onClick={handleSaveContactTags}
+                      disabled={isSavingTags}
+                      size="sm"
+                    >
+                      {isSavingTags ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Save Tags'
+                      )}
+                    </Button>
                   )}
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map(tag => {
+                    const isSelected = selectedContactTags.includes(tag.tag_name);
+                    return (
+                      <Badge
+                        key={tag.id}
+                        variant={isSelected ? 'default' : 'outline'}
+                        className="cursor-pointer transition-all"
+                        style={{
+                          backgroundColor: isSelected ? tag.color : 'transparent',
+                          borderColor: tag.color,
+                          color: isSelected ? 'white' : tag.color
+                        }}
+                        onClick={() => handleToggleContactTag(tag.tag_name)}
+                      >
+                        {tag.tag_name}
+                        {isSelected && <X className="w-3 h-3 ml-1" />}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                {tags.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No tags available. Create tags in the Tags tab.</p>
+                )}
               </div>
 
               {/* Sentiment */}
