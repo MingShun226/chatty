@@ -58,6 +58,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useContactsCache } from '@/contexts/ContactsCacheContext';
 import {
   ContactProfile,
   FollowupTag,
@@ -98,6 +99,7 @@ interface FollowUpsSectionProps {
 const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { contacts: cachedContacts, fetchContacts, isLoading: cacheLoading } = useContactsCache();
 
   // State - use chatbot.id from props
   const [activeSession, setActiveSession] = useState<WhatsAppSession | null>(null);
@@ -197,7 +199,16 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const loadData = async () => {
     if (!chatbot?.id) return;
 
-    setIsLoading(true);
+    // Check if we have cached contacts - if so, use them immediately for faster display
+    const cachedContactsForChatbot = cachedContacts[chatbot.id];
+    if (cachedContactsForChatbot && cachedContactsForChatbot.length > 0) {
+      // Use cached data immediately
+      setContacts(cachedContactsForChatbot as unknown as ContactProfile[]);
+      // Don't set isLoading to true if we have cached data
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       // Try to load session (table may not exist yet)
       let sessionData = null;
@@ -219,9 +230,11 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
 
       setActiveSession(sessionData);
 
-      // Load all data in parallel (with error handling for tables that may not exist)
-      const [contactsResult, tagsResult, settingsResult, historyResult, statsResult] = await Promise.allSettled([
-        getContacts(chatbot.id, { limit: 100 }),
+      // Fetch fresh contacts from cache (will use cached if fresh, or fetch new)
+      const freshContacts = await fetchContacts(chatbot.id);
+
+      // Load other data in parallel (with error handling for tables that may not exist)
+      const [tagsResult, settingsResult, historyResult, statsResult] = await Promise.allSettled([
         getTags(chatbot.id),
         getSettings(chatbot.id),
         getHistory(chatbot.id, { limit: 50 }),
@@ -229,13 +242,13 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
       ]);
 
       // Extract data from settled promises, defaulting to empty/null if failed
-      const contactsData = contactsResult.status === 'fulfilled' ? contactsResult.value : [];
       const tagsData = tagsResult.status === 'fulfilled' ? tagsResult.value : [];
       const settingsData = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
       const historyData = historyResult.status === 'fulfilled' ? historyResult.value : [];
       const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
 
-      setContacts(contactsData);
+      // Update contacts with fresh data
+      setContacts(freshContacts as unknown as ContactProfile[]);
       setTags(tagsData);
       setSettings(settingsData);
       setHistory(historyData);

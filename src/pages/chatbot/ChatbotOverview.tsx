@@ -11,13 +11,14 @@ import { Progress } from '@/components/ui/progress';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import { useContactsCache } from '@/contexts/ContactsCacheContext';
 
 // Import existing components for dialogs
 import { ProductGalleryFull } from '@/components/business-chatbot/ProductGalleryFull';
 import { PromotionsGalleryFull } from '@/components/business-chatbot/PromotionsGalleryFull';
 import { KnowledgeBase } from '@/components/chatbot-training/KnowledgeBase';
-import FollowUpsSection from '@/components/dashboard/sections/FollowUpsSection';
 
 import {
   MessageSquare,
@@ -37,11 +38,22 @@ import {
   Frown,
   Zap,
   Activity,
-  ExternalLink,
   History,
   CheckCircle2,
-  Tag
+  Tag,
+  Search
 } from 'lucide-react';
+
+interface ContactItem {
+  id: string;
+  phone: string;
+  name: string;
+  mood: string;
+  tags: string[];
+  aiSummary: string;
+  lastMessageAt: string;
+  lastMessageTime: string;
+}
 
 interface OverviewStats {
   totalChats: number;
@@ -56,17 +68,8 @@ interface OverviewStats {
     neutral: number;
     unhappy: number;
   };
-  recentConversations: Array<{
-    id: string;
-    phone: string;
-    name: string;
-    lastMessage: string;
-    mood: string;
-    time: string;
-    timeRaw: string;
-    tags: string[];
-    intent?: string;
-  }>;
+  allContacts: ContactItem[];
+  recentConversations: ContactItem[];
   alerts: {
     wantsToBuy: number;
     wantsHuman: number;
@@ -149,15 +152,19 @@ const FeatureCard = ({
 // Dashboard Content Component
 const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: () => void }) => {
   const navigate = useNavigate();
+  const { prefetchContacts } = useContactsCache();
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [contactsOpen, setContactsOpen] = useState(false);
+  const [conversationsOpen, setConversationsOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
   const [promotionsOpen, setPromotionsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [followupHistoryOpen, setFollowupHistoryOpen] = useState(false);
   const [dismissingAlert, setDismissingAlert] = useState<string | null>(null);
+  const [contactSearch, setContactSearch] = useState('');
+  const [conversationSearch, setConversationSearch] = useState('');
 
   const getTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -206,7 +213,22 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         }
       });
 
-      const recentConversations = contacts
+      // All contacts for Contacts listing (sorted by name)
+      const allContacts: ContactItem[] = contacts
+        .sort((a, b) => (a.contact_name || 'Unknown').localeCompare(b.contact_name || 'Unknown'))
+        .map(c => ({
+          id: c.id,
+          phone: c.phone_number,
+          name: c.contact_name || 'Unknown',
+          mood: c.ai_sentiment || 'neutral',
+          tags: c.tags || [],
+          aiSummary: c.ai_summary || 'No summary available',
+          lastMessageAt: c.last_message_at || '',
+          lastMessageTime: c.last_message_at ? getTimeAgo(new Date(c.last_message_at)) : 'Never'
+        }));
+
+      // Recent conversations (sorted by last message time)
+      const recentConversations: ContactItem[] = contacts
         .filter(c => c.last_message_at)
         .sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime())
         .slice(0, 20)
@@ -214,12 +236,11 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
           id: c.id,
           phone: c.phone_number,
           name: c.contact_name || 'Unknown',
-          lastMessage: c.ai_summary || 'No summary',
           mood: c.ai_sentiment || 'neutral',
-          time: c.last_message_at ? getTimeAgo(new Date(c.last_message_at)) : 'Unknown',
-          timeRaw: c.last_message_at || '',
           tags: c.tags || [],
-          intent: (c.ai_analysis as any)?.wantsToBuy ? 'buy' : (c.ai_analysis as any)?.wantsHumanAgent ? 'human' : undefined
+          aiSummary: c.ai_summary || 'No summary available',
+          lastMessageAt: c.last_message_at || '',
+          lastMessageTime: c.last_message_at ? getTimeAgo(new Date(c.last_message_at)) : 'Unknown'
         }));
 
       const followupHistory = (historyRes.data || []).map((h: any) => ({
@@ -246,6 +267,7 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         promotionCount: promotionsRes.data?.length || 0,
         documentCount: documentsRes.data?.length || 0,
         moodDistribution,
+        allContacts,
         recentConversations,
         alerts: { wantsToBuy: buyContacts.length, wantsHuman: humanContacts.length, buyContacts, humanContacts },
         followupHistory,
@@ -296,8 +318,10 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
   useEffect(() => {
     if (chatbot?.id) {
       fetchStats(chatbot.id);
+      // Start prefetching contacts for faster /chatbot/contacts page load
+      prefetchContacts(chatbot.id);
     }
-  }, [chatbot?.id]);
+  }, [chatbot?.id, prefetchContacts]);
 
   const getMoodIcon = (mood: string) => {
     switch (mood) {
@@ -488,33 +512,93 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
           Quick Access
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Contacts - Sheet */}
-          <Sheet open={contactsOpen} onOpenChange={setContactsOpen}>
-            <SheetTrigger asChild>
+          {/* Contacts - Dialog with Tags and Moods */}
+          <Dialog open={contactsOpen} onOpenChange={setContactsOpen}>
+            <DialogTrigger asChild>
               <div>
                 <FeatureCard title="Contacts" icon={Users} iconColor="text-purple-500">
                   <p className="text-2xl font-bold">{stats.totalContacts}</p>
                   <p className="text-sm text-muted-foreground">{stats.pendingFollowups} pending follow-up</p>
                 </FeatureCard>
               </div>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw] p-0">
-              <SheetHeader className="p-6 pb-0">
-                <div className="flex items-center justify-between">
-                  <SheetTitle>Contact Management</SheetTitle>
-                  <Button variant="outline" size="sm" onClick={() => { setContactsOpen(false); navigate('/chatbot/contacts'); }}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Full Page
-                  </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[95vw] md:max-w-[85vw] lg:max-w-4xl max-h-[90vh] p-0">
+              <DialogHeader className="p-6 pb-3">
+                <DialogTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  All Contacts ({stats.allContacts.length})
+                </DialogTitle>
+                <div className="relative mt-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search contacts by name or phone..."
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    className="pl-9"
+                  />
                 </div>
-              </SheetHeader>
-              <ScrollArea className="h-[calc(100vh-100px)]">
-                <div className="p-6">
-                  <FollowUpsSection chatbot={chatbot} />
+              </DialogHeader>
+              <ScrollArea className="h-[calc(90vh-150px)]">
+                <div className="px-6 pb-6 space-y-2">
+                  {stats.allContacts
+                    .filter(c =>
+                      c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                      c.phone.includes(contactSearch)
+                    )
+                    .map((contact) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {getMoodIcon(contact.mood)}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium">{contact.name}</span>
+                              <span className="text-xs text-muted-foreground">({contact.phone})</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {contact.tags.length > 0 ? (
+                                contact.tags.map((tag) => (
+                                  <Badge key={tag} variant="secondary" className="text-xs">
+                                    <Tag className="h-3 w-3 mr-1" />
+                                    {tag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-xs text-muted-foreground">No tags</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              contact.mood === 'positive'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : contact.mood === 'negative'
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            }`}
+                          >
+                            {contact.mood === 'positive' ? 'Happy' : contact.mood === 'negative' ? 'Unhappy' : 'Neutral'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  {stats.allContacts.filter(c =>
+                    c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+                    c.phone.includes(contactSearch)
+                  ).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      {contactSearch ? 'No contacts found' : 'No contacts yet'}
+                    </p>
+                  )}
                 </div>
               </ScrollArea>
-            </SheetContent>
-          </Sheet>
+            </DialogContent>
+          </Dialog>
 
           {/* Products - Dialog */}
           <Dialog open={productsOpen} onOpenChange={setProductsOpen}>
@@ -528,13 +612,7 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
             </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-6xl max-h-[90vh] p-0">
               <DialogHeader className="p-6 pb-0">
-                <div className="flex items-center justify-between">
-                  <DialogTitle>Product Catalog</DialogTitle>
-                  <Button variant="outline" size="sm" onClick={() => { setProductsOpen(false); navigate('/chatbot/content'); }}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Full Page
-                  </Button>
-                </div>
+                <DialogTitle>Product Catalog</DialogTitle>
               </DialogHeader>
               <ScrollArea className="h-[calc(90vh-100px)]">
                 <div className="p-6">
@@ -556,13 +634,7 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
             </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-6xl max-h-[90vh] p-0">
               <DialogHeader className="p-6 pb-0">
-                <div className="flex items-center justify-between">
-                  <DialogTitle>Promotion Manager</DialogTitle>
-                  <Button variant="outline" size="sm" onClick={() => { setPromotionsOpen(false); navigate('/chatbot/content'); }}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Full Page
-                  </Button>
-                </div>
+                <DialogTitle>Promotion Manager</DialogTitle>
               </DialogHeader>
               <ScrollArea className="h-[calc(90vh-100px)]">
                 <div className="p-6">
@@ -584,13 +656,7 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
             </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-5xl max-h-[90vh] p-0">
               <DialogHeader className="p-6 pb-0">
-                <div className="flex items-center justify-between">
-                  <DialogTitle>Knowledge Base</DialogTitle>
-                  <Button variant="outline" size="sm" onClick={() => { setKnowledgeOpen(false); navigate('/chatbot/content'); }}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Full Page
-                  </Button>
-                </div>
+                <DialogTitle>Knowledge Base</DialogTitle>
               </DialogHeader>
               <ScrollArea className="h-[calc(90vh-100px)]">
                 <div className="p-6">
@@ -618,15 +684,9 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
                 </FeatureCard>
               </div>
             </SheetTrigger>
-            <SheetContent className="w-[500px]">
+            <SheetContent className="w-[400px]">
               <SheetHeader>
-                <div className="flex items-center justify-between">
-                  <SheetTitle>WhatsApp Integration</SheetTitle>
-                  <Button variant="outline" size="sm" onClick={() => { setWhatsappOpen(false); navigate('/chatbot/whatsapp'); }}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Full Page
-                  </Button>
-                </div>
+                <SheetTitle>WhatsApp Integration</SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-4">
                 <div className="p-4 border rounded-lg">
@@ -657,13 +717,10 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
             </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-3xl max-h-[90vh] p-0">
               <DialogHeader className="p-6 pb-0">
-                <div className="flex items-center justify-between">
-                  <DialogTitle>Follow-up History</DialogTitle>
-                  <Button variant="outline" size="sm" onClick={() => { setFollowupHistoryOpen(false); setContactsOpen(true); }}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    View All
-                  </Button>
-                </div>
+                <DialogTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Follow-up History
+                </DialogTitle>
               </DialogHeader>
               <ScrollArea className="h-[calc(90vh-100px)]">
                 <div className="p-6">
@@ -706,52 +763,116 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
       </div>
 
       {/* Recent Conversations */}
-      <Card>
+      <Card className="cursor-pointer hover:border-primary hover:shadow-md transition-all" onClick={() => setConversationsOpen(true)}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
               Recent Conversations
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setContactsOpen(true)}>
-              View All
-            </Button>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
         </CardHeader>
         <CardContent>
           {stats.recentConversations.length > 0 ? (
-            <div className="space-y-3">
-              {stats.recentConversations.map((conv, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => setContactsOpen(true)}>
-                  <div className="flex items-center gap-3">
+            <div className="space-y-2">
+              {stats.recentConversations.slice(0, 5).map((conv) => (
+                <div key={conv.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     {getMoodIcon(conv.mood)}
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">{conv.name}</span>
-                        <span className="text-xs text-muted-foreground">({conv.phone})</span>
-                        {conv.intent === 'buy' && (
-                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                            <ShoppingCart className="h-3 w-3 mr-1" /> Wants to buy
-                          </Badge>
-                        )}
-                        {conv.intent === 'human' && (
-                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                            <User className="h-3 w-3 mr-1" /> Wants agent
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate max-w-md">{conv.lastMessage}</p>
-                    </div>
+                    <span className="font-medium text-sm truncate">{conv.name}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{conv.time}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">{conv.lastMessageTime}</span>
                 </div>
               ))}
+              {stats.recentConversations.length > 5 && (
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  +{stats.recentConversations.length - 5} more conversations
+                </p>
+              )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">No conversations yet</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No conversations yet</p>
           )}
         </CardContent>
       </Card>
+
+      {/* Recent Conversations Dialog */}
+      <Dialog open={conversationsOpen} onOpenChange={setConversationsOpen}>
+        <DialogContent className="max-w-[95vw] md:max-w-[85vw] lg:max-w-4xl max-h-[90vh] p-0">
+          <DialogHeader className="p-6 pb-3">
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Recent Conversations ({stats.recentConversations.length})
+            </DialogTitle>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, phone, or summary..."
+                value={conversationSearch}
+                onChange={(e) => setConversationSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </DialogHeader>
+          <ScrollArea className="h-[calc(90vh-150px)]">
+            <div className="px-6 pb-6 space-y-3">
+              {stats.recentConversations
+                .filter(c =>
+                  c.name.toLowerCase().includes(conversationSearch.toLowerCase()) ||
+                  c.phone.includes(conversationSearch) ||
+                  c.aiSummary.toLowerCase().includes(conversationSearch.toLowerCase())
+                )
+                .map((conv) => (
+                  <div
+                    key={conv.id}
+                    className="p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="mt-1">{getMoodIcon(conv.mood)}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{conv.name}</span>
+                            <span className="text-xs text-muted-foreground">({conv.phone})</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                            {conv.aiSummary}
+                          </p>
+                          {conv.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {conv.tags.map((tag) => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  <Tag className="h-3 w-3 mr-1" />
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {conv.lastMessageTime}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              {stats.recentConversations.filter(c =>
+                c.name.toLowerCase().includes(conversationSearch.toLowerCase()) ||
+                c.phone.includes(conversationSearch) ||
+                c.aiSummary.toLowerCase().includes(conversationSearch.toLowerCase())
+              ).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {conversationSearch ? 'No conversations found' : 'No recent conversations'}
+                </p>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

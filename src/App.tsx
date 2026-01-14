@@ -40,6 +40,7 @@ import { AdminSettings } from '@/pages/admin/AdminSettings';
 
 import { useAuth } from '@/hooks/useAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
+import { ContactsCacheProvider } from '@/contexts/ContactsCacheContext';
 import { GlobalNotification } from '@/components/notifications';
 
 // Create a client
@@ -76,6 +77,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
+      <ContactsCacheProvider>
         <Router>
         <Routes>
           <Route 
@@ -224,6 +226,7 @@ function App() {
         <SonnerToaster />
         <GlobalNotification />
         </Router>
+      </ContactsCacheProvider>
       </SidebarProvider>
     </QueryClientProvider>
   );
