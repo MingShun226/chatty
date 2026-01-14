@@ -7,6 +7,24 @@ export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accountStatus, setAccountStatus] = useState<string | null>(null);
+
+  // Fetch account status from profiles
+  const fetchAccountStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('account_status')
+        .eq('id', userId)
+        .single();
+
+      if (!error && data) {
+        setAccountStatus(data.account_status);
+      }
+    } catch (err) {
+      console.warn('[Auth] Failed to fetch account status:', err);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -23,6 +41,14 @@ export const useAuth = () => {
 
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Fetch account status when user is set
+        if (session?.user) {
+          fetchAccountStatus(session.user.id);
+        } else {
+          setAccountStatus(null);
+        }
+
         setLoading(false);
       }
     );
@@ -40,15 +66,22 @@ export const useAuth = () => {
         });
         setSession(null);
         setUser(null);
+        setAccountStatus(null);
       } else {
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Fetch account status when user is set
+        if (session?.user) {
+          fetchAccountStatus(session.user.id);
+        }
       }
       setLoading(false);
     }).catch((err) => {
       console.warn('[Auth] Failed to get session:', err);
       setSession(null);
       setUser(null);
+      setAccountStatus(null);
       setLoading(false);
     });
 
@@ -140,6 +173,7 @@ export const useAuth = () => {
     user,
     session,
     loading,
+    accountStatus,
     signUp,
     signIn,
     signOut,

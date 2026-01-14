@@ -53,12 +53,12 @@ const LoginForm = ({
         if (data?.user) {
           const { data: adminData } = await supabase
             .from('admin_users')
-            .select('default_dashboard, is_active')
+            .select('*')
             .eq('user_id', data.user.id)
             .eq('is_active', true)
-            .single();
+            .maybeSingle();
 
-          if (adminData && adminData.default_dashboard === 'admin') {
+          if (adminData && (adminData as any).default_dashboard === 'admin') {
             // Redirect to admin panel if preference is set
             navigate('/admin');
           } else {

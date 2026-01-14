@@ -18,7 +18,7 @@ export function LanguageSwitcher() {
           {languages.find(lang => lang.code === i18n.language)?.label || 'English'}
         </span>
       </button>
-
+  
       {/* Dropdown */}
       <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
         {languages.map((lang) => (

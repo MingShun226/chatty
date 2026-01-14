@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '@/components/dashboard/Sidebar';
 import VideosSection from '@/components/dashboard/sections/VideosSection';
+import { FeatureGate } from '@/components/FeatureGate';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
 
@@ -38,7 +39,9 @@ const VideoStudio = () => {
       <main className={`${isCollapsed ? 'ml-16' : 'ml-56'} overflow-auto transition-all duration-300`}>
         <div className="p-6">
           <div className="max-w-6xl mx-auto">
-            <VideosSection />
+            <FeatureGate featureKey="advertising.video_studio">
+              <VideosSection />
+            </FeatureGate>
           </div>
         </div>
       </main>

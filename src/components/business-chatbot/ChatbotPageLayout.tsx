@@ -36,6 +36,7 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
   const [showWizard, setShowWizard] = useState(showWizardParam === 'true');
   const [userChatbots, setUserChatbots] = useState<any[]>([]);
   const [loadingChatbots, setLoadingChatbots] = useState(true);
+  const [loadingSelectedChatbot, setLoadingSelectedChatbot] = useState(false);
   const [planInfo, setPlanInfo] = useState<PlanInfo>({ currentCount: 0, maxAllowed: 1, canCreate: true });
   const { toast } = useToast();
   const { user } = useAuth();
@@ -143,6 +144,7 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
 
   const fetchChatbotData = async (chatbotId: string) => {
     try {
+      setLoadingSelectedChatbot(true);
       const { data, error } = await supabase
         .from('avatars')
         .select('*')
@@ -168,6 +170,8 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
       setSelectedChatbot(data);
     } catch (error) {
       console.error('Error fetching chatbot:', error);
+    } finally {
+      setLoadingSelectedChatbot(false);
     }
   };
 
@@ -265,7 +269,10 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
       </div>
 
       {/* Main Content */}
-      {!selectedChatbot ? (
+      {loadingChatbots || loadingSelectedChatbot ? (
+        // Show nothing while loading to prevent flash
+        <div className="mt-6" />
+      ) : !selectedChatbot ? (
         <div className="flex flex-col items-center justify-center py-24">
           <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
           <h3 className="text-xl font-semibold mb-2">No Chatbot Selected</h3>

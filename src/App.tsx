@@ -42,6 +42,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { ContactsCacheProvider } from '@/contexts/ContactsCacheContext';
 import { GlobalNotification } from '@/components/notifications';
+import SuspendedAccount from '@/pages/SuspendedAccount';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -54,7 +55,7 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, accountStatus } = useAuth();
 
   // Show loading screen while checking auth state
   if (loading) {
@@ -74,6 +75,16 @@ function App() {
     // Logout is handled by the useAuth hook in the Dashboard component
   };
 
+  // Helper to get the correct element for protected routes
+  const isSuspended = user && accountStatus === 'suspended';
+
+  // Protected route element - redirects suspended users to /suspended
+  const protectedRoute = (element: React.ReactNode) => {
+    if (!user) return <Navigate to="/auth" />;
+    if (isSuspended) return <Navigate to="/suspended" />;
+    return element;
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
@@ -90,118 +101,122 @@ function App() {
               />
             } 
           />
-          <Route 
-            path="/auth" 
-            element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" />} 
+          <Route
+            path="/auth"
+            element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" />}
           />
-          <Route 
-            path="/dashboard" 
-            element={user ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/auth" />} 
+          <Route
+            path="/suspended"
+            element={user ? (isSuspended ? <SuspendedAccount /> : <Navigate to="/dashboard" />) : <Navigate to="/auth" />}
           />
-          <Route 
-            path="/create-avatar" 
-            element={user ? <CreateAvatar /> : <Navigate to="/auth" />} 
+          <Route
+            path="/dashboard"
+            element={protectedRoute(<Dashboard onLogout={handleLogout} />)}
           />
-          <Route 
-            path="/create-avatar/:id" 
-            element={user ? <CreateAvatar /> : <Navigate to="/auth" />} 
+          <Route
+            path="/create-avatar"
+            element={protectedRoute(<CreateAvatar />)}
+          />
+          <Route
+            path="/create-avatar/:id"
+            element={protectedRoute(<CreateAvatar />)}
           />
           <Route
             path="/avatar/:id"
-            element={user ? <AvatarDetail /> : <Navigate to="/auth" />}
+            element={protectedRoute(<AvatarDetail />)}
           />
           <Route
             path="/my-avatars"
-            element={user ? <MyAvatars /> : <Navigate to="/auth" />}
+            element={protectedRoute(<MyAvatars />)}
           />
           <Route
             path="/chatbot-studio"
-            element={user ? <Navigate to="/chatbot/overview" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
           />
 
           {/* Chatbot Sub-Pages (New Consolidated Structure) */}
           <Route
             path="/chatbot/overview"
-            element={user ? <ChatbotOverview /> : <Navigate to="/auth" />}
+            element={protectedRoute(<ChatbotOverview />)}
           />
           <Route
             path="/chatbot/content"
-            element={user ? <ChatbotContent /> : <Navigate to="/auth" />}
+            element={protectedRoute(<ChatbotContent />)}
           />
           <Route
             path="/chatbot/ai-studio"
-            element={user ? <ChatbotAIStudio /> : <Navigate to="/auth" />}
+            element={protectedRoute(<ChatbotAIStudio />)}
           />
           <Route
             path="/chatbot/whatsapp"
-            element={user ? <WhatsAppIntegration /> : <Navigate to="/auth" />}
+            element={protectedRoute(<WhatsAppIntegration />)}
           />
           <Route
             path="/chatbot/contacts"
-            element={user ? <ChatbotContacts /> : <Navigate to="/auth" />}
+            element={protectedRoute(<ChatbotContacts />)}
           />
 
           {/* Legacy Chatbot Routes (redirect to new consolidated pages) */}
           <Route
             path="/chatbot/settings"
-            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
           />
           <Route
             path="/chatbot/products"
-            element={user ? <Navigate to="/chatbot/content" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/content" replace />)}
           />
           <Route
             path="/chatbot/promotions"
-            element={user ? <Navigate to="/chatbot/content" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/content" replace />)}
           />
           <Route
             path="/chatbot/knowledge"
-            element={user ? <Navigate to="/chatbot/content" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/content" replace />)}
           />
           <Route
             path="/chatbot/prompt-engineer"
-            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
           />
           <Route
             path="/chatbot/model-training"
-            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
           />
           <Route
             path="/chatbot/followups"
-            element={user ? <Navigate to="/chatbot/contacts" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/contacts" replace />)}
           />
           <Route
             path="/chatbot/test"
-            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
           />
 
           <Route
             path="/images-studio"
-            element={user ? <ImagesStudio /> : <Navigate to="/auth" />}
+            element={protectedRoute(<ImagesStudio />)}
           />
           <Route
             path="/video-studio"
-            element={user ? <VideoStudio /> : <Navigate to="/auth" />}
+            element={protectedRoute(<VideoStudio />)}
           />
           <Route
             path="/billing"
-            element={user ? <Billing /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Billing />)}
           />
           <Route
             path="/settings"
-            element={user ? <Settings /> : <Navigate to="/auth" />}
+            element={protectedRoute(<Settings />)}
           />
           <Route
             path="/api-keys"
-            element={user ? <APIKeys /> : <Navigate to="/auth" />}
+            element={protectedRoute(<APIKeys />)}
           />
           <Route
             path="/test-chatbot-setup"
-            element={user ? <TestChatbotSetup /> : <Navigate to="/auth" />}
+            element={protectedRoute(<TestChatbotSetup />)}
           />
           <Route
             path="/create-chatbot"
-            element={user ? <ChatbotCreationWizard /> : <Navigate to="/auth" />}
+            element={protectedRoute(<ChatbotCreationWizard />)}
           />
 
           {/* Admin Routes */}

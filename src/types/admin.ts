@@ -30,15 +30,32 @@ export interface UserProfile {
   banned_reason: string | null;
 }
 
+export interface TierFeatures {
+  chatbot: {
+    knowledge_base: boolean;
+    ai_training: boolean;
+    whatsapp_integration: boolean;
+    contacts_management: boolean;
+    follow_ups: boolean;
+    prompt_engineer: boolean;
+  };
+  advertising: {
+    images_studio: boolean;
+    video_studio: boolean;
+  };
+}
+
 export interface SubscriptionTier {
   id: string;
   name: string;
   display_name: string;
   description: string;
   price_monthly: number;
+  price_quarterly: number;
   price_yearly: number;
   trial_days: number;
-  max_chatbots: number;
+  max_avatars: number;
+  features: TierFeatures;
   priority_support: boolean;
   custom_branding: boolean;
   is_active: boolean;
