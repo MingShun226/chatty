@@ -166,11 +166,12 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
   const fetchStats = async (chatbotId: string) => {
     setLoading(true);
     try {
-      const [contactsRes, productsRes, promotionsRes, documentsRes] = await Promise.all([
+      const [contactsRes, productsRes, promotionsRes, documentsRes, whatsappRes] = await Promise.all([
         supabase.from('contact_profiles').select('*').eq('chatbot_id', chatbotId),
         supabase.from('chatbot_products').select('id').eq('chatbot_id', chatbotId),
         supabase.from('chatbot_promotions').select('id').eq('chatbot_id', chatbotId),
-        supabase.from('avatar_knowledge_files').select('id').eq('avatar_id', chatbotId)
+        supabase.from('avatar_knowledge_files').select('id').eq('avatar_id', chatbotId),
+        supabase.from('whatsapp_web_sessions').select('status, phone_number').eq('chatbot_id', chatbotId).maybeSingle()
       ]);
 
       const contacts = contactsRes.data || [];
@@ -221,8 +222,8 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         moodDistribution,
         recentConversations,
         alerts: { wantsToBuy, wantsHuman },
-        whatsappConnected: false, // WhatsApp status checked via n8n service, not database
-        whatsappPhone: ''
+        whatsappConnected: whatsappRes.data?.status === 'connected',
+        whatsappPhone: whatsappRes.data?.phone_number || ''
       });
     } catch (error) {
       console.error('Error fetching stats:', error);

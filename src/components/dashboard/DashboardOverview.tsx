@@ -52,6 +52,7 @@ interface Chatbot {
   industry: string | null;
   created_at: string;
   contactCount: number;
+  whatsappConnected: boolean;
 }
 
 interface RecentConversation {
@@ -176,16 +177,24 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         }
       }
 
-      // Get per-chatbot stats (contacts only)
+      // Get per-chatbot stats (contacts + WhatsApp status)
       const chatbotStatsPromises = (userChatbots || []).map(async (chatbot) => {
-        const contactRes = await supabase
-          .from('contact_profiles')
-          .select('id', { count: 'exact', head: true })
-          .eq('chatbot_id', chatbot.id);
+        const [contactRes, whatsappRes] = await Promise.all([
+          supabase
+            .from('contact_profiles')
+            .select('id', { count: 'exact', head: true })
+            .eq('chatbot_id', chatbot.id),
+          supabase
+            .from('whatsapp_web_sessions')
+            .select('status')
+            .eq('chatbot_id', chatbot.id)
+            .maybeSingle()
+        ]);
 
         return {
           ...chatbot,
-          contactCount: contactRes.count || 0
+          contactCount: contactRes.count || 0,
+          whatsappConnected: whatsappRes.data?.status === 'connected'
         };
       });
 
@@ -322,15 +331,23 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         {chatbots.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {chatbots.map((chatbot) => (
-              <Card key={chatbot.id} className="hover:shadow-md transition-shadow">
+              <Card
+                key={chatbot.id}
+                className={`hover:shadow-md transition-shadow ${chatbot.whatsappConnected ? 'bg-green-50 border-green-200' : ''}`}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${chatbot.whatsappConnected ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}>
                         {chatbot.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h3 className="font-medium">{chatbot.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium">{chatbot.name}</h3>
+                          {chatbot.whatsappConnected && (
+                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" title="WhatsApp Connected" />
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {chatbot.company_name || chatbot.industry || 'No details'}
                         </p>
@@ -368,6 +385,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       <Users className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>{chatbot.contactCount} contacts</span>
                     </div>
+                    {chatbot.whatsappConnected && (
+                      <div className="flex items-center gap-1.5 text-green-600">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        <span className="text-xs">WhatsApp Active</span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
