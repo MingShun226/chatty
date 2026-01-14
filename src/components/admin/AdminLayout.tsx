@@ -4,8 +4,6 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   LayoutDashboard,
   Users,
@@ -16,8 +14,6 @@ import {
   Menu,
   X,
   ShieldCheck,
-  ArrowRightLeft,
-  UserCircle,
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -126,7 +122,7 @@ export const AdminLayout = () => {
               </div>
               {!isCollapsed && (
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-sm font-bold text-sidebar-foreground truncate">Admin Panel</h1>
+                  <h1 className="text-sm font-bold text-sidebar-foreground truncate">Chatty Admin</h1>
                   <p className="text-xs text-sidebar-foreground/60 truncate">Platform Management</p>
                 </div>
               )}
@@ -211,39 +207,6 @@ export const AdminLayout = () => {
                               opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none
                               whitespace-nowrap z-50 hidden md:block">
                   Settings
-                </div>
-              )}
-            </Link>
-
-            {/* Back to User Dashboard */}
-            <Link
-              to="/dashboard"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMobileOpen(false);
-              }}
-              className={cn(
-                'nav-item w-full text-sm relative group',
-                isCollapsed ? 'justify-center px-2' : ''
-              )}
-              title={isCollapsed ? 'User Dashboard' : undefined}
-            >
-              <UserCircle className="w-4 h-4 flex-shrink-0" />
-              {!isCollapsed && (
-                <div className="flex items-center justify-between flex-1">
-                  <span className="truncate">User Dashboard</span>
-                  <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                    <ArrowRightLeft className="h-2 w-2" />
-                  </Badge>
-                </div>
-              )}
-
-              {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded
-                              opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none
-                              whitespace-nowrap z-50 hidden md:block">
-                  Switch to User Dashboard
                 </div>
               )}
             </Link>

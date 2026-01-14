@@ -10,7 +10,7 @@ export interface AdminUser {
   created_at: string;
   permissions: {
     users: { read: boolean; write: boolean; delete: boolean };
-    avatars: { read: boolean; write: boolean; delete: boolean };
+    chatbots: { read: boolean; write: boolean; delete: boolean };
     tiers: { read: boolean; write: boolean; delete: boolean };
     financial: { read: boolean; write: boolean; delete: boolean };
     settings: { read: boolean; write: boolean; delete: boolean };
@@ -38,7 +38,7 @@ export interface SubscriptionTier {
   price_monthly: number;
   price_yearly: number;
   trial_days: number;
-  max_avatars: number;
+  max_chatbots: number;
   priority_support: boolean;
   custom_branding: boolean;
   is_active: boolean;
@@ -64,14 +64,14 @@ export interface MonthlyUsage {
   id: string;
   user_id: string;
   usage_month: string;
-  avatars_created: number;
+  chatbots_created: number;
   conversations_count: number;
-  images_generated: number;
-  memories_added: number;
+  products_added: number;
+  promotions_created: number;
   knowledge_files_uploaded: number;
-  training_jobs_created: number;
-  voice_clones_created: number;
-  is_over_avatar_limit: boolean;
+  api_calls_count: number;
+  whatsapp_messages_count: number;
+  is_over_chatbot_limit: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -80,8 +80,13 @@ export interface PlatformStatistics {
   total_users: number;
   active_users_7d: number;
   active_users_30d: number;
-  total_avatars: number;
+  total_chatbots: number;
   total_conversations: number;
+  total_products: number;
+  total_promotions: number;
+  total_whatsapp_sessions: number;
+  total_contacts: number;
+  total_api_keys: number;
   mrr: number;
   churn_rate: number;
 }
@@ -92,8 +97,9 @@ export interface UserAdminDetails {
   account_status: string;
   tier_name: string;
   subscription_status: string;
-  avatars_count: number;
-  conversations_count: number;
+  chatbots_count: number;
+  products_count: number;
+  contacts_count: number;
   api_keys_count: number;
   total_spent: number;
   created_at: string;
