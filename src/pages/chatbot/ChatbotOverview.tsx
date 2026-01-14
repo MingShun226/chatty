@@ -11,14 +11,12 @@ import { Progress } from '@/components/ui/progress';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 
 // Import existing components for dialogs
 import { ProductGalleryFull } from '@/components/business-chatbot/ProductGalleryFull';
 import { PromotionsGalleryFull } from '@/components/business-chatbot/PromotionsGalleryFull';
 import { KnowledgeBase } from '@/components/chatbot-training/KnowledgeBase';
-import { BusinessChatbotTest } from '@/components/business-chatbot/BusinessChatbotTest';
 import FollowUpsSection from '@/components/dashboard/sections/FollowUpsSection';
 
 import {
@@ -28,26 +26,21 @@ import {
   Gift,
   BookOpen,
   Phone,
-  Brain,
   Bell,
   TrendingUp,
   ShoppingCart,
   User,
   Clock,
   ChevronRight,
-  Send,
-  Plus,
-  Upload,
-  Megaphone,
-  Settings,
   Smile,
   Meh,
   Frown,
   Zap,
   Activity,
   ExternalLink,
-  TestTube,
-  Wand2
+  History,
+  CheckCircle2,
+  Tag
 } from 'lucide-react';
 
 interface OverviewStats {
@@ -64,17 +57,31 @@ interface OverviewStats {
     unhappy: number;
   };
   recentConversations: Array<{
+    id: string;
     phone: string;
     name: string;
     lastMessage: string;
     mood: string;
     time: string;
+    timeRaw: string;
+    tags: string[];
     intent?: string;
   }>;
   alerts: {
     wantsToBuy: number;
     wantsHuman: number;
+    buyContacts: Array<{ id: string; phone: string; name: string }>;
+    humanContacts: Array<{ id: string; phone: string; name: string }>;
   };
+  followupHistory: Array<{
+    id: string;
+    contactName: string;
+    phone: string;
+    triggerType: string;
+    triggerTag: string;
+    sentAt: string;
+    responseReceived: boolean;
+  }>;
   whatsappConnected: boolean;
   whatsappPhone: string;
 }
@@ -149,8 +156,8 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
   const [promotionsOpen, setPromotionsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
-  const [aiTrainingOpen, setAiTrainingOpen] = useState(false);
-  const [testChatOpen, setTestChatOpen] = useState(false);
+  const [followupHistoryOpen, setFollowupHistoryOpen] = useState(false);
+  const [dismissingAlert, setDismissingAlert] = useState<string | null>(null);
 
   const getTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -166,19 +173,20 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
   const fetchStats = async (chatbotId: string) => {
     setLoading(true);
     try {
-      const [contactsRes, productsRes, promotionsRes, documentsRes, whatsappRes] = await Promise.all([
+      const [contactsRes, productsRes, promotionsRes, documentsRes, whatsappRes, historyRes] = await Promise.all([
         supabase.from('contact_profiles').select('*').eq('chatbot_id', chatbotId),
         supabase.from('chatbot_products').select('id').eq('chatbot_id', chatbotId),
         supabase.from('chatbot_promotions').select('id').eq('chatbot_id', chatbotId),
         supabase.from('avatar_knowledge_files').select('id').eq('avatar_id', chatbotId),
-        supabase.from('whatsapp_web_sessions').select('status, phone_number').eq('chatbot_id', chatbotId).maybeSingle()
+        supabase.from('whatsapp_web_sessions').select('status, phone_number').eq('chatbot_id', chatbotId).maybeSingle(),
+        supabase.from('followup_history').select('*, contact:contact_profiles(contact_name, phone_number)').eq('chatbot_id', chatbotId).order('sent_at', { ascending: false }).limit(10)
       ]);
 
       const contacts = contactsRes.data || [];
       const moodDistribution = { happy: 0, neutral: 0, unhappy: 0 };
       let pendingFollowups = 0;
-      let wantsToBuy = 0;
-      let wantsHuman = 0;
+      const buyContacts: Array<{ id: string; phone: string; name: string }> = [];
+      const humanContacts: Array<{ id: string; phone: string; name: string }> = [];
 
       contacts.forEach(c => {
         if (c.ai_sentiment === 'positive') moodDistribution.happy++;
@@ -190,21 +198,39 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         }
 
         const analysis = c.ai_analysis as any;
-        if (analysis?.wantsToBuy) wantsToBuy++;
-        if (analysis?.wantsHumanAgent) wantsHuman++;
+        if (analysis?.wantsToBuy) {
+          buyContacts.push({ id: c.id, phone: c.phone_number, name: c.contact_name || 'Unknown' });
+        }
+        if (analysis?.wantsHumanAgent) {
+          humanContacts.push({ id: c.id, phone: c.phone_number, name: c.contact_name || 'Unknown' });
+        }
       });
 
       const recentConversations = contacts
+        .filter(c => c.last_message_at)
         .sort((a, b) => new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime())
-        .slice(0, 5)
+        .slice(0, 20)
         .map(c => ({
+          id: c.id,
           phone: c.phone_number,
           name: c.contact_name || 'Unknown',
           lastMessage: c.ai_summary || 'No summary',
           mood: c.ai_sentiment || 'neutral',
           time: c.last_message_at ? getTimeAgo(new Date(c.last_message_at)) : 'Unknown',
+          timeRaw: c.last_message_at || '',
+          tags: c.tags || [],
           intent: (c.ai_analysis as any)?.wantsToBuy ? 'buy' : (c.ai_analysis as any)?.wantsHumanAgent ? 'human' : undefined
         }));
+
+      const followupHistory = (historyRes.data || []).map((h: any) => ({
+        id: h.id,
+        contactName: h.contact?.contact_name || 'Unknown',
+        phone: h.contact?.phone_number || '',
+        triggerType: h.trigger_type,
+        triggerTag: h.trigger_tag || '-',
+        sentAt: h.sent_at ? getTimeAgo(new Date(h.sent_at)) : 'Unknown',
+        responseReceived: h.response_received
+      }));
 
       setStats({
         totalChats: contacts.reduce((sum, c) => sum + (c.message_count || 0), 0),
@@ -221,7 +247,8 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         documentCount: documentsRes.data?.length || 0,
         moodDistribution,
         recentConversations,
-        alerts: { wantsToBuy, wantsHuman },
+        alerts: { wantsToBuy: buyContacts.length, wantsHuman: humanContacts.length, buyContacts, humanContacts },
+        followupHistory,
         whatsappConnected: whatsappRes.data?.status === 'connected',
         whatsappPhone: whatsappRes.data?.phone_number || ''
       });
@@ -229,6 +256,40 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
       console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Dismiss alert (clear wantsToBuy/wantsHumanAgent flag)
+  const dismissAlert = async (contactId: string, alertType: 'buy' | 'human') => {
+    setDismissingAlert(contactId);
+    try {
+      // Get current ai_analysis and update the flag
+      const { data: contact } = await supabase
+        .from('contact_profiles')
+        .select('ai_analysis')
+        .eq('id', contactId)
+        .single();
+
+      const analysis = (contact?.ai_analysis as any) || {};
+      if (alertType === 'buy') {
+        analysis.wantsToBuy = false;
+      } else {
+        analysis.wantsHumanAgent = false;
+      }
+
+      await supabase
+        .from('contact_profiles')
+        .update({ ai_analysis: analysis })
+        .eq('id', contactId);
+
+      // Refresh stats
+      if (chatbot?.id) {
+        fetchStats(chatbot.id);
+      }
+    } catch (error) {
+      console.error('Error dismissing alert:', error);
+    } finally {
+      setDismissingAlert(null);
     }
   };
 
@@ -361,26 +422,61 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-950">
-                <div className="flex items-center gap-3">
-                  <ShoppingCart className="h-5 w-5 text-green-600" />
-                  <span className="font-medium">Want to buy</span>
-                </div>
-                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
-                  {stats.alerts.wantsToBuy}
-                </Badge>
+            <ScrollArea className="h-[200px]">
+              <div className="space-y-2">
+                {stats.alerts.buyContacts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-green-600 flex items-center gap-1">
+                      <ShoppingCart className="h-3 w-3" /> Want to buy
+                    </p>
+                    {stats.alerts.buyContacts.map((contact) => (
+                      <div key={contact.id} className="flex items-center justify-between p-2 rounded-lg bg-green-50 dark:bg-green-950">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contact.name}</p>
+                          <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                          onClick={() => dismissAlert(contact.id, 'buy')}
+                          disabled={dismissingAlert === contact.id}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {stats.alerts.humanContacts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                      <User className="h-3 w-3" /> Want human agent
+                    </p>
+                    {stats.alerts.humanContacts.map((contact) => (
+                      <div key={contact.id} className="flex items-center justify-between p-2 rounded-lg bg-blue-50 dark:bg-blue-950">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contact.name}</p>
+                          <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                          onClick={() => dismissAlert(contact.id, 'human')}
+                          disabled={dismissingAlert === contact.id}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {stats.alerts.wantsToBuy + stats.alerts.wantsHuman === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No alerts</p>
+                )}
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
-                <div className="flex items-center gap-3">
-                  <User className="h-5 w-5 text-blue-600" />
-                  <span className="font-medium">Want human agent</span>
-                </div>
-                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
-                  {stats.alerts.wantsHuman}
-                </Badge>
-              </div>
-            </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       </div>
@@ -549,55 +645,61 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
             </SheetContent>
           </Sheet>
 
-          {/* AI Training - Dialog with Tabs */}
-          <Dialog open={aiTrainingOpen} onOpenChange={setAiTrainingOpen}>
+          {/* Follow-up History - Dialog */}
+          <Dialog open={followupHistoryOpen} onOpenChange={setFollowupHistoryOpen}>
             <DialogTrigger asChild>
               <div>
-                <FeatureCard title="AI Training" icon={Brain} iconColor="text-indigo-500">
-                  <p className="text-sm text-muted-foreground">Prompt engineering & model training</p>
+                <FeatureCard title="Follow-up History" icon={History} iconColor="text-indigo-500">
+                  <p className="text-2xl font-bold">{stats.followupHistory.length}</p>
+                  <p className="text-sm text-muted-foreground">recent follow-ups sent</p>
                 </FeatureCard>
               </div>
             </DialogTrigger>
-            <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-5xl max-h-[90vh] p-0">
+            <DialogContent className="max-w-[95vw] md:max-w-[90vw] lg:max-w-3xl max-h-[90vh] p-0">
               <DialogHeader className="p-6 pb-0">
-                <DialogTitle>AI Training Center</DialogTitle>
+                <div className="flex items-center justify-between">
+                  <DialogTitle>Follow-up History</DialogTitle>
+                  <Button variant="outline" size="sm" onClick={() => { setFollowupHistoryOpen(false); setContactsOpen(true); }}>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View All
+                  </Button>
+                </div>
               </DialogHeader>
-              <div className="p-6">
-                <Tabs defaultValue="prompt" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="prompt" className="gap-2">
-                      <Wand2 className="h-4 w-4" />
-                      Prompt Engineer
-                    </TabsTrigger>
-                    <TabsTrigger value="training" className="gap-2">
-                      <Brain className="h-4 w-4" />
-                      Model Training
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="prompt" className="mt-4">
-                    <div className="space-y-4">
-                      <p className="text-muted-foreground">
-                        Use the Prompt Engineer to refine your chatbot's responses.
-                      </p>
-                      <Button onClick={() => { setAiTrainingOpen(false); navigate('/chatbot/ai-studio'); }}>
-                        <Wand2 className="h-4 w-4 mr-2" />
-                        Open Prompt Engineer
-                      </Button>
+              <ScrollArea className="h-[calc(90vh-100px)]">
+                <div className="p-6">
+                  {stats.followupHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {stats.followupHistory.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-2 w-2 rounded-full ${item.responseReceived ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                            <div>
+                              <p className="font-medium">{item.contactName}</p>
+                              <p className="text-xs text-muted-foreground">{item.phone}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {item.triggerType === 'auto' ? 'Auto' : 'Manual'}
+                              </Badge>
+                              {item.triggerTag !== '-' && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Tag className="h-3 w-3 mr-1" />
+                                  {item.triggerTag}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">{item.sentAt}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </TabsContent>
-                  <TabsContent value="training" className="mt-4">
-                    <div className="space-y-4">
-                      <p className="text-muted-foreground">
-                        Train custom models with your conversation data.
-                      </p>
-                      <Button onClick={() => { setAiTrainingOpen(false); navigate('/chatbot/ai-studio'); }}>
-                        <Brain className="h-4 w-4 mr-2" />
-                        Open Model Training
-                      </Button>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No follow-ups sent yet</p>
+                  )}
+                </div>
+              </ScrollArea>
             </DialogContent>
           </Dialog>
         </div>
@@ -651,53 +753,6 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => setContactsOpen(true)}>
-          <Send className="h-5 w-5" />
-          <span>Send Follow-up</span>
-        </Button>
-
-        <Dialog open={testChatOpen} onOpenChange={setTestChatOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="h-20 flex flex-col gap-2">
-              <TestTube className="h-5 w-5" />
-              <span>Test Chatbot</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] p-0">
-            <DialogHeader className="p-6 pb-0">
-              <div className="flex items-center justify-between">
-                <DialogTitle>Test Your Chatbot</DialogTitle>
-                <Button variant="outline" size="sm" onClick={() => { setTestChatOpen(false); navigate('/chatbot/ai-studio'); }}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Full Page
-                </Button>
-              </div>
-            </DialogHeader>
-            <div className="p-6 h-[60vh]">
-              <BusinessChatbotTest avatar={chatbot} />
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => setProductsOpen(true)}>
-          <Plus className="h-5 w-5" />
-          <span>Add Product</span>
-        </Button>
-        <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => setKnowledgeOpen(true)}>
-          <Upload className="h-5 w-5" />
-          <span>Upload Document</span>
-        </Button>
-      </div>
-
-      {/* Settings Button */}
-      <div className="flex justify-end">
-        <Button variant="outline" className="gap-2" onClick={() => navigate('/chatbot/ai-studio')}>
-          <Settings className="h-4 w-4" />
-          Chatbot Settings
-        </Button>
-      </div>
     </div>
   );
 };

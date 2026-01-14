@@ -189,13 +189,15 @@ const ProductListItem = memo(({
         </div>
       </div>
 
-      <div className="text-right shrink-0">
-        <span className="text-lg font-bold text-blue-600">
-          RM {product.price.toFixed(2)}
-        </span>
-      </div>
+      {priceVisible && (
+        <div className="text-right shrink-0 min-w-[100px]">
+          <span className="text-lg font-bold text-blue-600">
+            RM {product.price.toFixed(2)}
+          </span>
+        </div>
+      )}
 
-      <div className="flex gap-1 shrink-0">
+      <div className="flex gap-1 shrink-0 ml-auto">
         <Button
           variant="ghost"
           size="icon"
