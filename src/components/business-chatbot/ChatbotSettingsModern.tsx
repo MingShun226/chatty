@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -13,7 +12,6 @@ import {
 } from '@/components/ui/select';
 import {
   Building2,
-  FileText,
   Shield,
   Lightbulb,
   Save,
@@ -58,7 +56,6 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
     name: '',
     company_name: '',
     industry: '',
-    business_context: '',
     compliance_rules: [] as string[],
     response_guidelines: [] as string[],
   });
@@ -72,7 +69,6 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
         name: chatbot.name || '',
         company_name: chatbot.company_name || '',
         industry: chatbot.industry || '',
-        business_context: chatbot.business_context || '',
         compliance_rules: Array.isArray(chatbot.compliance_rules) ? chatbot.compliance_rules : [],
         response_guidelines: Array.isArray(chatbot.response_guidelines) ? chatbot.response_guidelines : [],
       });
@@ -90,7 +86,6 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
           name: formData.name,
           company_name: formData.company_name,
           industry: formData.industry,
-          business_context: formData.business_context,
           compliance_rules: formData.compliance_rules.filter(r => r.trim() !== ''),
           response_guidelines: formData.response_guidelines.filter(g => g.trim() !== ''),
         })
@@ -201,11 +196,20 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Save Button - Floating at top */}
-      {hasChanges && (
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving} size="lg">
+    <div className="space-y-6">
+      {/* Header with Save Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-muted rounded-lg">
+            <Building2 className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">Chatbot Settings</h2>
+            <p className="text-sm text-muted-foreground">Configure your chatbot behavior</p>
+          </div>
+        </div>
+        {hasChanges && (
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -218,66 +222,38 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
               </>
             )}
           </Button>
-        </div>
-      )}
-
-      {/* Chatbot ID */}
-      <div className="p-4 bg-muted/50 rounded-lg border">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label className="text-xs text-muted-foreground">Chatbot ID</Label>
-            <p className="font-mono text-sm">{chatbot?.id || '-'}</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => copyToClipboard(chatbot?.id || '')}
-            disabled={!chatbot?.id}
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        )}
       </div>
 
-      {/* Basic Information */}
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <Building2 className="h-5 w-5 text-blue-600" />
-            Basic Information
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="chatbot-name">Chatbot Name</Label>
-              <Input
-                id="chatbot-name"
-                value={formData.name}
-                onChange={(e) => updateFormData({ name: e.target.value })}
-                placeholder="e.g., Customer Support Bot"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="company-name">Company Name</Label>
-              <Input
-                id="company-name"
-                value={formData.company_name}
-                onChange={(e) => updateFormData({ company_name: e.target.value })}
-                placeholder="e.g., ABC Electronics"
-              />
-            </div>
+      {/* Basic Info Card */}
+      <div className="p-4 rounded-lg border bg-card">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="chatbot-name" className="text-xs">Chatbot Name</Label>
+            <Input
+              id="chatbot-name"
+              value={formData.name}
+              onChange={(e) => updateFormData({ name: e.target.value })}
+              placeholder="e.g., Customer Support Bot"
+            />
           </div>
-          <div className="space-y-2 mt-6">
-            <Label htmlFor="industry">Industry Template</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="company-name" className="text-xs">Company Name</Label>
+            <Input
+              id="company-name"
+              value={formData.company_name}
+              onChange={(e) => updateFormData({ company_name: e.target.value })}
+              placeholder="e.g., ABC Electronics"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="industry" className="text-xs">Industry</Label>
             <Select
               value={formData.industry}
               onValueChange={(value) => updateFormData({ industry: value })}
             >
               <SelectTrigger id="industry">
-                <SelectValue placeholder="Select an industry" />
+                <SelectValue placeholder="Select industry" />
               </SelectTrigger>
               <SelectContent>
                 {industryTemplates.map((template) => (
@@ -289,160 +265,130 @@ export function ChatbotSettingsModern({ chatbot, onUpdate }: ChatbotSettingsMode
             </Select>
           </div>
         </div>
-      </div>
-
-      {/* Business Context */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1">
-            <FileText className="h-5 w-5 text-blue-600" />
-            Business Context
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Describe your business, products, and key information that the chatbot should know
-          </p>
-        </div>
-        <Textarea
-          value={formData.business_context}
-          onChange={(e) => updateFormData({ business_context: e.target.value })}
-          placeholder="Example: We are ABC Electronics, a leading electronics retailer in Malaysia. We sell smartphones, laptops, home appliances, and accessories..."
-          rows={6}
-          className="resize-none"
-        />
-      </div>
-
-      {/* Compliance Rules */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        {/* Chatbot ID */}
+        <div className="mt-4 pt-4 border-t flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-1">
-              <Shield className="h-5 w-5 text-blue-600" />
-              Compliance Rules
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Rules and restrictions the chatbot must follow
-            </p>
+            <Label className="text-xs text-muted-foreground">Chatbot ID</Label>
+            <p className="font-mono text-xs">{chatbot?.id || '-'}</p>
           </div>
-          <Button onClick={addComplianceRule} variant="outline" size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Rule
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {formData.compliance_rules.length > 0 ? (
-            formData.compliance_rules.map((rule, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  value={rule}
-                  onChange={(e) => updateComplianceRule(index, e.target.value)}
-                  placeholder="e.g., Never make promises about delivery dates"
-                />
-                <Button
-                  onClick={() => removeComplianceRule(index)}
-                  variant="ghost"
-                  size="icon"
-                >
-                  <X className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
-              No compliance rules yet. Click "Add Rule" to create one.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Response Guidelines */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-1">
-              <Lightbulb className="h-5 w-5 text-blue-600" />
-              Response Guidelines
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Best practices for how the chatbot should communicate
-            </p>
-          </div>
-          <Button onClick={addResponseGuideline} variant="outline" size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Guideline
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {formData.response_guidelines.length > 0 ? (
-            formData.response_guidelines.map((guideline, index) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  value={guideline}
-                  onChange={(e) => updateResponseGuideline(index, e.target.value)}
-                  placeholder="e.g., Always be polite and professional"
-                />
-                <Button
-                  onClick={() => removeResponseGuideline(index)}
-                  variant="ghost"
-                  size="icon"
-                >
-                  <X className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
-              No response guidelines yet. Click "Add Guideline" to create one.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Save Button - Bottom */}
-      {hasChanges && (
-        <div className="flex justify-end pt-4 border-t">
-          <Button onClick={handleSave} disabled={saving} size="lg">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => copyToClipboard(chatbot?.id || '')}
+            disabled={!chatbot?.id}
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-green-500" />
             ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
+              <Copy className="h-3 w-3" />
             )}
           </Button>
         </div>
-      )}
+      </div>
 
-      {/* Danger Zone */}
-      <div className="space-y-4 pt-8 mt-8 border-t border-destructive/20">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            Danger Zone
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Permanently delete this chatbot and all its data
-          </p>
-        </div>
-        <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Delete Chatbot</p>
-              <p className="text-sm text-muted-foreground">
-                Once deleted, this chatbot will be moved to trash for 90 days before permanent deletion.
-              </p>
+      {/* Rules and Guidelines Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Compliance Rules */}
+        <div className="p-4 rounded-lg border bg-card">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-blue-600" />
+              <h3 className="font-medium text-sm">Compliance Rules</h3>
             </div>
-            <Button
-              variant="destructive"
-              onClick={() => setDeleteDialogOpen(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Chatbot
+            <Button onClick={addComplianceRule} variant="ghost" size="sm" className="h-7 px-2">
+              <Plus className="h-3 w-3 mr-1" />
+              Add
             </Button>
           </div>
+          <div className="space-y-2">
+            {formData.compliance_rules.length > 0 ? (
+              formData.compliance_rules.map((rule, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={rule}
+                    onChange={(e) => updateComplianceRule(index, e.target.value)}
+                    placeholder="e.g., Never share competitor pricing"
+                    className="h-8 text-sm"
+                  />
+                  <Button
+                    onClick={() => removeComplianceRule(index)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                  >
+                    <X className="h-3 w-3 text-red-500" />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-6 border border-dashed rounded-md">
+                No rules yet
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Response Guidelines */}
+        <div className="p-4 rounded-lg border bg-card">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-blue-600" />
+              <h3 className="font-medium text-sm">Response Guidelines</h3>
+            </div>
+            <Button onClick={addResponseGuideline} variant="ghost" size="sm" className="h-7 px-2">
+              <Plus className="h-3 w-3 mr-1" />
+              Add
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {formData.response_guidelines.length > 0 ? (
+              formData.response_guidelines.map((guideline, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={guideline}
+                    onChange={(e) => updateResponseGuideline(index, e.target.value)}
+                    placeholder="e.g., Keep responses under 3 sentences"
+                    className="h-8 text-sm"
+                  />
+                  <Button
+                    onClick={() => removeResponseGuideline(index)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                  >
+                    <X className="h-3 w-3 text-red-500" />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-6 border border-dashed rounded-md">
+                No guidelines yet
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <div>
+              <p className="font-medium text-sm">Delete Chatbot</p>
+              <p className="text-xs text-muted-foreground">
+                Moves to trash for 90 days before permanent deletion
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Delete
+          </Button>
         </div>
       </div>
 

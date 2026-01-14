@@ -33,8 +33,13 @@ import {
   DollarSign,
   Image as ImageIcon,
   X,
-  Upload
+  Upload,
+  Target,
+  Layers,
+  Package
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ProductService, Product } from '@/services/productService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { PromotionService, Promotion } from '@/services/promotionService';
@@ -138,6 +143,22 @@ const PromotionCard = memo(({
             </div>
           )}
 
+          {/* Targeting Info */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Target className="h-3 w-3" />
+            {promotion.applies_to === 'all' && 'All products'}
+            {promotion.applies_to === 'category' && (
+              <span>
+                {promotion.applies_to_categories?.length || 0} categor{(promotion.applies_to_categories?.length || 0) === 1 ? 'y' : 'ies'}
+              </span>
+            )}
+            {promotion.applies_to === 'products' && (
+              <span>
+                {promotion.applies_to_product_ids?.length || 0} product{(promotion.applies_to_product_ids?.length || 0) === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+
           <div className="flex gap-2 pt-2 border-t">
             <Button
               variant="ghost"
@@ -193,9 +214,17 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
     is_active: true,
     terms_and_conditions: '',
     max_uses: '',
+    applies_to: 'all' as 'all' | 'category' | 'products',
+    applies_to_categories: [] as string[],
+    applies_to_product_ids: [] as string[],
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+
+  // Products and categories for targeting
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Filtered promotions
   const filteredPromotions = useMemo(() => {
@@ -226,9 +255,26 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
     }
   }, [chatbotId, toast]);
 
+  const loadProductsAndCategories = useCallback(async () => {
+    try {
+      setLoadingProducts(true);
+      const [productsData, categoriesData] = await Promise.all([
+        ProductService.getProducts(chatbotId),
+        ProductService.getCategories(chatbotId)
+      ]);
+      setProducts(productsData);
+      setCategories(categoriesData);
+    } catch (error: any) {
+      console.error('Error loading products/categories:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, [chatbotId]);
+
   useEffect(() => {
     loadPromotions();
-  }, [loadPromotions]);
+    loadProductsAndCategories();
+  }, [loadPromotions, loadProductsAndCategories]);
 
   const resetForm = () => {
     setFormData({
@@ -243,6 +289,9 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
       is_active: true,
       terms_and_conditions: '',
       max_uses: '',
+      applies_to: 'all',
+      applies_to_categories: [],
+      applies_to_product_ids: [],
     });
     setImageFile(null);
     setImagePreview('');
@@ -268,6 +317,9 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
       is_active: promotion.is_active,
       terms_and_conditions: promotion.terms_and_conditions || '',
       max_uses: promotion.max_uses?.toString() || '',
+      applies_to: promotion.applies_to || 'all',
+      applies_to_categories: promotion.applies_to_categories || [],
+      applies_to_product_ids: promotion.applies_to_product_ids || [],
     });
     setImagePreview(promotion.banner_image_url || '');
     setImageFile(null);
@@ -384,6 +436,9 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
         is_active: formData.is_active,
         terms_and_conditions: formData.terms_and_conditions || null,
         max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
+        applies_to: formData.applies_to,
+        applies_to_categories: formData.applies_to === 'category' ? formData.applies_to_categories : null,
+        applies_to_product_ids: formData.applies_to === 'products' ? formData.applies_to_product_ids : null,
       };
 
       if (editingPromotion) {
@@ -610,6 +665,148 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
                 onChange={(e) => setFormData({ ...formData, max_uses: e.target.value })}
                 placeholder="Leave empty for unlimited"
               />
+            </div>
+
+            {/* Targeting Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                <Label className="text-base font-medium">Applies To</Label>
+              </div>
+
+              <Select
+                value={formData.applies_to}
+                onValueChange={(value: 'all' | 'category' | 'products') => setFormData({
+                  ...formData,
+                  applies_to: value,
+                  applies_to_categories: value === 'category' ? formData.applies_to_categories : [],
+                  applies_to_product_ids: value === 'products' ? formData.applies_to_product_ids : [],
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select targeting" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4" />
+                      All Products
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="category">
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4" />
+                      Specific Categories
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="products">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Specific Products
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Category Selection */}
+              {formData.applies_to === 'category' && (
+                <div className="space-y-2">
+                  <Label>Select Categories</Label>
+                  {categories.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No categories found. Add products with categories first.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                      {categories.map((category) => (
+                        <div key={category} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`cat-${category}`}
+                            checked={formData.applies_to_categories.includes(category)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  applies_to_categories: [...formData.applies_to_categories, category]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  applies_to_categories: formData.applies_to_categories.filter(c => c !== category)
+                                });
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`cat-${category}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {category}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {formData.applies_to_categories.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formData.applies_to_categories.length} categor{formData.applies_to_categories.length === 1 ? 'y' : 'ies'} selected
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Product Selection */}
+              {formData.applies_to === 'products' && (
+                <div className="space-y-2">
+                  <Label>Select Products</Label>
+                  {loadingProducts ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading products...
+                    </div>
+                  ) : products.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No products found. Add products to your catalog first.
+                    </p>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto border rounded-lg p-3 space-y-2">
+                      {products.map((product) => (
+                        <div key={product.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`prod-${product.id}`}
+                            checked={formData.applies_to_product_ids.includes(product.id!)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  applies_to_product_ids: [...formData.applies_to_product_ids, product.id!]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  applies_to_product_ids: formData.applies_to_product_ids.filter(id => id !== product.id)
+                                });
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`prod-${product.id}`}
+                            className="text-sm cursor-pointer flex items-center gap-2"
+                          >
+                            <span className="truncate max-w-[200px]">{product.product_name}</span>
+                            <Badge variant="outline" className="text-xs shrink-0">{product.sku}</Badge>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {formData.applies_to_product_ids.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formData.applies_to_product_ids.length} product{formData.applies_to_product_ids.length === 1 ? '' : 's'} selected
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Banner Image */}

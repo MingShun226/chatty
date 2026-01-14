@@ -17,7 +17,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
-  Loader2
+  Loader2,
+  Share2,
+  Lock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog';
@@ -32,6 +34,7 @@ interface KnowledgeFile {
   size: string;
   type: string;
   linked: boolean;
+  shareable: boolean;
   uploadedAt: string;
   file?: File;
   processingStatus?: 'pending' | 'processing' | 'processed' | 'error';
@@ -45,7 +48,10 @@ interface KnowledgeBaseProps {
   isTraining: boolean;
 }
 
-export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraining }) => {
+export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
+  avatarId,
+  isTraining
+}) => {
   const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<KnowledgeFile | null>(null);
@@ -53,6 +59,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
   const [isUploading, setIsUploading] = useState(false);
   const [previewFile, setPreviewFile] = useState<KnowledgeFile | null>(null);
   const [processingFiles, setProcessingFiles] = useState<Set<string>>(new Set());
+  const [togglingShareable, setTogglingShareable] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -196,7 +203,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
       // Load uploaded knowledge files from database
       const { data: uploadedFiles, error: uploadedError } = await supabase
         .from('avatar_knowledge_files')
-        .select('id, file_name, original_name, file_size, content_type, is_linked, uploaded_at, processing_status, extracted_text, file_path')
+        .select('id, file_name, original_name, file_size, content_type, is_linked, shareable, uploaded_at, processing_status, extracted_text, file_path')
         .eq('avatar_id', avatarId)
         .eq('user_id', user?.id)
         .order('uploaded_at', { ascending: false });
@@ -214,6 +221,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
           size: `${(file.file_size / (1024 * 1024)).toFixed(2)} MB`,
           type: 'PDF',
           linked: file.is_linked,
+          shareable: file.shareable ?? false,
           uploadedAt: file.uploaded_at,
           processingStatus: file.processing_status || 'pending',
           extractedText: file.extracted_text,
@@ -390,7 +398,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
 
       toast({
         title: newLinked ? "File Linked" : "File Unlinked",
-        description: newLinked 
+        description: newLinked
           ? `${file.name} is now available to your avatar.`
           : `${file.name} has been removed from avatar's knowledge.`,
       });
@@ -400,6 +408,66 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
         title: "Update Failed",
         description: "An unexpected error occurred.",
         variant: "destructive"
+      });
+    }
+  };
+
+  const toggleShareable = async (fileId: string) => {
+    if (isTraining) {
+      toast({
+        title: "Cannot Modify During Training",
+        description: "Please wait for training to complete before modifying knowledge base.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const file = knowledgeFiles.find(f => f.id === fileId);
+    if (!file) return;
+
+    try {
+      setTogglingShareable(prev => new Set(prev).add(fileId));
+      const newShareable = !file.shareable;
+
+      const { error } = await supabase
+        .from('avatar_knowledge_files')
+        .update({ shareable: newShareable })
+        .eq('id', fileId)
+        .eq('user_id', user?.id);
+
+      if (error) {
+        console.error('Error updating shareable status:', error);
+        toast({
+          title: "Update Failed",
+          description: "Failed to update document sharing status.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Update local state
+      setKnowledgeFiles(prev =>
+        prev.map(f => f.id === fileId ? { ...f, shareable: newShareable } : f)
+      );
+
+      toast({
+        title: newShareable ? "Document Shareable" : "Document Private",
+        description: newShareable
+          ? `${file.name} can now be shared with customers when they ask for it.`
+          : `${file.name} is now private and won't be shared with customers.`,
+      });
+    } catch (error) {
+      console.error('Error updating shareable status:', error);
+      toast({
+        title: "Update Failed",
+        description: "An unexpected error occurred.",
+        variant: "destructive"
+      });
+    } finally {
+      setTogglingShareable(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(fileId);
+        return newSet;
       });
     }
   };
@@ -551,18 +619,18 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
               <Badge variant="outline">
                 {linkedCount}/{totalCount} linked
               </Badge>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={loadKnowledgeFiles}
                 disabled={isTraining || isLoading}
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Sync
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isTraining || isUploading}
               >
@@ -637,6 +705,24 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
                               {file.linked ? "Linked" : "Not Linked"}
                             </Badge>
 
+                            {/* Shareable Status */}
+                            <Badge
+                              variant={file.shareable ? "default" : "secondary"}
+                              className={`text-xs gap-1 ${file.shareable ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''}`}
+                            >
+                              {file.shareable ? (
+                                <>
+                                  <Share2 className="h-3 w-3" />
+                                  Shareable
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="h-3 w-3" />
+                                  Private
+                                </>
+                              )}
+                            </Badge>
+
                             {/* RAG Processing Status */}
                             <Badge
                               variant={
@@ -683,6 +769,22 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ avatarId, isTraini
                           title="Preview PDF"
                         >
                           <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleShareable(file.id)}
+                          disabled={isTraining || isUploading || togglingShareable.has(file.id)}
+                          title={file.shareable ? "Make private (won't send to customers)" : "Make shareable (can send to customers)"}
+                          className={file.shareable ? "text-green-600 hover:text-green-700 hover:bg-green-50" : ""}
+                        >
+                          {togglingShareable.has(file.id) ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : file.shareable ? (
+                            <Share2 className="h-4 w-4" />
+                          ) : (
+                            <Lock className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           variant="outline"

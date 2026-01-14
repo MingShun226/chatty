@@ -9,7 +9,6 @@ export interface ParsedProduct {
   price: number;
   currency: string;
   category: string | null;
-  stock_quantity: number | null;
   in_stock: boolean;
   images: string[] | null;
   tags: string[] | null;
@@ -133,16 +132,6 @@ export class ExcelImportService {
       });
     }
 
-    // Validate stock is a number if provided
-    const stock = row['Stock'] || row['stock'] || row['Stock Quantity'];
-    if (stock !== undefined && stock !== '' && isNaN(Number(stock))) {
-      errors.push({
-        row: rowNumber,
-        field: 'Stock',
-        message: 'Stock must be a number',
-      });
-    }
-
     return errors;
   }
 
@@ -176,10 +165,9 @@ export class ExcelImportService {
       ''
     ).toString().trim();
 
-    const stock = row['Stock'] || row['stock'] || row['Stock Quantity'] || row['Quantity'];
-    const stockQuantity = stock !== undefined && stock !== '' ? parseInt(stock, 10) : null;
-
-    const inStock = stockQuantity === null ? true : stockQuantity > 0;
+    // Parse In Stock (YES/NO or true/false)
+    const inStockValue = (row['In Stock'] || row['in_stock'] || row['Available'] || 'YES').toString().trim().toUpperCase();
+    const inStock = inStockValue === 'YES' || inStockValue === 'TRUE' || inStockValue === '1';
 
     // Parse image URL(s)
     const imageUrl = (
@@ -203,7 +191,6 @@ export class ExcelImportService {
       price,
       currency: 'MYR',
       category: category || null,
-      stock_quantity: stockQuantity,
       in_stock: inStock,
       images,
       tags,
@@ -374,7 +361,7 @@ export class ExcelImportService {
         Description: 'Latest flagship smartphone with amazing camera',
         Price: 5299,
         Category: 'Mobile Phones',
-        Stock: 50,
+        'In Stock': 'YES',
         'Image URL': 'https://example.com/image.jpg',
       },
       {
@@ -383,7 +370,7 @@ export class ExcelImportService {
         Description: 'Premium ultrabook for professionals',
         Price: 6799,
         Category: 'Laptops',
-        Stock: 25,
+        'In Stock': 'YES',
         'Image URL': 'https://example.com/laptop.jpg',
       },
     ];
@@ -399,7 +386,7 @@ export class ExcelImportService {
       { wch: 50 }, // Description
       { wch: 10 }, // Price
       { wch: 20 }, // Category
-      { wch: 8 },  // Stock
+      { wch: 10 }, // In Stock
       { wch: 40 }, // Image URL
     ];
 

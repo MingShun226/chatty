@@ -45,15 +45,11 @@ const navigationItems = [
     label: 'WhatsApp Chatbot',
     icon: MessageCircle,
     children: [
-      { id: 'chatbot-settings', label: 'Chatbot Settings', icon: SettingsIcon, path: '/chatbot/settings' },
-      { id: 'chatbot-products', label: 'Products', icon: ShoppingBag, path: '/chatbot/products' },
-      { id: 'chatbot-promotions', label: 'Promotions', icon: Tag, path: '/chatbot/promotions' },
-      { id: 'chatbot-knowledge', label: 'Knowledge Base', icon: BookOpen, path: '/chatbot/knowledge' },
-      { id: 'chatbot-finetune', label: 'Prompt Engineer', icon: Wand2, path: '/chatbot/prompt-engineer' },
-      { id: 'chatbot-model-training', label: 'Model Training', icon: Zap, path: '/chatbot/model-training' },
-      { id: 'chatbot-whatsapp', label: 'WhatsApp Integration', icon: MessageCircle, path: '/chatbot/whatsapp' },
-      { id: 'chatbot-followups', label: 'Follow-ups', icon: UserPlus, path: '/chatbot/followups' },
-      { id: 'chatbot-test', label: 'Test Chat', icon: TestTube, path: '/chatbot/test' },
+      { id: 'chatbot-overview', label: 'Overview', icon: LayoutDashboard, path: '/chatbot/overview' },
+      { id: 'chatbot-content', label: 'Content', icon: ShoppingBag, path: '/chatbot/content' },
+      { id: 'chatbot-ai-studio', label: 'AI Studio', icon: Wand2, path: '/chatbot/ai-studio' },
+      { id: 'chatbot-whatsapp', label: 'WhatsApp', icon: MessageCircle, path: '/chatbot/whatsapp' },
+      { id: 'chatbot-contacts', label: 'Contacts', icon: UserPlus, path: '/chatbot/contacts' },
     ]
   },
   {

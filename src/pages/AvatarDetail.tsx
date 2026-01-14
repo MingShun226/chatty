@@ -402,7 +402,7 @@ const AvatarDetail = () => {
           <div className="flex gap-3">
             <Button 
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 rounded-lg" 
-              onClick={() => navigate(`/chatbot-studio?avatar=${avatar.id}`)}
+              onClick={() => navigate(`/chatbot/overview?avatar=${avatar.id}`)}
             >
               <MessageCircle className="h-5 w-5 mr-2" />
               Message

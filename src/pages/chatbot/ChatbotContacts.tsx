@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { ChatbotPageLayout } from '@/components/business-chatbot/ChatbotPageLayout';
-import { ProductGalleryFull } from '@/components/business-chatbot/ProductGalleryFull';
+import FollowUpsSection from '@/components/dashboard/sections/FollowUpsSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
 
-const ChatbotProducts = () => {
-  const [activeSection, setActiveSection] = useState('chatbot-products');
+const ChatbotContacts = () => {
+  const [activeSection, setActiveSection] = useState('chatbot-contacts');
   const { signOut } = useAuth();
   const { isCollapsed } = useSidebar();
-  const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
@@ -21,7 +19,6 @@ const ChatbotProducts = () => {
   };
 
   const handleSectionChange = (section: string) => {
-    // Navigation is handled by Sidebar component's Link elements
     setActiveSection(section);
   };
 
@@ -35,12 +32,9 @@ const ChatbotProducts = () => {
 
       <main className={`${isCollapsed ? 'ml-16' : 'ml-56'} overflow-auto transition-all duration-300`}>
         <div className="p-8 max-w-7xl mx-auto">
-          <ChatbotPageLayout title="Product Management">
+          <ChatbotPageLayout title="Contact Management">
             {(chatbot) => (
-              <ProductGalleryFull
-                chatbotId={chatbot.id}
-                chatbotName={chatbot.name}
-              />
+              <FollowUpsSection chatbot={chatbot} />
             )}
           </ChatbotPageLayout>
         </div>
@@ -49,4 +43,4 @@ const ChatbotProducts = () => {
   );
 };
 
-export default ChatbotProducts;
+export default ChatbotContacts;

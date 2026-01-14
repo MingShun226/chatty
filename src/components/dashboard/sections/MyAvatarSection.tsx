@@ -140,8 +140,8 @@ const MyAvatarSection = () => {
   };
 
   const handleChatWithAvatar = (avatarId: string) => {
-    // Navigate to dashboard with chatbot section and pre-selected avatar
-    navigate(`/chatbot-studio?avatar=${avatarId}`);
+    // Navigate to chatbot overview with pre-selected avatar
+    navigate(`/chatbot/overview?avatar=${avatarId}`);
   };
 
   const handleAssignAvatar = (avatar: Avatar) => {

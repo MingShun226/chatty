@@ -258,12 +258,12 @@ export const DatabaseVersionControl: React.FC<DatabaseVersionControlProps> = ({
           .eq('id', avatarId);
       }
 
-      // Create version 1.0
+      // Create version 1
       await TrainingService.createPromptVersion({
         avatar_id: avatarId,
         user_id: user.id,
         training_data_id: null,
-        version_number: 'v1.0',
+        version_number: 1,
         version_name: 'Original Avatar Profile',
         description: 'Initial version generated from avatar profile details',
         system_prompt: avatar.system_prompt || systemPrompt,
@@ -288,7 +288,7 @@ export const DatabaseVersionControl: React.FC<DatabaseVersionControlProps> = ({
 
       toast({
         title: "Version Created",
-        description: "v1.0 has been created from your avatar profile",
+        description: "v1 has been created from your avatar profile",
       });
 
       // Reload data to show the new version

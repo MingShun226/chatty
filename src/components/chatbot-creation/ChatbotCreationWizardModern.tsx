@@ -154,7 +154,7 @@ export function ChatbotCreationWizardModern({ onComplete }: ChatbotCreationWizar
       if (onComplete) {
         onComplete(newChatbot.id);
       } else {
-        navigate(`/chatbot-studio?id=${newChatbot.id}`);
+        navigate(`/chatbot/overview?id=${newChatbot.id}`);
       }
     } catch (error: any) {
       console.error('Error creating chatbot:', error);

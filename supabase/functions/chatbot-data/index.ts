@@ -161,7 +161,9 @@ serve(async (req) => {
             price: p.price,
             currency: p.currency || 'MYR',
             stock_quantity: p.stock_quantity,
-            image_url: p.image_url,
+            in_stock: p.in_stock,
+            image_url: p.images?.[0] || null, // First image from images array
+            images: p.images || [], // Full images array
             specifications: p.specifications,
             tags: p.tags,
             is_active: p.is_active

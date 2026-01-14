@@ -416,14 +416,15 @@ export function SimplifiedTrainingInterface({
   const currentStep = !trainingType ? 0 : !trainingSessionId ? 1 : 2;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-4xl mx-auto space-y-6 pb-8">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-3xl font-bold">Train {avatarName}</h2>
-        <p className="text-gray-600 mt-2">
+        <h2 className="text-2xl font-bold">Train {avatarName}</h2>
+        <p className="text-gray-600 mt-1 text-sm">
           {currentStep === 0 && !onlyFineTuning
             ? 'Choose your training method'
-            : 'Follow these simple steps to train your custom model'}
+            : 'Upload conversation examples to train your custom AI model'}
         </p>
       </div>
 
@@ -740,15 +741,6 @@ export function SimplifiedTrainingInterface({
                       </div>
                     </CardContent>
                   </Card>
-                </div>
-
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="font-semibold text-blue-900 text-sm mb-2">💡 What is Model Distillation?</h4>
-                  <p className="text-xs text-blue-800 leading-relaxed">
-                    Distillation uses GPT-4o to generate high-quality training examples from your data,
-                    then trains GPT-4o-mini to mimic GPT-4o's responses. You get ~90% of GPT-4o's quality
-                    at just 8% of the cost! Perfect for most chatbot use cases.
-                  </p>
                 </div>
               </div>
             )}
@@ -1584,6 +1576,7 @@ Examples:
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

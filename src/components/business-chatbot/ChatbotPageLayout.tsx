@@ -5,9 +5,15 @@ import { AlertCircle, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SimpleAvatarSelector } from '@/components/chatbot-training/SimpleAvatarSelector';
 import { ChatbotCreationWizardModern } from '@/components/chatbot-creation/ChatbotCreationWizardModern';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+
+interface PlanInfo {
+  currentCount: number;
+  maxAllowed: number;
+  canCreate: boolean;
+}
 
 interface ChatbotPageLayoutProps {
   title: string;
@@ -30,8 +36,10 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
   const [showWizard, setShowWizard] = useState(showWizardParam === 'true');
   const [userChatbots, setUserChatbots] = useState<any[]>([]);
   const [loadingChatbots, setLoadingChatbots] = useState(true);
+  const [planInfo, setPlanInfo] = useState<PlanInfo>({ currentCount: 0, maxAllowed: 1, canCreate: true });
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Check if user has any chatbots
   useEffect(() => {
@@ -69,7 +77,11 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
 
       if (error) throw error;
 
+      const chatbotCount = data?.length || 0;
       setUserChatbots(data || []);
+
+      // Fetch user's plan limits
+      await fetchPlanInfo(chatbotCount);
 
       // If user has no chatbots and no specific chatbot selected, show wizard
       if (data && data.length === 0 && !chatbotIdFromUrl) {
@@ -83,6 +95,49 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
       console.error('Error checking chatbots:', error);
     } finally {
       setLoadingChatbots(false);
+    }
+  };
+
+  const fetchPlanInfo = async (chatbotCount: number) => {
+    try {
+      // Get user's subscription tier from profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_tier_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (profile?.subscription_tier_id) {
+        const { data: tier } = await supabase
+          .from('subscription_tiers')
+          .select('max_avatars')
+          .eq('id', profile.subscription_tier_id)
+          .single();
+
+        const maxAllowed = tier?.max_avatars ?? 1;
+        const canCreate = maxAllowed === -1 || chatbotCount < maxAllowed;
+
+        setPlanInfo({
+          currentCount: chatbotCount,
+          maxAllowed,
+          canCreate
+        });
+      } else {
+        // Default free plan: 1 chatbot
+        setPlanInfo({
+          currentCount: chatbotCount,
+          maxAllowed: 1,
+          canCreate: chatbotCount < 1
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching plan info:', error);
+      // Default to allowing creation if we can't fetch plan
+      setPlanInfo({
+        currentCount: chatbotCount,
+        maxAllowed: 1,
+        canCreate: chatbotCount < 1
+      });
     }
   };
 
@@ -140,6 +195,16 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
   };
 
   const handleCreateNewChatbot = () => {
+    // Check plan limits
+    if (!planInfo.canCreate) {
+      toast({
+        title: "Chatbot Limit Reached",
+        description: `Your plan allows ${planInfo.maxAllowed} chatbot${planInfo.maxAllowed !== 1 ? 's' : ''}. Upgrade to create more.`,
+      });
+      navigate('/billing');
+      return;
+    }
+
     setShowWizard(true);
     setSelectedChatbotId(null);
     localStorage.removeItem('chatbot_selected_id');
@@ -190,13 +255,11 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
               Training Active
             </Badge>
           )}
-          <Button onClick={handleCreateNewChatbot} variant="outline" size="lg">
-            <Plus className="h-4 w-4 mr-2" />
-            New Chatbot
-          </Button>
           <SimpleAvatarSelector
             selectedAvatarId={selectedChatbotId}
             onSelectAvatar={handleChatbotSelection}
+            onAddNew={handleCreateNewChatbot}
+            planInfo={planInfo}
           />
         </div>
       </div>
@@ -207,12 +270,14 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
           <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
           <h3 className="text-xl font-semibold mb-2">No Chatbot Selected</h3>
           <p className="text-muted-foreground mb-6">
-            Choose a chatbot above or create a new one to get started
+            Choose a chatbot from the dropdown above or create a new one
           </p>
-          <Button onClick={handleCreateNewChatbot} size="lg">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Your First Chatbot
-          </Button>
+          {planInfo.canCreate && (
+            <Button onClick={handleCreateNewChatbot} size="lg">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Your First Chatbot
+            </Button>
+          )}
         </div>
       ) : (
         <div className="mt-6">

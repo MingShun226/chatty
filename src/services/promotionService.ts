@@ -26,6 +26,10 @@ export interface Promotion {
   terms_zh?: string | null;
   max_uses: number | null;
   current_uses: number;
+  // Targeting fields
+  applies_to: 'all' | 'category' | 'products';
+  applies_to_categories: string[] | null;
+  applies_to_product_ids: string[] | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -134,6 +138,9 @@ export class PromotionService {
         terms_zh: promotion.terms_zh,
         max_uses: promotion.max_uses,
         current_uses: 0,
+        applies_to: promotion.applies_to || 'all',
+        applies_to_categories: promotion.applies_to_categories,
+        applies_to_product_ids: promotion.applies_to_product_ids,
       })
       .select()
       .single();

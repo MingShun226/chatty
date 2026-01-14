@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Loader2, Bot, User, RefreshCw, MessageSquare } from 'lucide-react';
+import { Send, Loader2, Bot, User, RefreshCw, TestTube, Package, Tag, FileText, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -118,7 +118,22 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
     hasSystemPrompt: false
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  // Auto-resize textarea
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 120);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputMessage, adjustTextareaHeight]);
 
   // Load context information
   useEffect(() => {
@@ -265,173 +280,186 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
     });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  // Suggested questions based on context
+  // Suggested questions based on context (limit to 3)
   const suggestedQuestions = [
     contextInfo.products > 0 ? "What products do you have?" : null,
-    contextInfo.promotions > 0 ? "Do you have any promotions?" : null,
-    contextInfo.products > 0 ? "Show me products under RM 1000" : null,
-    contextInfo.knowledgeFiles > 0 ? "What are your store policies?" : null,
+    contextInfo.promotions > 0 ? "Any promotions available?" : null,
     "Tell me about your business",
-    contextInfo.promotions > 0 ? "What discounts are available?" : null,
-  ].filter(Boolean);
+  ].filter(Boolean).slice(0, 3);
 
   return (
-    <div className="space-y-4">
-      {/* Context Info Header */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+    <Card className="flex flex-col h-[calc(100vh-260px)] min-h-[500px]">
+      {/* Header */}
+      <CardHeader className="pb-3 border-b shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <MessageSquare className="h-5 w-5 text-blue-600" />
-              Test Chat - {chatbotName}
+              <TestTube className="h-5 w-5 text-blue-600" />
+              Test Your Chatbot
             </CardTitle>
-            <Button onClick={handleReset} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reset
-            </Button>
+            <CardDescription className="mt-1">
+              Simulate customer conversations to test responses
+            </CardDescription>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={contextInfo.hasSystemPrompt ? "default" : "secondary"}>
-              {contextInfo.hasSystemPrompt ? '✓' : '○'} System Prompt
-            </Badge>
-            <Badge variant={contextInfo.products > 0 ? "default" : "secondary"}>
-              {contextInfo.products} Products
-            </Badge>
-            <Badge variant={contextInfo.promotions > 0 ? "default" : "secondary"}>
-              {contextInfo.promotions} Promotions
-            </Badge>
-            <Badge variant={contextInfo.knowledgeFiles > 0 ? "default" : "secondary"}>
-              {contextInfo.knowledgeFiles} Knowledge Files
-            </Badge>
+          <Button onClick={handleReset} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Clear
+          </Button>
+        </div>
+
+        {/* Context Stats */}
+        <div className="flex items-center gap-3 mt-3 pt-3 border-t">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className={`w-2 h-2 rounded-full ${contextInfo.hasSystemPrompt ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <Sparkles className="h-3 w-3" />
+            <span>Prompt</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            This test uses the same API endpoint as n8n (WhatsApp integration)
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Chat Messages */}
-      <Card className="h-[500px] flex flex-col">
-        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
-              <Bot className="h-16 w-16 text-gray-300" />
-              <div>
-                <p className="text-lg font-semibold text-gray-600">Start a conversation</p>
-                <p className="text-sm text-muted-foreground">
-                  Test your chatbot with products and knowledge base
-                </p>
-              </div>
-              {suggestedQuestions.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Try asking:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {suggestedQuestions.map((question, i) => (
-                      <Button
-                        key={i}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInputMessage(question!)}
-                      >
-                        {question}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {msg.role === 'assistant' && (
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                        <Bot className="h-5 w-5 text-blue-600" />
-                      </div>
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[70%] rounded-lg p-3 ${
-                      msg.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
-                  >
-                    {msg.role === 'assistant' ? (
-                      <div className="text-sm space-y-2">
-                        {renderMessageWithImages(msg.content)}
-                      </div>
-                    ) : (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    )}
-                    <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
-                      {msg.timestamp.toLocaleTimeString()}
-                    </p>
-                  </div>
-                  {msg.role === 'user' && (
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                        <User className="h-5 w-5 text-gray-600" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {loading && (
-                <div className="flex gap-3 justify-start">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-blue-600" />
-                    </div>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg p-3">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </CardContent>
-
-        {/* Input Area */}
-        <div className="border-t p-4">
-          <div className="flex gap-2">
-            <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
-              disabled={loading}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || loading}
-              size="icon"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className={`w-2 h-2 rounded-full ${contextInfo.products > 0 ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <Package className="h-3 w-3" />
+            <span>{contextInfo.products}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className={`w-2 h-2 rounded-full ${contextInfo.promotions > 0 ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <Tag className="h-3 w-3" />
+            <span>{contextInfo.promotions}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className={`w-2 h-2 rounded-full ${contextInfo.knowledgeFiles > 0 ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <FileText className="h-3 w-3" />
+            <span>{contextInfo.knowledgeFiles}</span>
           </div>
         </div>
-      </Card>
-    </div>
+      </CardHeader>
+
+      {/* Chat Messages */}
+      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+              <Bot className="h-10 w-10 text-blue-600" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-foreground">Ready to test!</p>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Send a message to see how your chatbot responds to customer queries
+              </p>
+            </div>
+            {suggestedQuestions.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground font-medium">Quick starters:</p>
+                <div className="flex flex-wrap gap-2 justify-center max-w-md">
+                  {suggestedQuestions.map((question, i) => (
+                    <Button
+                      key={i}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setInputMessage(question!)}
+                    >
+                      {question}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                {msg.role === 'assistant' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-blue-600" />
+                    </div>
+                  </div>
+                )}
+                <div
+                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                    msg.role === 'user'
+                      ? 'bg-blue-600 text-white rounded-br-md'
+                      : 'bg-muted text-foreground rounded-bl-md'
+                  }`}
+                >
+                  {msg.role === 'assistant' ? (
+                    <div className="text-sm space-y-2">
+                      {renderMessageWithImages(msg.content)}
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  )}
+                  <p className={`text-xs mt-1.5 ${msg.role === 'user' ? 'text-blue-200' : 'text-muted-foreground'}`}>
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+                {msg.role === 'user' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                      <User className="h-4 w-4 text-gray-600" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {loading && (
+              <div className="flex gap-3 justify-start">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                    <Bot className="h-4 w-4 text-blue-600" />
+                  </div>
+                </div>
+                <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </CardContent>
+
+      {/* Input Area */}
+      <div className="border-t p-4 shrink-0 bg-muted/30">
+        <div className="flex gap-2 items-end">
+          <Textarea
+            ref={textareaRef}
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message... (Shift+Enter for new line)"
+            disabled={loading}
+            className="flex-1 min-h-[44px] max-h-[120px] resize-none overflow-y-auto focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+            rows={1}
+          />
+          <Button
+            onClick={handleSendMessage}
+            disabled={!inputMessage.trim() || loading}
+            size="icon"
+            className="shrink-0 h-11 w-11 rounded-full"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }

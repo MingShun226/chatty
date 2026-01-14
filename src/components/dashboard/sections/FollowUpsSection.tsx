@@ -49,7 +49,10 @@ import {
   Filter,
   Search,
   X,
-  Bell
+  Bell,
+  PauseCircle,
+  PlayCircle,
+  UserCog
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -129,6 +132,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const [isSavingContact, setIsSavingContact] = useState(false);
   const [selectedContactTags, setSelectedContactTags] = useState<string[]>([]);
   const [isSavingTags, setIsSavingTags] = useState(false);
+  const [isTogglingAiPause, setIsTogglingAiPause] = useState(false);
 
   // Notification phone number state (local state to avoid saving on every keystroke)
   const [notificationPhone, setNotificationPhone] = useState('');
@@ -534,6 +538,46 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
     }
   };
 
+  // Toggle AI pause for a contact (human takeover)
+  const handleToggleAiPause = async (contact: ContactProfile, pause: boolean, reason?: string) => {
+    setIsTogglingAiPause(true);
+    try {
+      const updateData: Record<string, unknown> = {
+        ai_paused: pause,
+        ai_paused_at: pause ? new Date().toISOString() : null,
+        ai_paused_reason: pause ? (reason || 'Admin takeover') : null
+      };
+
+      await updateContact(contact.id, updateData);
+
+      // Update local state
+      setContacts(contacts.map(c =>
+        c.id === contact.id
+          ? { ...c, ...updateData }
+          : c
+      ));
+
+      if (selectedContact?.id === contact.id) {
+        setSelectedContact({ ...selectedContact, ...updateData } as ContactProfile);
+      }
+
+      toast({
+        title: pause ? 'AI Paused' : 'AI Resumed',
+        description: pause
+          ? `Chatbot will not auto-reply to ${contact.contact_name || contact.phone_number}`
+          : `Chatbot will now respond to ${contact.contact_name || contact.phone_number}`
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update AI status',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsTogglingAiPause(false);
+    }
+  };
+
   if (!user) {
     return <div className="p-4">Please log in to access follow-ups.</div>;
   }
@@ -689,6 +733,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                         />
                       </TableHead>
                       <TableHead>Contact</TableHead>
+                      <TableHead>AI Status</TableHead>
                       <TableHead>Tags</TableHead>
                       <TableHead>Mood</TableHead>
                       <TableHead>Summary</TableHead>
@@ -718,6 +763,29 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                             </div>
                             <div className="text-sm text-muted-foreground">{contact.phone_number}</div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {contact.ai_paused ? (
+                            <Badge
+                              variant="outline"
+                              className="text-orange-600 border-orange-600 cursor-pointer hover:bg-orange-50"
+                              onClick={() => handleToggleAiPause(contact, false)}
+                              title="Click to resume AI"
+                            >
+                              <PauseCircle className="w-3 h-3 mr-1" />
+                              Paused
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-green-600 border-green-600 cursor-pointer hover:bg-green-50"
+                              onClick={() => handleToggleAiPause(contact, true)}
+                              title="Click to pause AI (human takeover)"
+                            >
+                              <PlayCircle className="w-3 h-3 mr-1" />
+                              Active
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
@@ -1350,6 +1418,36 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                 <div className="text-sm bg-muted px-3 py-2 rounded">
                   {selectedContact.phone_number}
                 </div>
+              </div>
+
+              {/* AI Pause Toggle (Human Takeover) */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <UserCog className="w-4 h-4" />
+                  Human Takeover
+                </Label>
+                <div className="flex items-center justify-between bg-muted/50 px-3 py-3 rounded border">
+                  <div>
+                    <div className="text-sm font-medium">
+                      {selectedContact.ai_paused ? 'AI is paused' : 'AI is active'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedContact.ai_paused
+                        ? `Paused: ${selectedContact.ai_paused_reason || 'Admin takeover'}`
+                        : 'Chatbot will respond automatically'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={selectedContact.ai_paused}
+                    onCheckedChange={(checked) => handleToggleAiPause(selectedContact, checked)}
+                    disabled={isTogglingAiPause}
+                  />
+                </div>
+                {selectedContact.ai_paused && selectedContact.ai_paused_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Paused {formatTimeAgo(selectedContact.ai_paused_at)}
+                  </p>
+                )}
               </div>
 
               {/* Manual Tag Selection */}

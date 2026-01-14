@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Send, Loader2, Bot, User, RefreshCw, Wand2, Copy, Check } from 'lucide-react';
@@ -12,9 +12,10 @@ interface PromptAgentChatProps {
   chatbotId: string;
   userId: string;
   onPromptUpdated?: () => void;
+  versionDropdown?: ReactNode;
 }
 
-export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAgentChatProps) {
+export function PromptAgentChat({ chatbotId, userId, onPromptUpdated, versionDropdown }: PromptAgentChatProps) {
   const [messages, setMessages] = useState<Array<PromptAgentMessage & { timestamp: Date }>>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,7 +23,18 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
   const [chatbotContext, setChatbotContext] = useState<any>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  // Auto-resize textarea
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 150); // Max 150px (~5 lines)
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
 
   useEffect(() => {
     loadChatbotData();
@@ -201,12 +213,22 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
         .from('avatar_prompt_versions')
         .select('version_number')
         .eq('avatar_id', chatbotId)
-        .order('version_number', { ascending: false })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
         .limit(1);
 
-      const nextVersionNumber = (versions && versions.length > 0)
-        ? versions[0].version_number + 1
-        : 1;
+      // Parse version number properly - handle both string and number formats
+      let nextVersionNumber = 1;
+      if (versions && versions.length > 0) {
+        const currentVersion = versions[0].version_number;
+        // Handle string formats like 'v1.0', 'v1', '1', or numeric 1
+        if (typeof currentVersion === 'string') {
+          const parsed = parseInt(currentVersion.replace(/[^0-9]/g, ''), 10);
+          nextVersionNumber = isNaN(parsed) ? 1 : parsed + 1;
+        } else if (typeof currentVersion === 'number') {
+          nextVersionNumber = Math.floor(currentVersion) + 1;
+        }
+      }
 
       // Deactivate all existing versions
       await supabase
@@ -215,7 +237,7 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
         .eq('avatar_id', chatbotId)
         .eq('user_id', userId);
 
-      // Create new version
+      // Create new version with integer version number
       const { error: insertError } = await supabase
         .from('avatar_prompt_versions')
         .insert({
@@ -235,7 +257,7 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
 
       toast({
         title: "Prompt Saved!",
-        description: `Created version ${nextVersionNumber} and set as active`
+        description: `Created v${nextVersionNumber} and set as active`
       });
 
       if (onPromptUpdated) {
@@ -251,18 +273,21 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
+  // Adjust height when input changes
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputMessage, adjustTextareaHeight]);
+
   const suggestedQuestions = [
     "Make it sound more casual and friendly",
     "Add more urgency when showing products",
-    "Make it ask for customer's car model first",
-    "Emphasize our warranty policy more",
     "Make upselling more natural"
   ];
 
@@ -282,6 +307,7 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              {versionDropdown}
               <Button onClick={handleCopyPrompt} variant="outline" size="sm" disabled={!currentPrompt}>
                 {copiedPrompt ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
                 {copiedPrompt ? 'Copied!' : 'Copy Prompt'}
@@ -313,7 +339,7 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
       </Card>
 
       {/* Chat Messages */}
-      <Card className="h-[500px] flex flex-col">
+      <Card className="h-[calc(100vh-420px)] min-h-[400px] flex flex-col">
         <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg, index) => (
             <div
@@ -397,19 +423,22 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
 
         {/* Input Area */}
         <div className="border-t p-4">
-          <div className="flex gap-2">
-            <Input
+          <div className="flex gap-2 items-end">
+            <Textarea
+              ref={textareaRef}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Tell me what you'd like to change about your prompt..."
+              onKeyDown={handleKeyDown}
+              placeholder="Tell me what you'd like to change about your prompt... (Shift+Enter for new line)"
               disabled={loading}
-              className="flex-1"
+              className="flex-1 min-h-[44px] max-h-[150px] resize-none overflow-y-auto focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+              rows={1}
             />
             <Button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || loading}
               size="icon"
+              className="shrink-0 h-11 w-11"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -418,6 +447,9 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated }: PromptAg
               )}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Press Enter to send, Shift+Enter for new line
+          </p>
         </div>
       </Card>
     </div>

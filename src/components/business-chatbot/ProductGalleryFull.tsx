@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -25,26 +26,36 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle2,
-  X
+  X,
+  LayoutGrid,
+  List,
+  Eye,
+  EyeOff,
+  Bell
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { ProductService, Product } from '@/services/productService';
 import { ExcelImportService } from '@/services/excelImportService';
 import { ImageUploadService } from '@/services/imageUploadService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ProductGalleryFullProps {
   chatbotId: string;
   chatbotName: string;
+  priceVisible?: boolean;
+  onPriceVisibleChange?: (visible: boolean) => void;
 }
 
-// Memoized Product Card Component for better performance
+// Memoized Product Card Component for better performance (Grid View)
 const ProductCard = memo(({
   product,
+  priceVisible,
   onEdit,
   onDelete
 }: {
   product: Product;
+  priceVisible: boolean;
   onEdit: (product: Product) => void;
   onDelete: (id: string, name: string) => void;
 }) => {
@@ -85,13 +96,9 @@ const ProductCard = memo(({
             <span className="text-lg font-bold text-blue-600">
               RM {product.price.toFixed(2)}
             </span>
-            <div className="flex items-center gap-2">
-              <Badge variant={product.in_stock ? "default" : "destructive"} className="text-xs">
-                {product.in_stock
-                  ? `Stock: ${product.stock_quantity || '∞'}`
-                  : 'Out of Stock'}
-              </Badge>
-            </div>
+            <Badge variant={product.in_stock ? "default" : "destructive"} className="text-xs">
+              {product.in_stock ? 'In Stock' : 'Out of Stock'}
+            </Badge>
           </div>
 
           {product.category && (
@@ -128,7 +135,91 @@ const ProductCard = memo(({
 
 ProductCard.displayName = 'ProductCard';
 
-export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFullProps) {
+// Product List Item Component (List View)
+const ProductListItem = memo(({
+  product,
+  priceVisible,
+  onEdit,
+  onDelete
+}: {
+  product: Product;
+  priceVisible: boolean;
+  onEdit: (product: Product) => void;
+  onDelete: (id: string, name: string) => void;
+}) => {
+  return (
+    <div className="flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-shadow bg-card">
+      {product.images && product.images.length > 0 ? (
+        <img
+          src={product.images[0]}
+          alt={product.product_name}
+          loading="lazy"
+          className="w-16 h-16 object-cover rounded-lg shrink-0"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect width="64" height="64" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="10" fill="%23999"%3ENo Img%3C/text%3E%3C/svg%3E';
+          }}
+        />
+      ) : (
+        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+          <PackageX className="h-6 w-6 text-gray-400" />
+        </div>
+      )}
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <h4 className="font-semibold truncate">{product.product_name}</h4>
+          <Badge variant="secondary" className="text-xs shrink-0">
+            {product.sku}
+          </Badge>
+        </div>
+        {product.description && (
+          <p className="text-sm text-muted-foreground truncate mb-1">
+            {product.description}
+          </p>
+        )}
+        <div className="flex items-center gap-2">
+          {product.category && (
+            <Badge variant="outline" className="text-xs">
+              {product.category}
+            </Badge>
+          )}
+          <Badge variant={product.in_stock ? "default" : "destructive"} className="text-xs">
+            {product.in_stock ? 'In Stock' : 'Out of Stock'}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="text-right shrink-0">
+        <span className="text-lg font-bold text-blue-600">
+          RM {product.price.toFixed(2)}
+        </span>
+      </div>
+
+      <div className="flex gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onEdit(product)}
+          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(product.id!, product.product_name)}
+          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+ProductListItem.displayName = 'ProductListItem';
+
+export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initialPriceVisible = true, onPriceVisibleChange }: ProductGalleryFullProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,7 +236,15 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Edit product state
+  // Global price visibility state
+  const [priceVisible, setPriceVisible] = useState(initialPriceVisible);
+  const [updatingPriceVisible, setUpdatingPriceVisible] = useState(false);
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Add/Edit product state
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editForm, setEditForm] = useState({
     sku: '',
@@ -153,7 +252,6 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
     description: '',
     price: 0,
     category: '',
-    stock_quantity: 0,
     in_stock: true,
     images: '',
   });
@@ -208,6 +306,44 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  // Sync price visible with prop changes
+  useEffect(() => {
+    setPriceVisible(initialPriceVisible);
+  }, [initialPriceVisible]);
+
+  // Handle price visibility toggle
+  const handlePriceVisibleToggle = async (checked: boolean) => {
+    try {
+      setUpdatingPriceVisible(true);
+
+      // Update in database
+      const { error } = await supabase
+        .from('avatars')
+        .update({ price_visible: checked })
+        .eq('id', chatbotId);
+
+      if (error) throw error;
+
+      setPriceVisible(checked);
+      onPriceVisibleChange?.(checked);
+
+      toast({
+        title: checked ? "Prices Visible" : "Prices Hidden",
+        description: checked
+          ? "Customers can now see product prices"
+          : "Customers will be notified to contact you for pricing",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update price visibility",
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingPriceVisible(false);
+    }
+  };
 
   // Reset display count when search query changes
   useEffect(() => {
@@ -322,6 +458,26 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
     }
   }, [toast, loadProducts]);
 
+  const resetForm = useCallback(() => {
+    setEditForm({
+      sku: '',
+      product_name: '',
+      description: '',
+      price: 0,
+      category: '',
+      in_stock: true,
+      images: '',
+    });
+    setImageFile(null);
+    setImagePreview('');
+  }, []);
+
+  const handleAddProduct = useCallback(() => {
+    resetForm();
+    setEditingProduct(null);
+    setShowAddDialog(true);
+  }, [resetForm]);
+
   const handleEditProduct = useCallback((product: Product) => {
     setEditingProduct(product);
     setEditForm({
@@ -330,12 +486,12 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
       description: product.description || '',
       price: product.price,
       category: product.category || '',
-      stock_quantity: product.stock_quantity || 0,
       in_stock: product.in_stock,
       images: product.images?.[0] || '',
     });
     setImageFile(null);
     setImagePreview(product.images?.[0] || '');
+    setShowAddDialog(true);
   }, []);
 
   const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -374,7 +530,24 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
   }, [toast]);
 
   const handleSaveProduct = async () => {
-    if (!editingProduct) return;
+    // Validate required fields
+    if (!editForm.sku.trim() || !editForm.product_name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "SKU and Product Name are required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user?.id) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       setSaving(true);
@@ -396,15 +569,14 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
 
           imageUrl = uploadResult.url;
 
-          // Delete old image from storage if it exists and is from our storage
-          if (editingProduct.images?.[0]) {
+          // Delete old image from storage if editing and old image exists
+          if (editingProduct?.images?.[0]) {
             const oldImagePath = ImageUploadService.extractPathFromUrl(editingProduct.images[0]);
             if (oldImagePath) {
               try {
                 await ImageUploadService.deleteProductImage(oldImagePath);
               } catch (err) {
                 console.error('Error deleting old image:', err);
-                // Continue even if deletion fails
               }
             }
           }
@@ -414,36 +586,51 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
             description: uploadError.message || "Failed to upload image. Using URL instead.",
             variant: "destructive"
           });
-          // Continue with the update even if image upload fails
         } finally {
           setUploadingImage(false);
         }
       }
 
-      await ProductService.updateProduct(editingProduct.id!, {
+      const productData = {
         sku: editForm.sku,
         product_name: editForm.product_name,
         description: editForm.description || null,
         price: editForm.price,
         category: editForm.category || null,
-        stock_quantity: editForm.stock_quantity,
         in_stock: editForm.in_stock,
         images: imageUrl ? [imageUrl] : null,
-      });
+      };
 
-      toast({
-        title: "Product Updated",
-        description: `${editForm.product_name} has been updated successfully`,
-      });
+      if (editingProduct) {
+        // Update existing product
+        await ProductService.updateProduct(editingProduct.id!, productData);
+        toast({
+          title: "Product Updated",
+          description: `${editForm.product_name} has been updated successfully`,
+        });
+      } else {
+        // Create new product
+        await ProductService.createProduct({
+          ...productData,
+          chatbot_id: chatbotId,
+          currency: 'MYR',
+          tags: null,
+          additional_info: null,
+        } as any, user.id);
+        toast({
+          title: "Product Created",
+          description: `${editForm.product_name} has been added to your catalog`,
+        });
+      }
 
+      setShowAddDialog(false);
       setEditingProduct(null);
-      setImageFile(null);
-      setImagePreview('');
+      resetForm();
       await loadProducts();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update product",
+        description: error.message || "Failed to save product",
         variant: "destructive"
       });
     } finally {
@@ -508,7 +695,7 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
       {/* Header Actions */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5" />
@@ -520,14 +707,18 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
                   : `${filteredProducts.length} of ${products.length} products`} • Manage your product inventory
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={handleAddProduct} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product
+              </Button>
               <Button onClick={handleDownloadTemplate} variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
-                Download Template
+                Template
               </Button>
               <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="sm" disabled={uploading}>
                 <Upload className="h-4 w-4 mr-2" />
-                {uploading ? 'Uploading...' : 'Upload Excel'}
+                {uploading ? 'Uploading...' : 'Excel'}
               </Button>
               <input
                 ref={fileInputRef}
@@ -539,21 +730,76 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search products by name, SKU, or category..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        <CardContent className="space-y-4">
+          {/* Price Visibility Toggle */}
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center gap-3">
+              {priceVisible ? (
+                <Eye className="h-5 w-5 text-green-600" />
+              ) : (
+                <EyeOff className="h-5 w-5 text-amber-600" />
+              )}
+              <div>
+                <Label htmlFor="price-visible-toggle" className="font-medium cursor-pointer">
+                  Show prices to customers
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {priceVisible
+                    ? "Customers can see product prices in chat"
+                    : "Prices are hidden. You'll be notified when customers ask about pricing"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {!priceVisible && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                  <Bell className="h-3 w-3 mr-1" />
+                  Notify on inquiry
+                </Badge>
+              )}
+              <Switch
+                id="price-visible-toggle"
+                checked={priceVisible}
+                onCheckedChange={handlePriceVisibleToggle}
+                disabled={updatingPriceVisible}
+              />
+            </div>
+          </div>
+
+          {/* Search Bar and View Toggle */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search products by name, SKU, or category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex border rounded-lg">
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('grid')}
+                className="rounded-r-none"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="icon"
+                onClick={() => setViewMode('list')}
+                className="rounded-l-none"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Products Grid */}
+      {/* Products Grid/List */}
       {loading ? (
         <Card>
           <CardContent className="flex items-center justify-center py-12">
@@ -574,14 +820,18 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
                 : 'Add products to your chatbot\'s catalog so it can recommend and answer questions about your inventory.'}
             </p>
             {!searchQuery && (
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap justify-center">
+                <Button onClick={handleAddProduct}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Product
+                </Button>
                 <Button onClick={handleDownloadTemplate} variant="outline">
                   <Download className="h-4 w-4 mr-2" />
-                  Download Excel Template
+                  Excel Template
                 </Button>
-                <Button onClick={() => fileInputRef.current?.click()}>
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline">
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload Products
+                  Upload Excel
                 </Button>
               </div>
             )}
@@ -589,16 +839,31 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {displayedProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onEdit={handleEditProduct}
-                onDelete={handleDeleteProduct}
-              />
-            ))}
-          </div>
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayedProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  priceVisible={priceVisible}
+                  onEdit={handleEditProduct}
+                  onDelete={handleDeleteProduct}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {displayedProducts.map((product) => (
+                <ProductListItem
+                  key={product.id}
+                  product={product}
+                  priceVisible={priceVisible}
+                  onEdit={handleEditProduct}
+                  onDelete={handleDeleteProduct}
+                />
+              ))}
+            </div>
+          )}
 
           {hasMore && (
             <div className="flex justify-center gap-3 pt-6">
@@ -613,13 +878,21 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
         </>
       )}
 
-      {/* Edit Product Dialog */}
-      <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+      {/* Add/Edit Product Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowAddDialog(false);
+          setEditingProduct(null);
+          resetForm();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
+            <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
             <DialogDescription>
-              Update product details and click save when you're done.
+              {editingProduct
+                ? 'Update product details and click save when you\'re done.'
+                : 'Add a new product to your catalog. Fill in the details below.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -631,7 +904,7 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
                   id="edit-sku"
                   value={editForm.sku}
                   onChange={(e) => setEditForm({ ...editForm, sku: e.target.value })}
-                  placeholder="Enter SKU"
+                  placeholder="e.g., PROD-001"
                 />
               </div>
               <div className="space-y-2">
@@ -666,28 +939,16 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-price">Price (RM) *</Label>
-                <Input
-                  id="edit-price"
-                  type="number"
-                  step="0.01"
-                  value={editForm.price}
-                  onChange={(e) => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-stock">Stock Quantity</Label>
-                <Input
-                  id="edit-stock"
-                  type="number"
-                  value={editForm.stock_quantity}
-                  onChange={(e) => setEditForm({ ...editForm, stock_quantity: parseInt(e.target.value) || 0 })}
-                  placeholder="0"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-price">Price (RM) *</Label>
+              <Input
+                id="edit-price"
+                type="number"
+                step="0.01"
+                value={editForm.price}
+                onChange={(e) => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })}
+                placeholder="0.00"
+              />
             </div>
 
             <div className="space-y-2">
@@ -764,22 +1025,32 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
               </p>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="edit-in-stock"
-                checked={editForm.in_stock}
-                onChange={(e) => setEditForm({ ...editForm, in_stock: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label htmlFor="edit-in-stock" className="cursor-pointer">
-                Product is in stock
-              </Label>
+            {/* Product Settings */}
+            <div className="space-y-4 pt-4 border-t">
+              <h4 className="font-medium">Product Settings</h4>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="in-stock">Product is in stock</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Uncheck if product is currently unavailable
+                  </p>
+                </div>
+                <Switch
+                  id="in-stock"
+                  checked={editForm.in_stock}
+                  onCheckedChange={(checked) => setEditForm({ ...editForm, in_stock: checked })}
+                />
+              </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingProduct(null)} disabled={saving || uploadingImage}>
+            <Button variant="outline" onClick={() => {
+              setShowAddDialog(false);
+              setEditingProduct(null);
+              resetForm();
+            }} disabled={saving || uploadingImage}>
               Cancel
             </Button>
             <Button onClick={handleSaveProduct} disabled={saving || uploadingImage}>
@@ -794,7 +1065,7 @@ export function ProductGalleryFull({ chatbotId, chatbotName }: ProductGalleryFul
                   Saving...
                 </>
               ) : (
-                'Save Changes'
+                editingProduct ? 'Save Changes' : 'Add Product'
               )}
             </Button>
           </DialogFooter>

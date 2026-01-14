@@ -40,6 +40,10 @@ export interface ContactProfile {
   ai_sentiment?: 'positive' | 'neutral' | 'negative'
   ai_analysis?: Record<string, unknown>
   analyzed_at?: string
+  // AI Pause fields (human takeover)
+  ai_paused: boolean
+  ai_paused_at?: string
+  ai_paused_reason?: string
   created_at: string
   updated_at: string
 }

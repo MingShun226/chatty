@@ -10,7 +10,6 @@ export interface Product {
   price: number;
   currency: string;
   category: string | null;
-  stock_quantity: number | null;
   in_stock: boolean;
   images: string[] | null;
   tags: string[] | null;
@@ -92,7 +91,6 @@ export class ProductService {
         price: product.price,
         currency: product.currency || 'MYR',
         category: product.category,
-        stock_quantity: product.stock_quantity,
         in_stock: product.in_stock,
         images: product.images,
         tags: product.tags,
@@ -169,7 +167,6 @@ export class ProductService {
         price: p.price,
         currency: p.currency || 'MYR',
         category: p.category,
-        stock_quantity: p.stock_quantity,
         in_stock: p.in_stock,
         images: p.images,
         tags: p.tags,

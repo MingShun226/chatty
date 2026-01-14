@@ -247,14 +247,14 @@ export default function CreateAvatar() {
             console.log('Generated initial system prompt for avatar:', newAvatar.name);
           }
 
-          // Create version 1.0 with the original prompt
+          // Create version 1 with the original prompt
           if (user) {
             try {
               await TrainingService.createPromptVersion({
                 avatar_id: newAvatar.id,
                 user_id: user.id,
                 training_data_id: null, // No training data for original version
-                version_number: 'v1.0',
+                version_number: 1,
                 version_name: 'Original Avatar Profile',
                 description: 'Initial version generated from avatar profile details',
                 system_prompt: systemPrompt,
@@ -276,7 +276,7 @@ export default function CreateAvatar() {
                 inheritance_type: 'full',
                 base_version_id: null
               });
-              console.log('Created version 1.0 for avatar:', newAvatar.name);
+              console.log('Created version 1 for avatar:', newAvatar.name);
             } catch (versionError) {
               console.error('Failed to create version 1.0:', versionError);
             }

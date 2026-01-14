@@ -8,7 +8,7 @@ import Dashboard from '@/pages/Dashboard';
 import NotFound from '@/pages/NotFound';
 import AvatarDetail from '@/pages/AvatarDetailNew';
 import MyAvatars from '@/pages/MyAvatars';
-import ChatbotStudio from '@/pages/ChatbotStudio';
+// Note: ChatbotStudio is deprecated - redirects to /chatbot/overview
 import ImagesStudio from '@/pages/ImagesStudio';
 import VideoStudio from '@/pages/VideoStudio';
 import Billing from '@/pages/Billing';
@@ -20,16 +20,14 @@ import APIKeys from '@/pages/APIKeys';
 import TestChatbotSetup from '@/pages/TestChatbotSetup';
 import { ChatbotCreationWizard } from '@/components/chatbot-creation/ChatbotCreationWizard';
 
-// Chatbot sub-pages
-import ChatbotSettings from '@/pages/chatbot/ChatbotSettings';
-import ChatbotProducts from '@/pages/chatbot/ChatbotProducts';
-import ChatbotPromotions from '@/pages/chatbot/ChatbotPromotions';
-import ChatbotKnowledge from '@/pages/chatbot/ChatbotKnowledge';
-import ChatbotPromptEngineer from '@/pages/chatbot/ChatbotPromptEngineer';
-import ChatbotModelTraining from '@/pages/chatbot/ChatbotModelTraining';
+// Chatbot sub-pages (consolidated 5-page structure)
+import ChatbotOverview from '@/pages/chatbot/ChatbotOverview';
+import ChatbotContent from '@/pages/chatbot/ChatbotContent';
+import ChatbotAIStudio from '@/pages/chatbot/ChatbotAIStudio';
 import WhatsAppIntegration from '@/pages/chatbot/WhatsAppIntegration';
-import ChatbotFollowups from '@/pages/chatbot/ChatbotFollowups';
-import ChatbotTest from '@/pages/chatbot/ChatbotTest';
+import ChatbotContacts from '@/pages/chatbot/ChatbotContacts';
+
+// Note: Legacy chatbot pages are no longer imported as they redirect to consolidated pages
 
 // Admin imports
 import { AdminRoute } from '@/components/admin/AdminRoute';
@@ -116,45 +114,63 @@ function App() {
           />
           <Route
             path="/chatbot-studio"
-            element={user ? <ChatbotStudio /> : <Navigate to="/auth" />}
+            element={user ? <Navigate to="/chatbot/overview" replace /> : <Navigate to="/auth" />}
           />
 
-          {/* Chatbot Sub-Pages */}
+          {/* Chatbot Sub-Pages (New Consolidated Structure) */}
           <Route
-            path="/chatbot/settings"
-            element={user ? <ChatbotSettings /> : <Navigate to="/auth" />}
+            path="/chatbot/overview"
+            element={user ? <ChatbotOverview /> : <Navigate to="/auth" />}
           />
           <Route
-            path="/chatbot/products"
-            element={user ? <ChatbotProducts /> : <Navigate to="/auth" />}
+            path="/chatbot/content"
+            element={user ? <ChatbotContent /> : <Navigate to="/auth" />}
           />
           <Route
-            path="/chatbot/promotions"
-            element={user ? <ChatbotPromotions /> : <Navigate to="/auth" />}
-          />
-          <Route
-            path="/chatbot/knowledge"
-            element={user ? <ChatbotKnowledge /> : <Navigate to="/auth" />}
-          />
-          <Route
-            path="/chatbot/prompt-engineer"
-            element={user ? <ChatbotPromptEngineer /> : <Navigate to="/auth" />}
-          />
-          <Route
-            path="/chatbot/model-training"
-            element={user ? <ChatbotModelTraining /> : <Navigate to="/auth" />}
+            path="/chatbot/ai-studio"
+            element={user ? <ChatbotAIStudio /> : <Navigate to="/auth" />}
           />
           <Route
             path="/chatbot/whatsapp"
             element={user ? <WhatsAppIntegration /> : <Navigate to="/auth" />}
           />
           <Route
+            path="/chatbot/contacts"
+            element={user ? <ChatbotContacts /> : <Navigate to="/auth" />}
+          />
+
+          {/* Legacy Chatbot Routes (redirect to new consolidated pages) */}
+          <Route
+            path="/chatbot/settings"
+            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/products"
+            element={user ? <Navigate to="/chatbot/content" replace /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/promotions"
+            element={user ? <Navigate to="/chatbot/content" replace /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/knowledge"
+            element={user ? <Navigate to="/chatbot/content" replace /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/prompt-engineer"
+            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+          />
+          <Route
+            path="/chatbot/model-training"
+            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
+          />
+          <Route
             path="/chatbot/followups"
-            element={user ? <ChatbotFollowups /> : <Navigate to="/auth" />}
+            element={user ? <Navigate to="/chatbot/contacts" replace /> : <Navigate to="/auth" />}
           />
           <Route
             path="/chatbot/test"
-            element={user ? <ChatbotTest /> : <Navigate to="/auth" />}
+            element={user ? <Navigate to="/chatbot/ai-studio" replace /> : <Navigate to="/auth" />}
           />
 
           <Route

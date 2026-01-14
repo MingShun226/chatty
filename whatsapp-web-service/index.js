@@ -898,6 +898,31 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
       return
     }
 
+    // Clean phone number for database lookup
+    const cleanPhoneForLookup = fromNumber.replace(/[^0-9]/g, '')
+
+    // Check if AI is paused for this contact (human takeover mode)
+    const { data: contactProfile } = await supabase
+      .from('contact_profiles')
+      .select('ai_paused, ai_paused_reason')
+      .eq('chatbot_id', chatbotId)
+      .eq('phone_number', cleanPhoneForLookup)
+      .single()
+
+    if (contactProfile?.ai_paused) {
+      console.log(`AI paused for contact ${fromNumber} (${contactProfile.ai_paused_reason || 'Human takeover'}). Skipping AI response.`)
+      // Still save the message to conversation history but don't generate AI response
+      await supabase.from('avatar_conversations').insert({
+        avatar_id: chatbotId,
+        user_id: userId,
+        phone_number: cleanPhoneForLookup,
+        role: 'user',
+        content: messageText,
+        created_at: new Date().toISOString()
+      })
+      return // Skip AI response
+    }
+
     // Get active prompt version (from Prompt Engineer page)
     const { data: activePromptVersion } = await supabase
       .from('avatar_prompt_versions')
@@ -1504,6 +1529,16 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
       return
     }
 
+    // Fetch existing contact profile to check previous intents (for notification deduplication)
+    const { data: existingContact } = await supabase
+      .from('contact_profiles')
+      .select('ai_analysis')
+      .eq('chatbot_id', chatbotId)
+      .eq('phone_number', cleanPhoneNumber)
+      .single()
+
+    const previousAnalysis = existingContact?.ai_analysis || {}
+
     // Get last 40 messages for analysis (inbound + outbound combined)
     // Read from whatsapp_web_messages table where messages are actually stored
     const { data: messages, error: messagesError } = await supabase
@@ -1680,10 +1715,16 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
     } else {
       console.log(`Contact profile updated with tags: ${analysis.tags?.join(', ')}`)
 
-      // Send admin notification if high-priority intent detected
-      if (analysis.wantsToBuy || analysis.wantsHumanAgent) {
-        console.log(`High-priority intent detected - wantsToBuy: ${analysis.wantsToBuy}, wantsHumanAgent: ${analysis.wantsHumanAgent}`)
+      // Send admin notification only if this is a NEW high-priority intent
+      // (not already flagged in previous analysis to avoid duplicate notifications)
+      const isNewBuyIntent = analysis.wantsToBuy && !previousAnalysis.wantsToBuy
+      const isNewHumanIntent = analysis.wantsHumanAgent && !previousAnalysis.wantsHumanAgent
+
+      if (isNewBuyIntent || isNewHumanIntent) {
+        console.log(`NEW high-priority intent detected - wantsToBuy: ${isNewBuyIntent}, wantsHumanAgent: ${isNewHumanIntent}`)
         await sendAdminNotification(chatbotId, sessionId, cleanPhoneNumber, analysis)
+      } else if (analysis.wantsToBuy || analysis.wantsHumanAgent) {
+        console.log(`Intent already notified previously - skipping duplicate notification`)
       }
     }
 
