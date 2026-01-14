@@ -4,6 +4,8 @@ import { RAGService } from './ragService';
 import { TrainingService } from './trainingService';
 import { SmartPromptService } from './smartPromptService';
 import { MemoryService } from './memoryService';
+import { ProductService, Product } from './productService';
+import { PromotionService, Promotion } from './promotionService';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -97,10 +99,20 @@ export const chatbotService = {
       // Build memory image references for GPT-4o
       const memoryImageReferences = await this.buildMemoryImageReferences(memories);
 
+      // Get products and promotions for the chatbot
+      const [productsWithPromos, activePromotions] = await Promise.all([
+        this.getProductsWithPromotions(avatarContext.id),
+        PromotionService.getActivePromotions(avatarContext.id)
+      ]);
+
+      // Format product and promotion context
+      const productCatalogContext = this.formatProductCatalog(productsWithPromos);
+      const promotionsContext = this.formatPromotions(activePromotions);
+
       // Create system prompt with RAG-enhanced context, memories, and smart patterns
       const baseSystemPrompt = await this.createSystemPromptWithRAG(avatarContext, knowledgeBase, ragResults.chunks, message, userId);
-      const systemPromptWithMemories = baseSystemPrompt + memoryContext + memoryImageReferences;
-      const systemPrompt = await SmartPromptService.generateSmartPrompt(userId, avatarContext.id, message, systemPromptWithMemories);
+      const systemPromptWithContext = baseSystemPrompt + memoryContext + memoryImageReferences + productCatalogContext + promotionsContext;
+      const systemPrompt = await SmartPromptService.generateSmartPrompt(userId, avatarContext.id, message, systemPromptWithContext);
 
       // Prepare messages for OpenAI
       const messages: ChatMessage[] = [
@@ -494,6 +506,164 @@ Note: I can see this document exists in my knowledge base, but the text content 
     imageReferences += '=== END MEMORY PHOTO REFERENCES ===\n';
 
     return imageReferences;
+  },
+
+  /**
+   * Get products with active promotions applied
+   */
+  async getProductsWithPromotions(chatbotId: string): Promise<Array<Product & {
+    has_discount: boolean;
+    discounted_price: number | null;
+    discount_display: string | null;
+    promotion_title: string | null;
+  }>> {
+    try {
+      const [products, promotions] = await Promise.all([
+        ProductService.getProducts(chatbotId),
+        PromotionService.getActivePromotions(chatbotId)
+      ]);
+
+      // Build a map of product IDs to promotions
+      const productPromotions = new Map<string, Promotion>();
+
+      for (const promo of promotions) {
+        if (promo.applies_to === 'products' && promo.applies_to_product_ids) {
+          for (const productId of promo.applies_to_product_ids) {
+            if (!productPromotions.has(productId)) {
+              productPromotions.set(productId, promo);
+            }
+          }
+        }
+      }
+
+      // Apply promotions to products
+      return products.map(product => {
+        const promo = productPromotions.get(product.id || '');
+
+        if (promo && promo.discount_type && promo.discount_value) {
+          let discountedPrice: number;
+          let discountDisplay: string;
+
+          if (promo.discount_type === 'percentage') {
+            discountedPrice = product.price * (1 - promo.discount_value / 100);
+            discountDisplay = `${promo.discount_value}% OFF`;
+          } else {
+            discountedPrice = Math.max(0, product.price - promo.discount_value);
+            discountDisplay = `RM${promo.discount_value} OFF`;
+          }
+
+          return {
+            ...product,
+            has_discount: true,
+            discounted_price: Math.round(discountedPrice * 100) / 100,
+            discount_display: discountDisplay,
+            promotion_title: promo.title
+          };
+        }
+
+        return {
+          ...product,
+          has_discount: false,
+          discounted_price: null,
+          discount_display: null,
+          promotion_title: null
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching products with promotions:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Format products for AI context
+   */
+  formatProductCatalog(products: Array<Product & {
+    has_discount: boolean;
+    discounted_price: number | null;
+    discount_display: string | null;
+  }>): string {
+    if (!products || products.length === 0) {
+      return '';
+    }
+
+    let productInfo = '\n\n=== PRODUCT CATALOG ===\n';
+    productInfo += `You have ${products.length} products available:\n\n`;
+
+    // Group by category
+    const byCategory = new Map<string, typeof products>();
+    for (const product of products) {
+      const cat = product.category || 'Uncategorized';
+      if (!byCategory.has(cat)) {
+        byCategory.set(cat, []);
+      }
+      byCategory.get(cat)!.push(product);
+    }
+
+    for (const [category, catProducts] of byCategory) {
+      productInfo += `📁 ${category}:\n`;
+      for (const p of catProducts) {
+        const priceInfo = p.has_discount && p.discounted_price
+          ? `~~${p.currency} ${p.price}~~ NOW ${p.currency} ${p.discounted_price} (${p.discount_display})`
+          : `${p.currency} ${p.price}`;
+
+        productInfo += `  • ${p.product_name} (SKU: ${p.sku})\n`;
+        productInfo += `    Price: ${priceInfo}\n`;
+        productInfo += `    Stock: ${p.in_stock ? 'In Stock ✓' : 'Out of Stock ✗'}\n`;
+        if (p.description) {
+          productInfo += `    Description: ${p.description.substring(0, 150)}${p.description.length > 150 ? '...' : ''}\n`;
+        }
+        if (p.tags && p.tags.length > 0) {
+          productInfo += `    Tags: ${p.tags.join(', ')}\n`;
+        }
+        productInfo += '\n';
+      }
+    }
+
+    productInfo += '=== END PRODUCT CATALOG ===\n';
+    productInfo += 'When customers ask about products, prices, or availability, use this catalog to provide accurate information.\n';
+
+    return productInfo;
+  },
+
+  /**
+   * Format active promotions for AI context
+   */
+  formatPromotions(promotions: Promotion[]): string {
+    if (!promotions || promotions.length === 0) {
+      return '';
+    }
+
+    let promoInfo = '\n\n=== ACTIVE PROMOTIONS ===\n';
+    promoInfo += `There are ${promotions.length} active promotions:\n\n`;
+
+    for (const promo of promotions) {
+      promoInfo += `🎁 ${promo.title}\n`;
+      if (promo.description) {
+        promoInfo += `   ${promo.description}\n`;
+      }
+      if (promo.promo_code) {
+        promoInfo += `   Promo Code: ${promo.promo_code}\n`;
+      }
+      if (promo.discount_type && promo.discount_value) {
+        const discountText = promo.discount_type === 'percentage'
+          ? `${promo.discount_value}% OFF`
+          : `RM${promo.discount_value} OFF`;
+        promoInfo += `   Discount: ${discountText}\n`;
+      }
+      if (promo.end_date) {
+        promoInfo += `   Valid until: ${new Date(promo.end_date).toLocaleDateString()}\n`;
+      }
+      if (promo.terms_and_conditions) {
+        promoInfo += `   Terms: ${promo.terms_and_conditions.substring(0, 100)}${promo.terms_and_conditions.length > 100 ? '...' : ''}\n`;
+      }
+      promoInfo += '\n';
+    }
+
+    promoInfo += '=== END PROMOTIONS ===\n';
+    promoInfo += 'Mention relevant promotions when customers ask about deals, discounts, or when recommending products.\n';
+
+    return promoInfo;
   },
 
   cleanImageReferences(text: string): string {

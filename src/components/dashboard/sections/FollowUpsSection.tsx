@@ -597,59 +597,6 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Contacts</p>
-                  <p className="text-2xl font-bold">{stats.totalContacts}</p>
-                </div>
-                <Users className="w-8 h-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending Follow-ups</p>
-                  <p className="text-2xl font-bold">{stats.pendingFollowups}</p>
-                </div>
-                <Clock className="w-8 h-8 text-amber-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Sent (24h)</p>
-                  <p className="text-2xl font-bold">{stats.sentLast24h}</p>
-                </div>
-                <Send className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Active Tags</p>
-                  <p className="text-2xl font-bold">{tags.length}</p>
-                </div>
-                <Tag className="w-8 h-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Session Status */}
       {!activeSession && (
         <Alert>
@@ -804,27 +751,33 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                           <div className="flex flex-wrap gap-1">
                             {contact.tags.map(tagName => {
                               const tagConfig = tags.find(t => t.tag_name === tagName);
+                              const tagColor = tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280';
                               return (
-                                <Badge
+                                <span
                                   key={tagName}
-                                  variant="outline"
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
                                   style={{
-                                    borderColor: tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280',
-                                    color: tagConfig?.color || DEFAULT_TAG_COLORS[tagName] || '#6b7280'
+                                    backgroundColor: `${tagColor}15`,
+                                    color: tagColor,
+                                    border: `1px solid ${tagColor}30`
                                   }}
                                 >
                                   {tagName}
-                                </Badge>
+                                </span>
                               );
                             })}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={getSentimentColor(contact.ai_sentiment)}>
+                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                            contact.ai_sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+                            contact.ai_sentiment === 'negative' ? 'bg-red-100 text-red-700' :
+                            contact.ai_sentiment === 'neutral' ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-500'
+                          }`}>
                             {contact.ai_sentiment === 'positive' ? '😊 Happy' :
                              contact.ai_sentiment === 'negative' ? '😟 Unhappy' :
                              contact.ai_sentiment === 'neutral' ? '😐 Neutral' : '❓ Unknown'}
-                          </Badge>
+                          </span>
                         </TableCell>
                         <TableCell className="max-w-[200px]">
                           <p
@@ -1363,92 +1316,99 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
 
       {/* Contact Detail Dialog */}
       <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Contact Details</DialogTitle>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-xl">Contact Details</DialogTitle>
             <DialogDescription>
-              View and edit contact information
+              View and manage contact information
             </DialogDescription>
           </DialogHeader>
 
           {selectedContact && (
-            <div className="space-y-4">
-              {/* Contact Name - Read-only by default */}
-              <div className="space-y-2">
-                <Label>Contact Name</Label>
-                {isEditingName ? (
-                  <div className="flex gap-2">
-                    <Input
-                      value={editingContactName}
-                      onChange={(e) => setEditingContactName(e.target.value)}
-                      placeholder="Enter contact name..."
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      onClick={handleSaveContactName}
-                      disabled={isSavingContact}
-                      size="sm"
-                    >
-                      {isSavingContact ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        'Save'
-                      )}
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setIsEditingName(false);
-                        setEditingContactName(selectedContact.contact_name || '');
-                      }}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm bg-muted px-3 py-2 rounded flex-1">
-                      {selectedContact.contact_name || <span className="text-muted-foreground">No name set</span>}
+            <div className="space-y-6 py-4">
+              {/* Contact Info Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Contact Name */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-foreground">Contact Name</Label>
+                  {isEditingName ? (
+                    <div className="flex gap-2">
+                      <Input
+                        value={editingContactName}
+                        onChange={(e) => setEditingContactName(e.target.value)}
+                        placeholder="Enter contact name..."
+                        className="flex-1"
+                        autoFocus
+                      />
+                      <Button
+                        onClick={handleSaveContactName}
+                        disabled={isSavingContact}
+                        size="sm"
+                      >
+                        {isSavingContact ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          'Save'
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsEditingName(false);
+                          setEditingContactName(selectedContact.contact_name || '');
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => setIsEditingName(true)}
-                      variant="outline"
-                      size="sm"
-                      className="ml-2"
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" />
-                      Change Name
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm bg-muted/50 px-4 py-2.5 rounded-md flex-1 border">
+                        {selectedContact.contact_name || <span className="text-muted-foreground italic">No name set</span>}
+                      </div>
+                      <Button
+                        onClick={() => setIsEditingName(true)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-              {/* Phone Number */}
-              <div className="space-y-2">
-                <Label>Phone Number</Label>
-                <div className="text-sm bg-muted px-3 py-2 rounded">
-                  {selectedContact.phone_number}
+                {/* Phone Number */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-foreground">Phone Number</Label>
+                  <div className="text-sm bg-muted/50 px-4 py-2.5 rounded-md border font-mono">
+                    {selectedContact.phone_number}
+                  </div>
                 </div>
               </div>
 
-              {/* AI Pause Toggle (Human Takeover) */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+              {/* AI Status Section */}
+              <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+                <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <UserCog className="w-4 h-4" />
-                  Human Takeover
+                  AI Response Control
                 </Label>
-                <div className="flex items-center justify-between bg-muted/50 px-3 py-3 rounded border">
+                <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium">
-                      {selectedContact.ai_paused ? 'AI is paused' : 'AI is active'}
+                      {selectedContact.ai_paused ? 'AI is paused - Human takeover mode' : 'AI is active - Auto-responding'}
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {selectedContact.ai_paused
-                        ? `Paused: ${selectedContact.ai_paused_reason || 'Admin takeover'}`
-                        : 'Chatbot will respond automatically'}
+                        ? `Reason: ${selectedContact.ai_paused_reason || 'Admin takeover'}`
+                        : 'Chatbot will respond to messages automatically'}
                     </p>
+                    {selectedContact.ai_paused && selectedContact.ai_paused_at && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Paused {formatTimeAgo(selectedContact.ai_paused_at)}
+                      </p>
+                    )}
                   </div>
                   <Switch
                     checked={selectedContact.ai_paused}
@@ -1456,17 +1416,12 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                     disabled={isTogglingAiPause}
                   />
                 </div>
-                {selectedContact.ai_paused && selectedContact.ai_paused_at && (
-                  <p className="text-xs text-muted-foreground">
-                    Paused {formatTimeAgo(selectedContact.ai_paused_at)}
-                  </p>
-                )}
               </div>
 
-              {/* Manual Tag Selection */}
-              <div className="space-y-2">
+              {/* Tags Section */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>Tags <span className="text-xs text-muted-foreground">(max 3)</span></Label>
+                  <Label className="text-sm font-semibold text-foreground">Tags <span className="text-xs font-normal text-muted-foreground">(max 3)</span></Label>
                   {JSON.stringify(selectedContactTags) !== JSON.stringify(selectedContact.tags) && (
                     <Button
                       onClick={handleSaveContactTags}
@@ -1481,79 +1436,90 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                     </Button>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border min-h-[60px]">
                   {tags.map(tag => {
                     const isSelected = selectedContactTags.includes(tag.tag_name);
                     return (
-                      <Badge
+                      <span
                         key={tag.id}
-                        variant={isSelected ? 'default' : 'outline'}
-                        className="cursor-pointer transition-all"
+                        className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium cursor-pointer transition-all"
                         style={{
-                          backgroundColor: isSelected ? tag.color : 'transparent',
-                          borderColor: tag.color,
+                          backgroundColor: isSelected ? tag.color : `${tag.color}15`,
+                          border: `1px solid ${tag.color}`,
                           color: isSelected ? 'white' : tag.color
                         }}
                         onClick={() => handleToggleContactTag(tag.tag_name)}
                       >
                         {tag.tag_name}
-                        {isSelected && <X className="w-3 h-3 ml-1" />}
-                      </Badge>
+                        {isSelected && <X className="w-3 h-3 ml-1.5" />}
+                      </span>
                     );
                   })}
-                </div>
-                {tags.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No tags available. Create tags in the Tags tab.</p>
-                )}
-              </div>
-
-              {/* Customer Mood */}
-              <div className="space-y-2">
-                <Label>Customer Mood</Label>
-                <Badge className={getSentimentColor(selectedContact.ai_sentiment)}>
-                  {selectedContact.ai_sentiment === 'positive' ? '😊 Happy' :
-                   selectedContact.ai_sentiment === 'negative' ? '😟 Unhappy' :
-                   selectedContact.ai_sentiment === 'neutral' ? '😐 Neutral' : '❓ Unknown'}
-                </Badge>
-              </div>
-
-              {/* Full Summary */}
-              <div className="space-y-2">
-                <Label>AI Summary</Label>
-                <div className="text-sm bg-muted px-3 py-2 rounded whitespace-pre-wrap">
-                  {selectedContact.ai_summary || 'No summary available'}
+                  {tags.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No tags available. Create tags in the Tags tab.</p>
+                  )}
                 </div>
               </div>
 
-              {/* Message Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Messages</Label>
-                  <div className="text-sm font-medium">{selectedContact.message_count || 0}</div>
+              {/* Mood & Summary Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Customer Mood */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-foreground">Customer Mood</Label>
+                  <div className="p-3 bg-muted/30 rounded-lg border">
+                    <span className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium ${
+                      selectedContact.ai_sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+                      selectedContact.ai_sentiment === 'negative' ? 'bg-red-100 text-red-700' :
+                      selectedContact.ai_sentiment === 'neutral' ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-500'
+                    }`}>
+                      {selectedContact.ai_sentiment === 'positive' ? '😊 Happy' :
+                       selectedContact.ai_sentiment === 'negative' ? '😟 Unhappy' :
+                       selectedContact.ai_sentiment === 'neutral' ? '😐 Neutral' : '❓ Unknown'}
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Follow-ups Sent</Label>
-                  <div className="text-sm font-medium">{selectedContact.followup_count || 0}</div>
+
+                {/* Stats */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-foreground">Activity Stats</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-muted/30 rounded-lg border text-center">
+                      <div className="text-lg font-bold">{selectedContact.message_count || 0}</div>
+                      <div className="text-xs text-muted-foreground">Messages</div>
+                    </div>
+                    <div className="p-3 bg-muted/30 rounded-lg border text-center">
+                      <div className="text-lg font-bold">{selectedContact.followup_count || 0}</div>
+                      <div className="text-xs text-muted-foreground">Follow-ups</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Summary */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold text-foreground">AI Summary</Label>
+                <div className="text-sm bg-muted/30 px-4 py-3 rounded-lg border whitespace-pre-wrap min-h-[80px]">
+                  {selectedContact.ai_summary || <span className="text-muted-foreground italic">No summary available</span>}
                 </div>
               </div>
 
               {/* Timestamps */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-6 pt-2 border-t">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Last Message</Label>
-                  <div>{formatTimeAgo(selectedContact.last_message_at)}</div>
+                  <div className="text-sm font-medium">{formatTimeAgo(selectedContact.last_message_at)}</div>
                 </div>
                 {selectedContact.followup_due_at && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Next Follow-up</Label>
-                    <div className="text-amber-600">Pending ({formatTimeAgo(selectedContact.followup_due_at)})</div>
+                    <div className="text-sm font-medium text-amber-600">Pending ({formatTimeAgo(selectedContact.followup_due_at)})</div>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="pt-4 border-t">
             <Button variant="outline" onClick={() => setIsContactDialogOpen(false)}>
               Close
             </Button>

@@ -1,10 +1,9 @@
 import React, { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Settings2, MessageSquare } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface WhatsAppSettingsProps {
@@ -24,7 +23,8 @@ export function WhatsAppSettings({
   currentBatchTimeout = 0,
   onUpdate
 }: WhatsAppSettingsProps) {
-  const [delimiter, setDelimiter] = useState(currentDelimiter || '')
+  // Message splitting is enabled if delimiter is set (default to || when enabled)
+  const [enableMessageSplit, setEnableMessageSplit] = useState(!!currentDelimiter)
   const [wpm, setWPM] = useState(currentWPM)
   const [enableImages, setEnableImages] = useState(currentEnableImages)
   const [batchTimeout, setBatchTimeout] = useState(currentBatchTimeout)
@@ -38,7 +38,7 @@ export function WhatsAppSettings({
       const { error } = await supabase
         .from('avatars')
         .update({
-          whatsapp_message_delimiter: delimiter || null,
+          whatsapp_message_delimiter: enableMessageSplit ? '||' : null,
           whatsapp_typing_wpm: wpm,
           whatsapp_enable_images: enableImages,
           whatsapp_message_batch_timeout: batchTimeout
@@ -76,29 +76,32 @@ export function WhatsAppSettings({
         </p>
       </div>
 
-      {/* Message Delimiter */}
+      {/* Message Splitting Toggle */}
       <div className="space-y-2">
-        <Label htmlFor="delimiter">Message Split Delimiter (Optional)</Label>
-        <Input
-          id="delimiter"
-          type="text"
-          value={delimiter}
-          onChange={(e) => setDelimiter(e.target.value)}
-          placeholder="Leave empty for auto-split (e.g., ||)"
-        />
-        <p className="text-xs text-muted-foreground">
-          If your n8n AI agent returns a message with this delimiter (e.g., "||"),
-          it will split into multiple messages at those points.
-        </p>
-        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-          <p className="text-xs text-green-800 font-medium">💡 How to use in your n8n workflow:</p>
-          <p className="text-xs text-green-700 mt-1">
-            Configure your AI to include "{delimiter || '||'}" where you want splits.
-          </p>
-          <p className="text-xs text-green-600 mt-1">
-            Example: "First message {delimiter || '||'} Second message" → 2 messages
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="enable-split">Message Splitting</Label>
+            <p className="text-xs text-muted-foreground">
+              Split long AI responses into multiple messages using <code className="bg-muted px-1 rounded">||</code> delimiter
+            </p>
+          </div>
+          <Switch
+            id="enable-split"
+            checked={enableMessageSplit}
+            onCheckedChange={setEnableMessageSplit}
+          />
         </div>
+        {enableMessageSplit && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+            <p className="text-xs text-green-800 font-medium">How to use in your n8n workflow:</p>
+            <p className="text-xs text-green-700 mt-1">
+              Configure your AI to include <code className="bg-green-100 px-1 rounded">||</code> where you want splits.
+            </p>
+            <p className="text-xs text-green-600 mt-1">
+              Example: "First message || Second message" → 2 separate messages
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Typing Speed (WPM) */}
@@ -127,18 +130,6 @@ export function WhatsAppSettings({
         <p className="text-xs text-muted-foreground">
           Controls how long the "typing..." indicator shows before sending messages.
         </p>
-        <div className="p-3 bg-gray-50 border rounded-md space-y-1">
-          <p className="text-xs font-medium">Reference speeds:</p>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium">50-100 WPM:</span> Slow, thoughtful responses
-          </p>
-          <p className="text-xs text-green-600 font-medium">
-            ⭐ <span className="font-semibold">200 WPM:</span> Average speed (recommended)
-          </p>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium">300-400 WPM:</span> Fast, efficient responses
-          </p>
-        </div>
       </div>
 
       {/* Image Sending */}
@@ -156,18 +147,17 @@ export function WhatsAppSettings({
             onCheckedChange={setEnableImages}
           />
         </div>
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <p className="text-xs text-blue-800 font-medium">📸 How to send images from n8n:</p>
-          <p className="text-xs text-blue-700 mt-1">
-            Include an <code className="bg-blue-100 px-1 rounded">images</code> array in your n8n response
-          </p>
-          <p className="text-xs text-blue-600 mt-1">
-            Example: <code className="bg-blue-100 px-1 rounded">{`{"reply": "Here's the product!", "images": ["https://example.com/image.jpg"]}`}</code>
-          </p>
-          <p className="text-xs text-blue-700 mt-1">
-            With caption: <code className="bg-blue-100 px-1 rounded">{`{"images": [{"url": "...", "caption": "iPhone 14"}]}`}</code>
-          </p>
-        </div>
+        {enableImages && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-xs text-blue-800 font-medium">How to send images from n8n:</p>
+            <p className="text-xs text-blue-700 mt-1">
+              Include an <code className="bg-blue-100 px-1 rounded">images</code> array in your n8n response
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Example: <code className="bg-blue-100 px-1 rounded">{`{"images": [{"url": "...", "caption": "Product"}]}`}</code>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Message Batching */}
@@ -196,24 +186,6 @@ export function WhatsAppSettings({
         <p className="text-xs text-muted-foreground">
           Wait this many seconds to combine multiple user messages into one before sending to n8n.
         </p>
-        <div className="p-3 bg-gray-50 border rounded-md space-y-1">
-          <p className="text-xs font-medium">How it works:</p>
-          <p className="text-xs text-muted-foreground">
-            • User sends: "hello" → Timer starts (e.g., 5 seconds)
-          </p>
-          <p className="text-xs text-muted-foreground">
-            • User sends: "do you have iphones?" (within 5 seconds) → Added to batch
-          </p>
-          <p className="text-xs text-muted-foreground">
-            • After 5 seconds: Combined message "hello\ndo you have iphones?" sent to n8n
-          </p>
-          <p className="text-xs text-green-600 font-medium mt-2">
-            ✓ Benefits: Reduces duplicate chatbot responses, better context understanding
-          </p>
-          <p className="text-xs text-yellow-600 font-medium">
-            ⚠ Note: Set to 0 to disable (instant responses, no batching)
-          </p>
-        </div>
       </div>
 
       {/* Save Button */}

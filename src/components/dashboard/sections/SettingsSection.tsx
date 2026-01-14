@@ -168,7 +168,7 @@ const SettingsSection = () => {
                 Add New API Key
               </CardTitle>
               <CardDescription>
-                Configure API keys for AI services. Add your KIE.AI key for image/video/music generation. Add your HeyGen key for video translation and avatar videos with AI presenters.
+                Configure API keys for AI services. Add your OpenAI key for GPT and DALL-E. Add your KIE.AI key for image/video/music generation.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -191,14 +191,8 @@ const SettingsSection = () => {
                       <SelectValue placeholder="Select a service..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="openai">OpenAI (DALL-E, GPT, etc.)</SelectItem>
-                      <SelectItem value="stability">Stability AI (Image Generation)</SelectItem>
+                      <SelectItem value="openai">OpenAI (GPT, DALL-E, Whisper)</SelectItem>
                       <SelectItem value="kie-ai">KIE.AI (Images, Videos, Music)</SelectItem>
-                      <SelectItem value="heygen">HeyGen (Video Translation, Avatar Videos)</SelectItem>
-                      <SelectItem value="elevenlabs">ElevenLabs (Voice)</SelectItem>
-                      <SelectItem value="replicate">Replicate (Various Models)</SelectItem>
-                      <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                      <SelectItem value="google">Google (Gemini)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
