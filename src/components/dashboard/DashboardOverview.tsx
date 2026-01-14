@@ -260,29 +260,45 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-16 w-full" />
-        <div className="grid grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-20" />
-          ))}
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-9 w-48 mb-2" />
+            <Skeleton className="h-5 w-64" />
+          </div>
+          <Skeleton className="h-10 w-32" />
         </div>
-        <Skeleton className="h-48 w-full" />
+        <div>
+          <Skeleton className="h-6 w-48 mb-4" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-28" />
+            ))}
+          </div>
+        </div>
+        <div>
+          <Skeleton className="h-6 w-32 mb-4" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-36" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground text-sm">Welcome back! Here's your overview.</p>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back! Here's your overview.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="gap-1 py-1.5 px-3">
-            <Crown className="h-3 w-3 text-amber-500" />
+          <Badge variant="outline" className="gap-1.5 py-2 px-4 text-sm">
+            <Crown className="h-4 w-4 text-amber-500" />
             {stats?.planName}
             <span className="text-muted-foreground ml-1">
               ({stats?.chatbotsUsed}/{stats?.chatbotsLimit === -1 ? '∞' : stats?.chatbotsLimit})
@@ -291,88 +307,113 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
-      {/* Key Stats - Compact Row */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="flex items-center gap-3 p-4 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/chatbot/overview')}>
-          <div className="p-2 bg-purple-100 rounded-lg">
-            <Bot className="h-4 w-4 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold">{stats?.chatbotsUsed}</p>
-            <p className="text-xs text-muted-foreground">Chatbots</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/chatbot/contacts')}>
-          <div className="p-2 bg-green-100 rounded-lg">
-            <Users className="h-4 w-4 text-green-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold">{stats?.totalContacts}</p>
-            <p className="text-xs text-muted-foreground">Contacts</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/chatbot/contacts')}>
-          <div className={`p-2 rounded-lg ${stats?.pendingFollowups ? 'bg-orange-100' : 'bg-gray-100'}`}>
-            <Clock className={`h-4 w-4 ${stats?.pendingFollowups ? 'text-orange-600' : 'text-gray-400'}`} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold">{stats?.pendingFollowups}</p>
-            <p className="text-xs text-muted-foreground">Pending Follow-ups</p>
-          </div>
+      {/* Performance Overview */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Activity className="h-5 w-5" />
+          Performance Overview
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/chatbot/overview')}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Chatbots</p>
+                  <p className="text-3xl font-bold">{stats?.chatbotsUsed}</p>
+                </div>
+                <Bot className="h-10 w-10 text-purple-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/chatbot/contacts')}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Contacts</p>
+                  <p className="text-3xl font-bold">{stats?.totalContacts}</p>
+                </div>
+                <Users className="h-10 w-10 text-green-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/chatbot/contacts')}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Pending Follow-ups</p>
+                  <p className="text-3xl font-bold">{stats?.pendingFollowups}</p>
+                </div>
+                <Clock className="h-10 w-10 text-orange-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/chatbot/content')}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Products</p>
+                  <p className="text-3xl font-bold">{stats?.totalProducts}</p>
+                </div>
+                <Package className="h-10 w-10 text-blue-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       {/* My Chatbots Section */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">My Chatbots</h2>
-        </div>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Bot className="h-5 w-5" />
+          My Chatbots
+        </h2>
 
         {chatbots.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {chatbots.map((chatbot) => (
               <Card
                 key={chatbot.id}
-                className={`hover:shadow-md transition-shadow ${chatbot.whatsappConnected ? 'bg-green-50 border-green-200' : ''}`}
+                className={`hover:shadow-md transition-shadow cursor-pointer ${chatbot.whatsappConnected ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' : ''}`}
+                onClick={() => navigate(`/chatbot/overview?id=${chatbot.id}`)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${chatbot.whatsappConnected ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold ${chatbot.whatsappConnected ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}>
                         {chatbot.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium">{chatbot.name}</h3>
+                          <h3 className="font-semibold text-lg">{chatbot.name}</h3>
                           {chatbot.whatsappConnected && (
-                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" title="WhatsApp Connected" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" title="WhatsApp Connected" />
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           {chatbot.company_name || chatbot.industry || 'No details'}
                         </p>
                       </div>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/chatbot/ai-studio?id=${chatbot.id}`)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/ai-studio?id=${chatbot.id}`); }}>
                           <Bot className="h-4 w-4 mr-2" />
                           AI Studio
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/chatbot/content?id=${chatbot.id}`)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/content?id=${chatbot.id}`); }}>
                           <Package className="h-4 w-4 mr-2" />
                           Content
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/chatbot/whatsapp?id=${chatbot.id}`)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/whatsapp?id=${chatbot.id}`); }}>
                           <MessageCircle className="h-4 w-4 mr-2" />
                           WhatsApp
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/chatbot/contacts?id=${chatbot.id}`)}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/contacts?id=${chatbot.id}`); }}>
                           <Users className="h-4 w-4 mr-2" />
                           Contacts
                         </DropdownMenuItem>
@@ -380,15 +421,15 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     </DropdownMenu>
                   </div>
 
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{chatbot.contactCount} contacts</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{chatbot.contactCount} contacts</span>
                     </div>
                     {chatbot.whatsappConnected && (
-                      <div className="flex items-center gap-1.5 text-green-600">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        <span className="text-xs">WhatsApp Active</span>
+                      <div className="flex items-center gap-2 text-green-600">
+                        <MessageCircle className="h-4 w-4" />
+                        <span className="text-sm">WhatsApp Active</span>
                       </div>
                     )}
                   </div>
@@ -397,13 +438,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Bot className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
-              <p className="font-medium mb-1">No chatbots yet</p>
-              <p className="text-sm text-muted-foreground mb-4">Create your first chatbot to get started</p>
-              <Button onClick={() => navigate('/chatbot/overview?create=true')}>
-                <Plus className="h-4 w-4 mr-2" />
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <Bot className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="font-semibold text-lg mb-2">No chatbots yet</p>
+              <p className="text-muted-foreground mb-6">Create your first chatbot to get started</p>
+              <Button size="lg" onClick={() => navigate('/chatbot/overview?create=true')}>
+                <Plus className="h-5 w-5 mr-2" />
                 Create Chatbot
               </Button>
             </CardContent>
@@ -411,91 +452,114 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         )}
       </div>
 
-      {/* Analytics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div
-          className="flex items-center gap-3 p-3 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => navigate('/chatbot/content')}
-        >
-          <Package className="h-4 w-4 text-indigo-600" />
-          <div>
-            <p className="font-semibold">{stats?.totalProducts}</p>
-            <p className="text-xs text-muted-foreground">Products</p>
-          </div>
-        </div>
-        <div
-          className="flex items-center gap-3 p-3 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => navigate('/chatbot/content')}
-        >
-          <FileText className="h-4 w-4 text-cyan-600" />
-          <div>
-            <p className="font-semibold">{stats?.totalKnowledgeFiles}</p>
-            <p className="text-xs text-muted-foreground">Documents</p>
-          </div>
-        </div>
-        <div
-          className="flex items-center gap-3 p-3 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => navigate('/images-studio')}
-        >
-          <Image className="h-4 w-4 text-pink-600" />
-          <div>
-            <p className="font-semibold">{stats?.totalImages}</p>
-            <p className="text-xs text-muted-foreground">AI Images</p>
-          </div>
-        </div>
-        <div
-          className="flex items-center gap-3 p-3 rounded-lg border bg-card cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => navigate('/video-studio')}
-        >
-          <Video className="h-4 w-4 text-red-600" />
-          <div>
-            <p className="font-semibold">{stats?.totalVideos}</p>
-            <p className="text-xs text-muted-foreground">AI Videos</p>
-          </div>
+      {/* Quick Access */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Package className="h-5 w-5" />
+          Quick Access
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card
+            className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+            onClick={() => navigate('/chatbot/content')}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Documents</p>
+                  <p className="text-2xl font-bold">{stats?.totalKnowledgeFiles}</p>
+                </div>
+                <FileText className="h-8 w-8 text-cyan-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+            onClick={() => navigate('/images-studio')}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">AI Images</p>
+                  <p className="text-2xl font-bold">{stats?.totalImages}</p>
+                </div>
+                <Image className="h-8 w-8 text-pink-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+            onClick={() => navigate('/video-studio')}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">AI Videos</p>
+                  <p className="text-2xl font-bold">{stats?.totalVideos}</p>
+                </div>
+                <Video className="h-8 w-8 text-red-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+            onClick={() => navigate('/api-keys')}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">API Keys</p>
+                  <p className="text-2xl font-bold">→</p>
+                </div>
+                <FileText className="h-8 w-8 text-indigo-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       {/* Recent Conversations */}
       {recentConversations.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  Recent Conversations
-                </CardTitle>
+        <div>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Recent Conversations
+          </h2>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">All Chatbots Activity</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/chatbot/contacts')}>
+                  View All
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/chatbot/contacts')}>
-                View All
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {recentConversations.map((conv) => (
-                <div key={conv.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <span className="text-lg">{getSentimentEmoji(conv.sentiment)}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-sm truncate">
-                        {conv.contact_name || conv.phone_number}
-                      </p>
-                      <Badge variant="secondary" className="text-xs shrink-0">
-                        {conv.chatbot_name}
-                      </Badge>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recentConversations.map((conv) => (
+                  <div key={conv.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors border">
+                    <span className="text-2xl">{getSentimentEmoji(conv.sentiment)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">
+                          {conv.contact_name || conv.phone_number}
+                        </p>
+                        <Badge variant="secondary" className="shrink-0">
+                          {conv.chatbot_name}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate mt-1">{conv.last_message}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{conv.last_message}</p>
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      {formatTimeAgo(conv.last_message_at)}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {formatTimeAgo(conv.last_message_at)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
