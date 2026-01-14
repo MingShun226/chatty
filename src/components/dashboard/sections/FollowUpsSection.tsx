@@ -266,7 +266,7 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
       }
 
       // Show warning if tables don't exist
-      if (contactsResult.status === 'rejected' || tagsResult.status === 'rejected') {
+      if (tagsResult.status === 'rejected') {
         toast({
           title: 'Setup Required',
           description: 'Follow-up tables not found. Please run the database migration.',
