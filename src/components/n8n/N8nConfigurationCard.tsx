@@ -21,7 +21,9 @@ import {
   Copy,
   Trash2,
   Loader2,
-  Info
+  Info,
+  Download,
+  Key
 } from 'lucide-react'
 import {
   Alert,
@@ -336,12 +338,47 @@ export function N8nConfigurationCard({ chatbot, onUpdate }: N8nConfigurationCard
         </div>
 
         {/* Help Text */}
-        <Alert variant="default" className="bg-blue-50 border-blue-200">
+        <Alert variant="default" className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
           <Info className="h-4 w-4" />
           <AlertTitle>Need help setting up n8n?</AlertTitle>
-          <AlertDescription className="text-sm">
-            See <code className="text-xs bg-white px-1 py-0.5 rounded">N8N_INTEGRATION_GUIDE.md</code> for complete setup instructions
-            and workflow templates.
+          <AlertDescription className="text-sm space-y-3">
+            <p>
+              Download our ready-to-use workflow template and import it into n8n.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white dark:bg-gray-800"
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/n8n-workflow-template.json';
+                  link.download = 'avatarlab-n8n-workflow-template.json';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast({
+                    title: 'Template Downloaded',
+                    description: 'Import the JSON file into n8n and update the credentials'
+                  });
+                }}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download Template
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white dark:bg-gray-800"
+                onClick={() => window.location.href = '/api-keys'}
+              >
+                <Key className="h-4 w-4 mr-1" />
+                Get API Keys
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              You'll need to configure: API keys, webhook path, and credentials (OpenAI, Postgres)
+            </p>
           </AlertDescription>
         </Alert>
       </CardContent>

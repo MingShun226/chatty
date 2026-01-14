@@ -147,27 +147,119 @@ serve(async (req) => {
           throw new Error('Failed to fetch products')
         }
 
-        responseData = {
-          type: 'products',
-          count: products?.length || 0,
-          query: query || null,
-          category: category || null,
-          items: (products || []).map(p => ({
+        // Fetch active promotions to apply discounts
+        const { data: activePromotions } = await supabase
+          .from('chatbot_promotions')
+          .select('*')
+          .eq('chatbot_id', chatbotId)
+          .eq('is_active', true)
+
+        // Filter promotions by valid date range
+        const now = new Date()
+        const validPromotions = (activePromotions || []).filter(promo => {
+          const startDate = promo.start_date ? new Date(promo.start_date) : null
+          const endDate = promo.end_date ? new Date(promo.end_date) : null
+          const afterStart = !startDate || now >= startDate
+          const beforeEnd = !endDate || now <= endDate
+          const notMaxedOut = !promo.max_uses || promo.current_uses < promo.max_uses
+          return afterStart && beforeEnd && notMaxedOut
+        })
+
+        // Helper function to find applicable promotions for a product
+        const findApplicablePromotions = (product: any) => {
+          return validPromotions.filter(promo => {
+            const appliesTo = promo.applies_to || 'all'
+
+            if (appliesTo === 'all') {
+              return true
+            } else if (appliesTo === 'category' && promo.applies_to_categories) {
+              return promo.applies_to_categories.includes(product.category)
+            } else if (appliesTo === 'products' && promo.applies_to_product_ids) {
+              return promo.applies_to_product_ids.includes(product.id)
+            }
+            return false
+          })
+        }
+
+        // Helper function to calculate discounted price
+        const calculateDiscountedPrice = (originalPrice: number, promo: any) => {
+          if (!originalPrice || !promo) return originalPrice
+
+          let discount = 0
+          if (promo.discount_type === 'percentage') {
+            discount = originalPrice * (promo.discount_value / 100)
+            // Apply max_discount cap if set
+            if (promo.max_discount && discount > promo.max_discount) {
+              discount = promo.max_discount
+            }
+          } else if (promo.discount_type === 'fixed') {
+            discount = promo.discount_value
+          }
+
+          const discountedPrice = Math.max(0, originalPrice - discount)
+          return Math.round(discountedPrice * 100) / 100 // Round to 2 decimal places
+        }
+
+        // Map products with applied promotions
+        const productsWithPromotions = (products || []).map(p => {
+          const applicablePromotions = findApplicablePromotions(p)
+          let salePrice = null
+          let appliedPromotion = null
+          let discountDisplay = null
+
+          // Find the best promotion (highest discount)
+          if (applicablePromotions.length > 0 && p.price) {
+            let bestDiscount = 0
+            for (const promo of applicablePromotions) {
+              const discountedPrice = calculateDiscountedPrice(p.price, promo)
+              const currentDiscount = p.price - discountedPrice
+              if (currentDiscount > bestDiscount) {
+                bestDiscount = currentDiscount
+                salePrice = discountedPrice
+                appliedPromotion = {
+                  id: promo.id,
+                  title: promo.title,
+                  promo_code: promo.promo_code,
+                  discount_type: promo.discount_type,
+                  discount_value: promo.discount_value
+                }
+                discountDisplay = promo.discount_type === 'percentage'
+                  ? `${promo.discount_value}% OFF`
+                  : `RM${promo.discount_value} OFF`
+              }
+            }
+          }
+
+          return {
             id: p.id,
             name: p.product_name,
             sku: p.sku,
             category: p.category,
             description: p.description,
             price: p.price,
+            original_price: p.price,
+            sale_price: salePrice,
+            has_discount: salePrice !== null && salePrice < p.price,
+            discount_display: discountDisplay,
+            applied_promotion: appliedPromotion,
             currency: p.currency || 'MYR',
             stock_quantity: p.stock_quantity,
             in_stock: p.in_stock,
-            image_url: p.images?.[0] || null, // First image from images array
-            images: p.images || [], // Full images array
+            image_url: p.images?.[0] || null,
+            images: p.images || [],
             specifications: p.specifications,
             tags: p.tags,
             is_active: p.is_active
-          }))
+          }
+        })
+
+        responseData = {
+          type: 'products',
+          count: productsWithPromotions.length,
+          query: query || null,
+          category: category || null,
+          active_promotions_count: validPromotions.length,
+          items: productsWithPromotions
         }
         break
       }

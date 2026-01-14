@@ -38,7 +38,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { ProductService, Product } from '@/services/productService';
 import { ExcelImportService } from '@/services/excelImportService';
 import { ImageUploadService } from '@/services/imageUploadService';
+import { PromotionService, Promotion } from '@/services/promotionService';
 import { supabase } from '@/integrations/supabase/client';
+
+// Extended product with promotion pricing
+interface ProductWithPromo extends Product {
+  original_price: number;
+  sale_price: number | null;
+  has_discount: boolean;
+  discount_display: string | null;
+  applied_promotion: string | null;
+}
 
 interface ProductGalleryFullProps {
   chatbotId: string;
@@ -54,7 +64,7 @@ const ProductCard = memo(({
   onEdit,
   onDelete
 }: {
-  product: Product;
+  product: ProductWithPromo;
   priceVisible: boolean;
   onEdit: (product: Product) => void;
   onDelete: (id: string, name: string) => void;
@@ -62,22 +72,30 @@ const ProductCard = memo(({
   return (
     <Card className="hover:shadow-md transition-shadow duration-150" style={{ willChange: 'box-shadow' }}>
       <CardContent className="p-4" style={{ contain: 'layout style paint' }}>
-        {product.images && product.images.length > 0 ? (
-          <img
-            src={product.images[0]}
-            alt={product.product_name}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-40 object-cover rounded-lg mb-3"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect width="400" height="300" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="18" fill="%23999"%3ENo Image%3C/text%3E%3C/svg%3E';
-            }}
-          />
-        ) : (
-          <div className="w-full h-40 bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
-            <PackageX className="h-12 w-12 text-gray-400" />
-          </div>
-        )}
+        <div className="relative">
+          {product.images && product.images.length > 0 ? (
+            <img
+              src={product.images[0]}
+              alt={product.product_name}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-40 object-cover rounded-lg mb-3"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect width="400" height="300" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="18" fill="%23999"%3ENo Image%3C/text%3E%3C/svg%3E';
+              }}
+            />
+          ) : (
+            <div className="w-full h-40 bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
+              <PackageX className="h-12 w-12 text-gray-400" />
+            </div>
+          )}
+          {/* Discount Badge on Image */}
+          {product.has_discount && product.discount_display && (
+            <Badge className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold">
+              {product.discount_display}
+            </Badge>
+          )}
+        </div>
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <h4 className="font-semibold line-clamp-2 flex-1">{product.product_name}</h4>
@@ -93,13 +111,33 @@ const ProductCard = memo(({
           )}
 
           <div className="flex items-center justify-between pt-2">
-            <span className="text-lg font-bold text-blue-600">
-              RM {product.price.toFixed(2)}
-            </span>
+            <div className="flex flex-col">
+              {product.has_discount && product.sale_price !== null ? (
+                <>
+                  <span className="text-sm text-muted-foreground line-through">
+                    RM {product.original_price.toFixed(2)}
+                  </span>
+                  <span className="text-lg font-bold text-red-600">
+                    RM {product.sale_price.toFixed(2)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-lg font-bold text-blue-600">
+                  RM {product.price.toFixed(2)}
+                </span>
+              )}
+            </div>
             <Badge variant={product.in_stock ? "default" : "destructive"} className="text-xs">
               {product.in_stock ? 'In Stock' : 'Out of Stock'}
             </Badge>
           </div>
+
+          {/* Applied Promotion Name */}
+          {product.applied_promotion && (
+            <p className="text-xs text-green-600 font-medium">
+              🎉 {product.applied_promotion}
+            </p>
+          )}
 
           {product.category && (
             <Badge variant="outline" className="text-xs">
@@ -142,28 +180,36 @@ const ProductListItem = memo(({
   onEdit,
   onDelete
 }: {
-  product: Product;
+  product: ProductWithPromo;
   priceVisible: boolean;
   onEdit: (product: Product) => void;
   onDelete: (id: string, name: string) => void;
 }) => {
   return (
     <div className="flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-shadow bg-card">
-      {product.images && product.images.length > 0 ? (
-        <img
-          src={product.images[0]}
-          alt={product.product_name}
-          loading="lazy"
-          className="w-16 h-16 object-cover rounded-lg shrink-0"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect width="64" height="64" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="10" fill="%23999"%3ENo Img%3C/text%3E%3C/svg%3E';
-          }}
-        />
-      ) : (
-        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-          <PackageX className="h-6 w-6 text-gray-400" />
-        </div>
-      )}
+      <div className="relative shrink-0">
+        {product.images && product.images.length > 0 ? (
+          <img
+            src={product.images[0]}
+            alt={product.product_name}
+            loading="lazy"
+            className="w-16 h-16 object-cover rounded-lg"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect width="64" height="64" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="10" fill="%23999"%3ENo Img%3C/text%3E%3C/svg%3E';
+            }}
+          />
+        ) : (
+          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+            <PackageX className="h-6 w-6 text-gray-400" />
+          </div>
+        )}
+        {/* Discount Badge */}
+        {product.has_discount && product.discount_display && (
+          <Badge className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1 py-0">
+            {product.discount_display}
+          </Badge>
+        )}
+      </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
@@ -177,7 +223,7 @@ const ProductListItem = memo(({
             {product.description}
           </p>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {product.category && (
             <Badge variant="outline" className="text-xs">
               {product.category}
@@ -186,14 +232,30 @@ const ProductListItem = memo(({
           <Badge variant={product.in_stock ? "default" : "destructive"} className="text-xs">
             {product.in_stock ? 'In Stock' : 'Out of Stock'}
           </Badge>
+          {product.applied_promotion && (
+            <span className="text-xs text-green-600 font-medium">
+              🎉 {product.applied_promotion}
+            </span>
+          )}
         </div>
       </div>
 
       {priceVisible && (
-        <div className="text-right shrink-0 min-w-[100px]">
-          <span className="text-lg font-bold text-blue-600">
-            RM {product.price.toFixed(2)}
-          </span>
+        <div className="text-right shrink-0 min-w-[120px]">
+          {product.has_discount && product.sale_price !== null ? (
+            <div className="flex flex-col items-end">
+              <span className="text-sm text-muted-foreground line-through">
+                RM {product.original_price.toFixed(2)}
+              </span>
+              <span className="text-lg font-bold text-red-600">
+                RM {product.sale_price.toFixed(2)}
+              </span>
+            </div>
+          ) : (
+            <span className="text-lg font-bold text-blue-600">
+              RM {product.price.toFixed(2)}
+            </span>
+          )}
         </div>
       )}
 
@@ -221,8 +283,94 @@ const ProductListItem = memo(({
 
 ProductListItem.displayName = 'ProductListItem';
 
+// Helper function to find applicable promotions for a product
+const findApplicablePromotions = (product: Product, promotions: Promotion[]): Promotion[] => {
+  return promotions.filter(promo => {
+    const appliesTo = promo.applies_to || 'all';
+    if (appliesTo === 'all') return true;
+    else if (appliesTo === 'category' && promo.applies_to_categories) {
+      return product.category && promo.applies_to_categories.includes(product.category);
+    } else if (appliesTo === 'products' && promo.applies_to_product_ids) {
+      return product.id && promo.applies_to_product_ids.includes(product.id);
+    }
+    return false;
+  });
+};
+
+// Helper function to calculate discounted price
+const calculateDiscountedPrice = (originalPrice: number, promo: Promotion): number => {
+  if (!originalPrice || !promo.discount_type || !promo.discount_value) return originalPrice;
+
+  let discount = 0;
+  if (promo.discount_type === 'percentage') {
+    discount = originalPrice * (promo.discount_value / 100);
+  } else if (promo.discount_type === 'fixed_amount') {
+    discount = promo.discount_value;
+  }
+
+  return Math.round(Math.max(0, originalPrice - discount) * 100) / 100;
+};
+
+// Apply promotions to products
+const applyPromotionsToProducts = (products: Product[], promotions: Promotion[]): ProductWithPromo[] => {
+  return products.map(product => {
+    const applicablePromos = findApplicablePromotions(product, promotions);
+
+    if (applicablePromos.length === 0 || !product.price) {
+      return {
+        ...product,
+        original_price: product.price,
+        sale_price: null,
+        has_discount: false,
+        discount_display: null,
+        applied_promotion: null,
+      };
+    }
+
+    // Find the best promotion (highest discount)
+    let bestPromo: Promotion | null = null;
+    let bestSalePrice = product.price;
+
+    for (const promo of applicablePromos) {
+      const salePrice = calculateDiscountedPrice(product.price, promo);
+      if (salePrice < bestSalePrice) {
+        bestSalePrice = salePrice;
+        bestPromo = promo;
+      }
+    }
+
+    if (bestPromo && bestSalePrice < product.price) {
+      let discountDisplay = '';
+      if (bestPromo.discount_type === 'percentage') {
+        discountDisplay = `${bestPromo.discount_value}% OFF`;
+      } else if (bestPromo.discount_type === 'fixed_amount') {
+        discountDisplay = `RM${bestPromo.discount_value} OFF`;
+      }
+
+      return {
+        ...product,
+        original_price: product.price,
+        sale_price: bestSalePrice,
+        has_discount: true,
+        discount_display: discountDisplay,
+        applied_promotion: bestPromo.title,
+      };
+    }
+
+    return {
+      ...product,
+      original_price: product.price,
+      sale_price: null,
+      has_discount: false,
+      discount_display: null,
+      applied_promotion: null,
+    };
+  });
+};
+
 export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initialPriceVisible = true, onPriceVisibleChange }: ProductGalleryFullProps) {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductWithPromo[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -291,8 +439,18 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await ProductService.getProducts(chatbotId);
-      setProducts(data);
+
+      // Fetch products and promotions in parallel
+      const [productsData, promotionsData] = await Promise.all([
+        ProductService.getProducts(chatbotId),
+        PromotionService.getActivePromotions(chatbotId)
+      ]);
+
+      setPromotions(promotionsData);
+
+      // Apply promotions to products
+      const productsWithPromo = applyPromotionsToProducts(productsData, promotionsData);
+      setProducts(productsWithPromo);
     } catch (error: any) {
       console.error('Error loading products:', error);
       toast({

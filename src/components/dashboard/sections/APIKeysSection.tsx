@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Key, Plus, Copy, Trash2, Eye, EyeOff, AlertCircle, BookOpen, Code, Zap } from 'lucide-react';
+import { Key, Plus, Copy, Trash2, Eye, EyeOff, AlertCircle, BookOpen, Code, Zap, Download } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -627,6 +627,47 @@ Tools to add:
 4. get_knowledge → /chatbot-data?type=knowledge&chatbot_id={id}
    (Returns all files with download URLs + all chunks. AI searches through chunks locally.)`}
                   </pre>
+                </div>
+              </div>
+
+              {/* Workflow Template Download */}
+              <div className="border-t pt-4 mt-4">
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-900 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <p className="font-medium flex items-center gap-2">
+                        <Download className="w-4 h-4 text-purple-600" />
+                        Ready-to-Use n8n Workflow Template
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Download our pre-built workflow template and import it directly into n8n.
+                        You only need to configure:
+                      </p>
+                      <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                        <li><code className="bg-white dark:bg-gray-800 px-1 rounded text-xs">YOUR_PLATFORM_API_KEY</code> - Your API key from the Keys tab</li>
+                        <li><code className="bg-white dark:bg-gray-800 px-1 rounded text-xs">YOUR_WEBHOOK_PATH</code> - Your unique webhook path in n8n</li>
+                        <li><code className="bg-white dark:bg-gray-800 px-1 rounded text-xs">Credentials</code> - OpenAI, Google Gemini, and Postgres credentials</li>
+                      </ul>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = '/n8n-workflow-template.json';
+                        link.download = 'avatarlab-n8n-workflow-template.json';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        toast({
+                          title: 'Template Downloaded',
+                          description: 'Import the JSON file into n8n and update the credentials'
+                        });
+                      }}
+                      className="shrink-0"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Template
+                    </Button>
+                  </div>
                 </div>
               </div>
 
