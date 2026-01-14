@@ -240,13 +240,37 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
       }
 
       const data = await response.json();
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: data.message,
-        timestamp: new Date()
-      };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      // Check if message contains || for splitting into multiple messages
+      const messageParts = data.message.split('||').map((part: string) => part.trim()).filter((part: string) => part.length > 0);
+
+      if (messageParts.length > 1) {
+        // Add messages one by one with delay to simulate multiple messages
+        for (let i = 0; i < messageParts.length; i++) {
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: messageParts[i],
+            timestamp: new Date()
+          };
+
+          if (i === 0) {
+            // Add first message immediately
+            setMessages(prev => [...prev, assistantMessage]);
+          } else {
+            // Add subsequent messages with delay
+            await new Promise(resolve => setTimeout(resolve, 800));
+            setMessages(prev => [...prev, assistantMessage]);
+          }
+        }
+      } else {
+        // Single message, no splitting needed
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.message,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      }
 
       // Show metadata if available
       if (data.metadata) {
