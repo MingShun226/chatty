@@ -41,10 +41,8 @@ const Dashboard = ({ onLogout }: DashboardProps) => {
         onLogout={handleLogout}
       />
       <main className={`${isCollapsed ? 'ml-16' : 'ml-56'} overflow-auto transition-all duration-300`}>
-        <div className="p-6">
-          <div className="max-w-6xl mx-auto">
-            <DashboardOverview onSectionChange={setActiveSection} />
-          </div>
+        <div className="p-8 max-w-7xl mx-auto">
+          <DashboardOverview onSectionChange={setActiveSection} />
         </div>
       </main>
     </div>
