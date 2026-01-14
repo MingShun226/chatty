@@ -299,8 +299,8 @@ const APIKeysSection = () => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Use these API keys to connect your avatars with external services like n8n, Make, or custom applications.
-              Keys are scoped to specific permissions and can be restricted to individual avatars.
+              Use these API keys to connect your chatbots with external services like n8n, Make, or custom applications.
+              Keys are scoped to specific permissions and can be restricted to individual chatbots.
             </AlertDescription>
           </Alert>
 
@@ -333,7 +333,7 @@ const APIKeysSection = () => {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Key</TableHead>
-                  <TableHead>Avatar</TableHead>
+                  <TableHead>Chatbot</TableHead>
                   <TableHead>Scopes</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Usage</TableHead>
@@ -354,7 +354,7 @@ const APIKeysSection = () => {
                       {key.api_key_prefix}
                     </TableCell>
                     <TableCell>
-                      {key.avatar_name || 'All Avatars'}
+                      {key.avatar_name || 'All Chatbots'}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
@@ -698,13 +698,13 @@ Tools to add:
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="avatar">Avatar Scope</Label>
+              <Label htmlFor="avatar">Chatbot Scope</Label>
               <Select value={selectedAvatar} onValueChange={setSelectedAvatar}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select avatar" />
+                  <SelectValue placeholder="Select chatbot" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Avatars</SelectItem>
+                  <SelectItem value="all">All Chatbots</SelectItem>
                   {avatars.map(avatar => (
                     <SelectItem key={avatar.id} value={avatar.id}>
                       {avatar.name}
@@ -713,7 +713,7 @@ Tools to add:
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Restrict this key to a specific avatar or allow access to all
+                Restrict this key to a specific chatbot or allow access to all
               </p>
             </div>
 
@@ -721,12 +721,11 @@ Tools to add:
               <Label>Permissions</Label>
               <div className="space-y-2">
                 {[
-                  { id: 'chat', label: 'Chat', description: 'Send messages to avatar' },
-                  { id: 'config', label: 'Config', description: 'Read avatar configuration' },
+                  { id: 'chat', label: 'Chat', description: 'Send messages to chatbot' },
+                  { id: 'config', label: 'Config', description: 'Read chatbot configuration' },
                   { id: 'products', label: 'Products', description: 'Access product catalog' },
                   { id: 'promotions', label: 'Promotions', description: 'Access promotions & promo codes' },
-                  { id: 'knowledge', label: 'Knowledge', description: 'Search knowledge base' },
-                  { id: 'memories', label: 'Memories', description: 'Access avatar memories' }
+                  { id: 'knowledge', label: 'Knowledge', description: 'Search knowledge base' }
                 ].map(scope => (
                   <label key={scope.id} className="flex items-center gap-2 cursor-pointer">
                     <input
