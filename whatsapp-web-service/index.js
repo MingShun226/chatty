@@ -333,17 +333,34 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
           // LID format: 123456789@lid (not a real phone number)
           // Try to get actual phone number from participant or message metadata
           if (fromNumber?.endsWith('@lid')) {
-            console.log(`LID detected: ${fromNumber}`)
-            // Try to get actual phone number from participant field (for group messages)
-            // or from the message's pushName/verifiedBizName
+            console.log(`[LID DEBUG] =====================`)
+            console.log(`[LID DEBUG] LID detected: ${fromNumber}`)
+            console.log(`[LID DEBUG] Message key:`, JSON.stringify(msg.key, null, 2))
+            console.log(`[LID DEBUG] Push name: ${msg.pushName || 'N/A'}`)
+            console.log(`[LID DEBUG] Verified biz name: ${msg.verifiedBizName || 'N/A'}`)
+
+            // Try to get actual phone number from participant field
             const participant = msg.key.participant
             if (participant && !participant.endsWith('@lid')) {
-              console.log(`Found participant phone: ${participant}`)
+              console.log(`[LID DEBUG] Found participant phone: ${participant}`)
               fromNumber = participant
             } else {
-              // LID is the only identifier - use it as-is for messaging
-              // but log that this is a LID contact
-              console.log(`Using LID as identifier (actual phone number not available)`)
+              // Try to get phone from the message's deviceSentMeta or other fields
+              const deviceSentMeta = msg.message?.deviceSentMessage?.message
+              console.log(`[LID DEBUG] Device sent meta available: ${!!deviceSentMeta}`)
+
+              // Check if sock has lidToJid mapping (some Baileys versions support this)
+              try {
+                if (sock.store?.contacts) {
+                  const contact = sock.store.contacts[fromNumber]
+                  console.log(`[LID DEBUG] Contact from store:`, contact ? JSON.stringify(contact) : 'Not found')
+                }
+              } catch (e) {
+                console.log(`[LID DEBUG] Could not access store contacts`)
+              }
+
+              console.log(`[LID DEBUG] Using LID as identifier (actual phone number not available)`)
+              console.log(`[LID DEBUG] =====================`)
             }
           }
 
