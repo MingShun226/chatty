@@ -1774,7 +1774,7 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
 
     // Add contact name from WhatsApp pushName if available
     if (contactName) {
-      upsertData.name = contactName
+      upsertData.contact_name = contactName
       console.log(`Setting contact name from WhatsApp: ${contactName}`)
     }
 
