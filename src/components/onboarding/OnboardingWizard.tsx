@@ -6,8 +6,6 @@ import { ApiKeyStep } from './steps/ApiKeyStep';
 import { BusinessInfoStep } from './steps/BusinessInfoStep';
 import { ChatbotPersonalityStep } from './steps/ChatbotPersonalityStep';
 import { PromptPreviewStep } from './steps/PromptPreviewStep';
-import { ProductsImportStep } from './steps/ProductsImportStep';
-import { KnowledgeBaseStep } from './steps/KnowledgeBaseStep';
 import { CompletionStep } from './steps/CompletionStep';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -106,8 +104,6 @@ const STEPS = [
   { id: 'business-info', label: 'Business Info', component: BusinessInfoStep },
   { id: 'personality', label: 'Personality', component: ChatbotPersonalityStep },
   { id: 'prompt', label: 'AI Prompt', component: PromptPreviewStep },
-  { id: 'products', label: 'Products', component: ProductsImportStep },
-  { id: 'knowledge', label: 'Knowledge', component: KnowledgeBaseStep },
   { id: 'complete', label: 'Complete', component: CompletionStep },
 ];
 
