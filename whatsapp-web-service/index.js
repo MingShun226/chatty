@@ -1397,7 +1397,7 @@ async function sendAdminNotification(chatbotId, sessionId, customerPhone, analys
     // Get notification settings for this chatbot
     const { data: settings } = await supabase
       .from('followup_settings')
-      .select('notification_enabled, notification_phone_number, notify_on_purchase_intent, notify_on_wants_human')
+      .select('notification_enabled, notification_phone_number, notify_on_purchase_intent, notify_on_wants_human, notify_on_price_inquiry, notify_on_ai_unsure, auto_pause_on_notification')
       .eq('chatbot_id', chatbotId)
       .single()
 
@@ -1405,11 +1405,13 @@ async function sendAdminNotification(chatbotId, sessionId, customerPhone, analys
       return // Notifications not enabled or no phone configured
     }
 
-    // Check if we should notify for this intent
+    // Check if we should notify for each intent type
     const shouldNotifyPurchase = settings.notify_on_purchase_intent && analysis.wantsToBuy
     const shouldNotifyHuman = settings.notify_on_wants_human && analysis.wantsHumanAgent
+    const shouldNotifyPrice = settings.notify_on_price_inquiry && analysis.asksAboutPrice
+    const shouldNotifyUnsure = settings.notify_on_ai_unsure && analysis.aiUnsure
 
-    if (!shouldNotifyPurchase && !shouldNotifyHuman) {
+    if (!shouldNotifyPurchase && !shouldNotifyHuman && !shouldNotifyPrice && !shouldNotifyUnsure) {
       return // No matching trigger
     }
 
@@ -1422,22 +1424,41 @@ async function sendAdminNotification(chatbotId, sessionId, customerPhone, analys
 
     const chatbotName = chatbot?.name || 'Chatbot'
 
-    // Build notification message
-    let alertType = ''
-    if (shouldNotifyPurchase && shouldNotifyHuman) {
-      alertType = '🛒 wants to BUY and 👤 speak to agent'
-    } else if (shouldNotifyPurchase) {
-      alertType = '🛒 wants to BUY'
-    } else {
-      alertType = '👤 wants to speak to HUMAN AGENT'
+    // Build notification message with all detected intents
+    const alertTypes = []
+    if (shouldNotifyPurchase) alertTypes.push('🛒 wants to BUY')
+    if (shouldNotifyHuman) alertTypes.push('👤 wants HUMAN AGENT')
+    if (shouldNotifyPrice) alertTypes.push('💰 asking about PRICE')
+    if (shouldNotifyUnsure) alertTypes.push('❓ AI NEEDS HELP')
+
+    const alertType = alertTypes.join('\n')
+
+    // Check if auto-pause is enabled
+    let autoPauseNote = ''
+    if (settings.auto_pause_on_notification) {
+      // Pause AI for this contact
+      const cleanPhone = customerPhone.replace(/[^0-9]/g, '')
+      await supabase
+        .from('contact_profiles')
+        .update({
+          ai_paused: true,
+          ai_paused_at: new Date().toISOString(),
+          ai_paused_reason: 'Auto-paused on notification'
+        })
+        .eq('chatbot_id', chatbotId)
+        .eq('phone_number', cleanPhone)
+
+      autoPauseNote = '\n\n⏸️ *AI auto-paused* - You are now in control'
+      console.log(`AI auto-paused for contact ${customerPhone}`)
     }
 
     const notificationMessage = `🔔 *${chatbotName} Alert*
 
 Customer: ${customerPhone}
-Intent: ${alertType}
+Intent:
+${alertType}
 
-Summary: ${analysis.summary || 'No summary available'}
+Summary: ${analysis.summary || 'No summary available'}${autoPauseNote}
 
 Reply to this customer now!`
 
@@ -1613,6 +1634,8 @@ ${tagDescriptions || `- hot_lead: High interest, likely to convert (asking about
 SPECIAL DETECTION RULES (check the LATEST customer messages carefully):
 - wantsToBuy = true if customer explicitly wants to purchase NOW: "I want to buy", "how to order", "ready to purchase", "take my order", "checkout", "I'll buy it", "I want to order", "how do I pay"
 - wantsHumanAgent = true if customer requested human support: "speak to human", "talk to agent", "real person", "customer service", "live support", "speak to someone", "talk to real", "human please", "actual person"
+- asksAboutPrice = true if customer asks about pricing, cost, or rates: "how much", "what's the price", "berapa harga", "price", "cost", "fee", "rate", "pricing", "budget", "quotation", "quote"
+- aiUnsure = true if the assistant's last response seemed uncertain, deflected the question, couldn't provide a clear answer, or if the customer's question is unusual/off-topic that the bot might not handle well
 
 Analyze and respond ONLY with valid JSON (no markdown, no explanation):
 {
@@ -1624,7 +1647,9 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
   "suggestedFollowUp": "Natural follow-up message if applicable",
   "confidence": 0.0-1.0,
   "wantsToBuy": true/false,
-  "wantsHumanAgent": true/false
+  "wantsHumanAgent": true/false,
+  "asksAboutPrice": true/false,
+  "aiUnsure": true/false
 }`
 
     // Use OpenAI API directly (or could use an edge function)
@@ -1719,11 +1744,13 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
       // (not already flagged in previous analysis to avoid duplicate notifications)
       const isNewBuyIntent = analysis.wantsToBuy && !previousAnalysis.wantsToBuy
       const isNewHumanIntent = analysis.wantsHumanAgent && !previousAnalysis.wantsHumanAgent
+      const isNewPriceIntent = analysis.asksAboutPrice && !previousAnalysis.asksAboutPrice
+      const isNewUnsureIntent = analysis.aiUnsure && !previousAnalysis.aiUnsure
 
-      if (isNewBuyIntent || isNewHumanIntent) {
-        console.log(`NEW high-priority intent detected - wantsToBuy: ${isNewBuyIntent}, wantsHumanAgent: ${isNewHumanIntent}`)
+      if (isNewBuyIntent || isNewHumanIntent || isNewPriceIntent || isNewUnsureIntent) {
+        console.log(`NEW intent detected - wantsToBuy: ${isNewBuyIntent}, wantsHumanAgent: ${isNewHumanIntent}, asksAboutPrice: ${isNewPriceIntent}, aiUnsure: ${isNewUnsureIntent}`)
         await sendAdminNotification(chatbotId, sessionId, cleanPhoneNumber, analysis)
-      } else if (analysis.wantsToBuy || analysis.wantsHumanAgent) {
+      } else if (analysis.wantsToBuy || analysis.wantsHumanAgent || analysis.asksAboutPrice || analysis.aiUnsure) {
         console.log(`Intent already notified previously - skipping duplicate notification`)
       }
     }
