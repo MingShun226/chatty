@@ -1158,6 +1158,52 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                             onCheckedChange={(checked) => handleSettingsChange('notify_on_wants_human', checked)}
                           />
                         </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">Customer asks about price</span>
+                            <p className="text-xs text-muted-foreground">
+                              When prices are hidden and customer inquires about pricing
+                            </p>
+                          </div>
+                          <Switch
+                            checked={settings?.notify_on_price_inquiry ?? true}
+                            onCheckedChange={(checked) => handleSettingsChange('notify_on_price_inquiry', checked)}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">AI is unsure how to respond</span>
+                            <p className="text-xs text-muted-foreground">
+                              When chatbot encounters questions it cannot answer confidently
+                            </p>
+                          </div>
+                          <Switch
+                            checked={settings?.notify_on_ai_unsure ?? true}
+                            onCheckedChange={(checked) => handleSettingsChange('notify_on_ai_unsure', checked)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Auto-pause AI on Notification */}
+                      <div className="space-y-3 pt-4 border-t">
+                        <Label className="text-sm font-medium">When notification is triggered:</Label>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">Auto-pause AI for this contact</span>
+                            <p className="text-xs text-muted-foreground">
+                              {settings?.auto_pause_on_notification
+                                ? "AI will stop responding, admin takes over until manually resumed"
+                                : "AI continues responding while you're notified"}
+                            </p>
+                          </div>
+                          <Switch
+                            checked={settings?.auto_pause_on_notification ?? false}
+                            onCheckedChange={(checked) => handleSettingsChange('auto_pause_on_notification', checked)}
+                          />
+                        </div>
                       </div>
                     </>
                   )}

@@ -41,7 +41,9 @@ import {
   History,
   CheckCircle2,
   Tag,
-  Search
+  Search,
+  DollarSign,
+  HelpCircle
 } from 'lucide-react';
 
 interface ContactItem {
@@ -73,8 +75,12 @@ interface OverviewStats {
   alerts: {
     wantsToBuy: number;
     wantsHuman: number;
+    asksPrice: number;
+    aiUnsure: number;
     buyContacts: Array<{ id: string; phone: string; name: string }>;
     humanContacts: Array<{ id: string; phone: string; name: string }>;
+    priceContacts: Array<{ id: string; phone: string; name: string }>;
+    unsureContacts: Array<{ id: string; phone: string; name: string }>;
   };
   followupHistory: Array<{
     id: string;
@@ -194,6 +200,8 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
       let pendingFollowups = 0;
       const buyContacts: Array<{ id: string; phone: string; name: string }> = [];
       const humanContacts: Array<{ id: string; phone: string; name: string }> = [];
+      const priceContacts: Array<{ id: string; phone: string; name: string }> = [];
+      const unsureContacts: Array<{ id: string; phone: string; name: string }> = [];
 
       contacts.forEach(c => {
         if (c.ai_sentiment === 'positive') moodDistribution.happy++;
@@ -210,6 +218,12 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         }
         if (analysis?.wantsHumanAgent) {
           humanContacts.push({ id: c.id, phone: c.phone_number, name: c.contact_name || 'Unknown' });
+        }
+        if (analysis?.asksAboutPrice) {
+          priceContacts.push({ id: c.id, phone: c.phone_number, name: c.contact_name || 'Unknown' });
+        }
+        if (analysis?.aiUnsure) {
+          unsureContacts.push({ id: c.id, phone: c.phone_number, name: c.contact_name || 'Unknown' });
         }
       });
 
@@ -269,7 +283,16 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         moodDistribution,
         allContacts,
         recentConversations,
-        alerts: { wantsToBuy: buyContacts.length, wantsHuman: humanContacts.length, buyContacts, humanContacts },
+        alerts: {
+          wantsToBuy: buyContacts.length,
+          wantsHuman: humanContacts.length,
+          asksPrice: priceContacts.length,
+          aiUnsure: unsureContacts.length,
+          buyContacts,
+          humanContacts,
+          priceContacts,
+          unsureContacts
+        },
         followupHistory,
         whatsappConnected: whatsappRes.data?.status === 'connected',
         whatsappPhone: whatsappRes.data?.phone_number || ''
@@ -281,8 +304,8 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
     }
   };
 
-  // Dismiss alert (clear wantsToBuy/wantsHumanAgent flag)
-  const dismissAlert = async (contactId: string, alertType: 'buy' | 'human') => {
+  // Dismiss alert (clear wantsToBuy/wantsHumanAgent/asksAboutPrice/aiUnsure flag)
+  const dismissAlert = async (contactId: string, alertType: 'buy' | 'human' | 'price' | 'unsure') => {
     setDismissingAlert(contactId);
     try {
       // Get current ai_analysis and update the flag
@@ -295,8 +318,12 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
       const analysis = (contact?.ai_analysis as any) || {};
       if (alertType === 'buy') {
         analysis.wantsToBuy = false;
-      } else {
+      } else if (alertType === 'human') {
         analysis.wantsHumanAgent = false;
+      } else if (alertType === 'price') {
+        analysis.asksAboutPrice = false;
+      } else if (alertType === 'unsure') {
+        analysis.aiUnsure = false;
       }
 
       await supabase
@@ -433,14 +460,14 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
           </CardContent>
         </Card>
 
-        <Card className={stats.alerts.wantsToBuy + stats.alerts.wantsHuman > 0 ? 'border-amber-300 dark:border-amber-700' : ''}>
+        <Card className={stats.alerts.wantsToBuy + stats.alerts.wantsHuman + stats.alerts.asksPrice + stats.alerts.aiUnsure > 0 ? 'border-amber-300 dark:border-amber-700' : ''}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Bell className="h-4 w-4" />
               Alerts
-              {stats.alerts.wantsToBuy + stats.alerts.wantsHuman > 0 && (
+              {stats.alerts.wantsToBuy + stats.alerts.wantsHuman + stats.alerts.asksPrice + stats.alerts.aiUnsure > 0 && (
                 <Badge variant="destructive" className="ml-2">
-                  {stats.alerts.wantsToBuy + stats.alerts.wantsHuman}
+                  {stats.alerts.wantsToBuy + stats.alerts.wantsHuman + stats.alerts.asksPrice + stats.alerts.aiUnsure}
                 </Badge>
               )}
             </CardTitle>
@@ -496,7 +523,55 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
                     ))}
                   </div>
                 )}
-                {stats.alerts.wantsToBuy + stats.alerts.wantsHuman === 0 && (
+                {stats.alerts.priceContacts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-amber-600 flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" /> Asking about price
+                    </p>
+                    {stats.alerts.priceContacts.map((contact) => (
+                      <div key={contact.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50 dark:bg-amber-950">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contact.name}</p>
+                          <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
+                          onClick={() => dismissAlert(contact.id, 'price')}
+                          disabled={dismissingAlert === contact.id}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {stats.alerts.unsureContacts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-purple-600 flex items-center gap-1">
+                      <HelpCircle className="h-3 w-3" /> AI needs help
+                    </p>
+                    {stats.alerts.unsureContacts.map((contact) => (
+                      <div key={contact.id} className="flex items-center justify-between p-2 rounded-lg bg-purple-50 dark:bg-purple-950">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contact.name}</p>
+                          <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                          onClick={() => dismissAlert(contact.id, 'unsure')}
+                          disabled={dismissingAlert === contact.id}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {stats.alerts.wantsToBuy + stats.alerts.wantsHuman + stats.alerts.asksPrice + stats.alerts.aiUnsure === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">No alerts</p>
                 )}
               </div>

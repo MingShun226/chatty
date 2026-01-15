@@ -79,6 +79,9 @@ export interface FollowupSettings {
   notification_phone_number: string | null
   notify_on_purchase_intent: boolean
   notify_on_wants_human: boolean
+  notify_on_price_inquiry: boolean
+  notify_on_ai_unsure: boolean
+  auto_pause_on_notification: boolean
   created_at: string
   updated_at: string
 }
