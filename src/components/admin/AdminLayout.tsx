@@ -3,6 +3,7 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
@@ -15,6 +16,7 @@ import {
   X,
   ShieldCheck,
   Settings,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +25,7 @@ export const AdminLayout = () => {
   const { adminUser } = useAdminAuth();
   const { user, signOut } = useAuth();
   const { isCollapsed, setIsCollapsed } = useSidebar();
+  const { settings: platformSettings } = usePlatformSettings();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -36,6 +39,8 @@ export const AdminLayout = () => {
   const toggleMobile = () => {
     setIsMobileOpen(!isMobileOpen);
   };
+
+  const isSuperAdmin = adminUser?.role === 'super_admin';
 
   const navigation = [
     {
@@ -68,6 +73,13 @@ export const AdminLayout = () => {
       icon: FileText,
       permission: 'settings',
     },
+    // Super admin only
+    ...(isSuperAdmin ? [{
+      name: 'Admin Management',
+      href: '/admin/admins',
+      icon: UserCog,
+      permission: null,
+    }] : []),
   ];
 
   return (
@@ -117,12 +129,18 @@ export const AdminLayout = () => {
             }}
           >
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-sidebar-primary rounded-md flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-3 h-3 text-sidebar-primary-foreground" />
-              </div>
+              {platformSettings.logo_url ? (
+                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <img src={platformSettings.logo_url} alt="Logo" className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 bg-sidebar-primary rounded-md flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-3 h-3 text-sidebar-primary-foreground" />
+                </div>
+              )}
               {!isCollapsed && (
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-sm font-bold text-sidebar-foreground truncate">Chatty Admin</h1>
+                  <h1 className="text-sm font-bold text-sidebar-foreground truncate">{platformSettings.platform_name} Admin</h1>
                   <p className="text-xs text-sidebar-foreground/60 truncate">Platform Management</p>
                 </div>
               )}

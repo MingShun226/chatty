@@ -3,7 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Loader2, Bot, User, RefreshCw, Wand2, Copy, Check } from 'lucide-react';
+import { Send, Loader2, Bot, User, RefreshCw, Wand2, Copy, Check, Sparkles, Database, Package, Tag, FileText, Save, FolderOpen } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { PromptAgentService, PromptAgentMessage } from '@/services/promptAgentService';
@@ -25,6 +33,13 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated, versionDro
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  // AI Generate states
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGenerateDialogOpen, setAiGenerateDialogOpen] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [savingGenerated, setSavingGenerated] = useState(false);
+  const [dataStats, setDataStats] = useState({ products: 0, promotions: 0, knowledge: 0, categories: 0 });
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -89,6 +104,316 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated, versionDro
         description: "Failed to load chatbot information",
         variant: "destructive"
       });
+    }
+  };
+
+  // AI Analyze & Generate function - Comprehensive prompt generation
+  const handleAiGenerate = async () => {
+    try {
+      setAiGenerating(true);
+
+      // Fetch all chatbot data comprehensively
+      const [chatbotRes, productsRes, promotionsRes, knowledgeRes, apiKeyRes] = await Promise.all([
+        supabase.from('avatars').select('*').eq('id', chatbotId).eq('user_id', userId).single(),
+        supabase.from('chatbot_products').select('product_name, description, category, price, in_stock, sku, stock_quantity').eq('chatbot_id', chatbotId).limit(100),
+        supabase.from('chatbot_promotions').select('title, description, discount_type, discount_value, promo_code, start_date, end_date').eq('chatbot_id', chatbotId).eq('is_active', true),
+        supabase.from('avatar_knowledge_files').select('file_name, original_name').eq('avatar_id', chatbotId).eq('processing_status', 'processed'),
+        supabase.from('user_api_keys').select('api_key_encrypted').eq('user_id', userId).ilike('service', 'openai').eq('status', 'active').limit(1).single()
+      ]);
+
+      const chatbot = chatbotRes.data;
+      const products = productsRes.data || [];
+      const promotions = promotionsRes.data || [];
+      const knowledge = knowledgeRes.data || [];
+
+      if (!apiKeyRes.data) {
+        throw new Error('No OpenAI API key found. Please add your API key in Settings.');
+      }
+
+      // Get unique categories with product counts
+      const categoryMap = new Map<string, { count: number; samples: string[] }>();
+      products.forEach(p => {
+        const cat = p.category || 'Uncategorized';
+        if (!categoryMap.has(cat)) {
+          categoryMap.set(cat, { count: 0, samples: [] });
+        }
+        const catData = categoryMap.get(cat)!;
+        catData.count++;
+        if (catData.samples.length < 3) {
+          catData.samples.push(p.product_name);
+        }
+      });
+
+      // Update data stats with category count
+      setDataStats({
+        products: products.length,
+        promotions: promotions.length,
+        knowledge: knowledge.length,
+        categories: categoryMap.size
+      });
+
+      // Build comprehensive categories summary
+      const categoriesList = Array.from(categoryMap.entries())
+        .map(([cat, data]) => `- ${cat} (${data.count} items): e.g. ${data.samples.join(', ')}`)
+        .join('\n');
+
+      // Build products with details
+      const productDetails = products.slice(0, 30).map(p =>
+        `• ${p.product_name}${p.sku ? ` [${p.sku}]` : ''} - RM${p.price || 0} - ${p.in_stock ? 'In Stock' : 'Out of Stock'}${p.category ? ` | Category: ${p.category}` : ''}`
+      ).join('\n');
+
+      // Build promotions details
+      const promotionDetails = promotions.map(p =>
+        `• ${p.title}: ${p.discount_type === 'percentage' ? `${p.discount_value}% OFF` : `RM${p.discount_value} OFF`}${p.promo_code ? ` | Code: ${p.promo_code}` : ' | No code needed'}`
+      ).join('\n') || 'No active promotions';
+
+      // Knowledge base summary
+      const knowledgeDetails = knowledge.map(k =>
+        `• ${k.original_name || k.file_name}`
+      ).join('\n') || 'No knowledge base documents';
+
+      // Build the comprehensive AI prompt
+      const aiPrompt = `You are an expert prompt engineer. Generate a COMPLETE, PRODUCTION-READY system prompt for a WhatsApp business chatbot.
+
+═══════════════════════════════════════════════════════════════════════════════
+BUSINESS INFORMATION (Use this data to create the prompt)
+═══════════════════════════════════════════════════════════════════════════════
+
+CHATBOT NAME: ${chatbot?.name || 'Assistant'}
+COMPANY NAME: ${chatbot?.company_name || 'Our Store'}
+INDUSTRY: ${chatbot?.industry || 'Retail'}
+BUSINESS CONTEXT: ${chatbot?.business_context || 'A friendly store helping customers'}
+SUPPORTED LANGUAGES: ${(chatbot?.supported_languages || ['en', 'zh', 'ms']).join(', ')}
+DEFAULT LANGUAGE: ${chatbot?.default_language || 'en'}
+
+RESPONSE GUIDELINES FROM OWNER:
+${chatbot?.response_guidelines?.length > 0 ? chatbot.response_guidelines.map((g: string, i: number) => `${i + 1}. ${g}`).join('\n') : '- Be helpful and friendly\n- Answer questions accurately'}
+
+COMPLIANCE RULES:
+${chatbot?.compliance_rules?.length > 0 ? chatbot.compliance_rules.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n') : '- Be professional\n- Never share false information'}
+
+═══════════════════════════════════════════════════════════════════════════════
+PRODUCT CATEGORIES (${categoryMap.size} categories, ${products.length} total products)
+═══════════════════════════════════════════════════════════════════════════════
+${categoriesList || 'No products configured yet'}
+
+═══════════════════════════════════════════════════════════════════════════════
+SAMPLE PRODUCTS
+═══════════════════════════════════════════════════════════════════════════════
+${productDetails || 'No products'}
+
+═══════════════════════════════════════════════════════════════════════════════
+ACTIVE PROMOTIONS
+═══════════════════════════════════════════════════════════════════════════════
+${promotionDetails}
+
+═══════════════════════════════════════════════════════════════════════════════
+KNOWLEDGE BASE DOCUMENTS
+═══════════════════════════════════════════════════════════════════════════════
+${knowledgeDetails}
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL REQUIREMENTS FOR THE GENERATED PROMPT
+═══════════════════════════════════════════════════════════════════════════════
+
+**MUST INCLUDE ALL OF THESE:**
+
+1️⃣ SELF-INTRODUCTION SECTION
+   - The chatbot MUST introduce itself with its name (${chatbot?.name || 'Assistant'})
+   - MUST introduce the company (${chatbot?.company_name || 'Our Store'})
+   - Include a warm greeting template
+
+2️⃣ CATEGORIES & PRODUCTS SECTION
+   - List ALL ${categoryMap.size} categories the store sells
+   - The chatbot should be able to tell customers what categories are available
+   - Include sample products from each category
+
+3️⃣ MESSAGE SPLITTING WITH || (⚠️ HIGH PRIORITY ⚠️)
+   - EVERY response example MUST use || to split messages
+   - This creates natural chat flow on WhatsApp
+   - Example: "Hi there! || I'm ${chatbot?.name || 'here'} from ${chatbot?.company_name || 'our store'} || How can I help you today?"
+   - DO NOT write long paragraphs - split them with ||
+
+4️⃣ SAMPLE QUESTIONS TO ASK CUSTOMERS
+   - Include examples of probing questions to understand customer needs
+   - Like: "What are you looking for today?" || "Any specific brand preference?"
+   - For products: "What's your budget range?" || "Is this for yourself or as a gift?"
+
+5️⃣ HUMANIZED RESPONSES (Like a sales consultant, NOT a robot)
+   - Sound like a real person chatting on WhatsApp
+   - Use casual, warm language
+   - NO corporate speak
+   - Include personality and friendliness
+
+6️⃣ MULTIPLE RESPONSE EXAMPLES (At least 8-10 different scenarios)
+   - Greeting/Welcome
+   - Product inquiry
+   - Price inquiry
+   - Promotion/discount inquiry
+   - Out of stock handling
+   - Category browsing
+   - Checkout/order help
+   - Complaint/issue handling
+   - Farewell/thank you
+   - Unknown question handling
+
+7️⃣ LANGUAGE MATCHING
+   - Reply in the SAME language customer uses
+   - English → English, 中文 → 中文, BM → BM
+   - Include examples in multiple languages
+
+8️⃣ TOOL USAGE INSTRUCTIONS
+   - The chatbot has access to: search_products, get_products_by_category, get_active_promotions
+   - Include instructions on when to use each tool
+   - Always use tools to get accurate info, never make up data
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════════════════════
+
+Generate a COMPLETE system prompt that is 1500-2500 words. Structure it like this:
+
+---START OF PROMPT---
+You are [NAME], the friendly assistant of [COMPANY]...
+
+## YOUR IDENTITY
+[Self-introduction section]
+
+## WHAT WE SELL
+[Categories and products section]
+
+## LANGUAGE RULES
+[Language matching rules]
+
+## MESSAGE STYLE (⚠️ IMPORTANT)
+[Message splitting with || rules and examples]
+
+## AVAILABLE TOOLS
+[Tool usage instructions]
+
+## SAMPLE QUESTIONS TO ASK
+[Probing questions section]
+
+## RESPONSE EXAMPLES
+[At least 8-10 scenario examples with || splitting]
+
+## COMPLIANCE
+[Rules to follow]
+---END OF PROMPT---
+
+IMPORTANT: Return ONLY the system prompt. No explanations, no markdown code blocks, no "Here is the prompt:" text. Just the raw prompt content.`;
+
+      // Call OpenAI API
+      const openaiKey = atob(apiKeyRes.data.api_key_encrypted);
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert prompt engineer who creates COMPREHENSIVE, PRODUCTION-READY system prompts for WhatsApp business chatbots.
+
+Your prompts are known for:
+- Being complete and ready to use immediately
+- Including detailed response examples with || message splitting
+- Having warm, human-like personality
+- Covering all common customer scenarios
+- Never being generic or template-like
+
+You always generate prompts that are 1500-2500 words with multiple sections and many examples.`
+            },
+            { role: 'user', content: aiPrompt }
+          ],
+          temperature: 0.8,
+          max_tokens: 6000
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to generate prompt');
+      }
+
+      const data = await response.json();
+      const generated = data.choices[0]?.message?.content || '';
+
+      setGeneratedPrompt(generated);
+      setAiGenerateDialogOpen(true);
+
+      toast({
+        title: "Comprehensive Prompt Generated!",
+        description: `Analyzed ${products.length} products across ${categoryMap.size} categories, ${promotions.length} promotions, ${knowledge.length} knowledge files`
+      });
+    } catch (error: any) {
+      console.error('Error generating prompt:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate prompt",
+        variant: "destructive"
+      });
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  // Save generated prompt as new version
+  const handleSaveGeneratedPrompt = async () => {
+    try {
+      setSavingGenerated(true);
+
+      // Get current highest version number
+      const { data: versions } = await supabase
+        .from('avatar_prompt_versions')
+        .select('version_number')
+        .eq('avatar_id', chatbotId)
+        .order('version_number', { ascending: false })
+        .limit(1);
+
+      const nextVersionNumber = (versions && versions.length > 0) ? versions[0].version_number + 1 : 1;
+
+      // Deactivate all existing versions
+      await supabase
+        .from('avatar_prompt_versions')
+        .update({ is_active: false })
+        .eq('avatar_id', chatbotId)
+        .eq('user_id', userId);
+
+      // Create new version
+      const { error: insertError } = await supabase
+        .from('avatar_prompt_versions')
+        .insert({
+          avatar_id: chatbotId,
+          user_id: userId,
+          version_number: nextVersionNumber,
+          version_name: `AI Generated v${nextVersionNumber}`,
+          system_prompt: generatedPrompt,
+          is_active: true
+        });
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Prompt Saved!",
+        description: `Created version ${nextVersionNumber} and set as active`
+      });
+
+      setAiGenerateDialogOpen(false);
+      setCurrentPrompt(generatedPrompt);
+      onPromptUpdated?.();
+    } catch (error: any) {
+      console.error('Error saving prompt:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save prompt",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingGenerated(false);
     }
   };
 
@@ -306,14 +631,33 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated, versionDro
                 Chat with AI to refine your chatbot's system prompt - no technical knowledge needed!
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {versionDropdown}
+              <Button
+                onClick={handleAiGenerate}
+                variant="default"
+                size="sm"
+                disabled={aiGenerating}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              >
+                {aiGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    AI Generate
+                  </>
+                )}
+              </Button>
               <Button onClick={handleCopyPrompt} variant="outline" size="sm" disabled={!currentPrompt}>
                 {copiedPrompt ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-                {copiedPrompt ? 'Copied!' : 'Copy Prompt'}
+                {copiedPrompt ? 'Copied!' : 'Copy'}
               </Button>
               <Button onClick={handleSavePrompt} size="sm" disabled={!currentPrompt}>
-                Save as Version
+                Save
               </Button>
               <Button onClick={handleReset} variant="outline" size="sm">
                 <RefreshCw className="h-4 w-4 mr-2" />
@@ -452,6 +796,87 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated, versionDro
           </p>
         </div>
       </Card>
+
+      {/* AI Generate Dialog */}
+      <Dialog open={aiGenerateDialogOpen} onOpenChange={setAiGenerateDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              AI Generated Prompt
+            </DialogTitle>
+            <DialogDescription>
+              Generated based on your chatbot's data. Review and edit before saving.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Data Stats */}
+          <div className="flex flex-wrap gap-3 p-3 bg-muted rounded-lg">
+            <div className="flex items-center gap-2 text-sm">
+              <Package className="h-4 w-4 text-blue-600" />
+              <span><strong>{dataStats.products}</strong> Products</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <FolderOpen className="h-4 w-4 text-purple-600" />
+              <span><strong>{dataStats.categories}</strong> Categories</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Tag className="h-4 w-4 text-green-600" />
+              <span><strong>{dataStats.promotions}</strong> Promotions</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <FileText className="h-4 w-4 text-orange-600" />
+              <span><strong>{dataStats.knowledge}</strong> Knowledge Files</span>
+            </div>
+          </div>
+
+          {/* Info about what was generated */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+            <strong>What's included in this prompt:</strong>
+            <ul className="list-disc list-inside mt-1 space-y-0.5">
+              <li>Self-introduction with chatbot name and company</li>
+              <li>All {dataStats.categories} product categories listed</li>
+              <li>Message splitting with || for WhatsApp</li>
+              <li>8-10 response examples for different scenarios</li>
+              <li>Humanized, consultant-style language</li>
+              <li>Multi-language support (EN/CN/BM)</li>
+            </ul>
+          </div>
+
+          {/* Generated Prompt */}
+          <div className="space-y-2">
+            <Textarea
+              value={generatedPrompt}
+              onChange={(e) => setGeneratedPrompt(e.target.value)}
+              rows={18}
+              className="font-mono text-sm"
+              placeholder="Generated prompt will appear here..."
+            />
+            <p className="text-xs text-muted-foreground">
+              You can edit the prompt before saving
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAiGenerateDialogOpen(false)} disabled={savingGenerated}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveGeneratedPrompt} disabled={savingGenerated || !generatedPrompt}>
+              {savingGenerated ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save as New Version
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

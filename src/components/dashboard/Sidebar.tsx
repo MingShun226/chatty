@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +48,7 @@ const navigationItems = [
     children: [
       { id: 'chatbot-overview', label: 'Overview', icon: LayoutDashboard, path: '/chatbot/overview' },
       { id: 'chatbot-content', label: 'Content', icon: ShoppingBag, path: '/chatbot/content' },
-      { id: 'chatbot-ai-studio', label: 'AI Studio', icon: Wand2, path: '/chatbot/ai-studio' },
+      { id: 'chatbot-ai-studio', label: 'Chatbot', icon: Wand2, path: '/chatbot/ai-studio' },
       { id: 'chatbot-whatsapp', label: 'WhatsApp', icon: MessageCircle, path: '/chatbot/whatsapp' },
       { id: 'chatbot-contacts', label: 'Contacts', icon: UserPlus, path: '/chatbot/contacts' },
     ]
@@ -66,9 +67,9 @@ const navigationItems = [
 ];
 
 const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => {
-  const { isCollapsed, setIsCollapsed } = useSidebar();
+  const { isCollapsed, setIsCollapsed, expandedSections, toggleSection } = useSidebar();
+  const { settings: platformSettings } = usePlatformSettings();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<string[]>(['chatbot', 'advertising']);
   const { isAdmin } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,14 +80,6 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
 
   const toggleMobile = () => {
     setIsMobileOpen(!isMobileOpen);
-  };
-
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections(prev =>
-      prev.includes(sectionId)
-        ? prev.filter(id => id !== sectionId)
-        : [...prev, sectionId]
-    );
   };
 
   const handleNavigation = (item: any) => {
@@ -148,13 +141,19 @@ const Sidebar = ({ activeSection, onSectionChange, onLogout }: SidebarProps) => 
           }}
         >
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-sidebar-primary rounded-md flex items-center justify-center flex-shrink-0">
-              <Bot className="w-3 h-3 text-sidebar-primary-foreground" />
-            </div>
+            {platformSettings.logo_url ? (
+              <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <img src={platformSettings.logo_url} alt="Logo" className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-6 h-6 bg-sidebar-primary rounded-md flex items-center justify-center flex-shrink-0">
+                <Bot className="w-3 h-3 text-sidebar-primary-foreground" />
+              </div>
+            )}
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
-                <h1 className="text-sm font-bold text-sidebar-foreground truncate">Chatty</h1>
-                <p className="text-xs text-sidebar-foreground/60 truncate">AI Business Chatbots</p>
+                <h1 className="text-sm font-bold text-sidebar-foreground truncate">{platformSettings.platform_name}</h1>
+                <p className="text-xs text-sidebar-foreground/60 truncate">{platformSettings.platform_description}</p>
               </div>
             )}
           </div>

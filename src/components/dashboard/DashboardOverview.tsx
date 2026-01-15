@@ -91,7 +91,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         .from('avatars')
         .select('id, name, company_name, industry, created_at')
         .eq('user_id', user?.id)
-        .is('deleted_at', null)
+        .eq('status', 'active') // Only show active chatbots (matches RLS policy)
         .order('created_at', { ascending: false });
 
       // Fetch all stats in parallel

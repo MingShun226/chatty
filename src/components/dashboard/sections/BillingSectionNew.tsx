@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,13 +44,14 @@ const featureLabels: Record<string, { label: string; beta?: boolean }> = {
 
 const BillingSectionNew = () => {
   const { user } = useAuth();
+  const { settings: platformSettings } = usePlatformSettings();
   const [userTierInfo, setUserTierInfo] = useState<UserTierInfo | null>(null);
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'quarterly'>('monthly');
 
-  // WhatsApp contact
-  const whatsappNumber = '60165230268';
+  // WhatsApp contact - use platform settings or default
+  const whatsappNumber = platformSettings.support_whatsapp || '60165230268';
   const whatsappLink = `https://wa.me/${whatsappNumber}?text=Hi, I need help with my subscription plan.`;
 
   useEffect(() => {

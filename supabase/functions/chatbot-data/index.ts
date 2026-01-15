@@ -1,5 +1,6 @@
 // Supabase Edge Function for Chatbot Data API
 // Endpoints:
+// - GET /chatbot-data?type=catalog&chatbot_id={id} (RECOMMENDED - returns FULL catalog grouped by category)
 // - GET /chatbot-data?type=products&chatbot_id={id}&query={search}&limit={limit}
 // - GET /chatbot-data?type=promotions&chatbot_id={id}
 // - GET /chatbot-data?type=knowledge&chatbot_id={id}&query={search}
@@ -65,11 +66,12 @@ serve(async (req) => {
       )
     }
 
-    if (!dataType || !['products', 'promotions', 'knowledge', 'categories', 'validate_promo'].includes(dataType)) {
+    if (!dataType || !['catalog', 'products', 'promotions', 'knowledge', 'categories', 'validate_promo'].includes(dataType)) {
       return new Response(
         JSON.stringify({
           error: 'Invalid or missing type parameter',
-          valid_types: ['products', 'promotions', 'knowledge', 'categories', 'validate_promo']
+          valid_types: ['catalog', 'products', 'promotions', 'knowledge', 'categories', 'validate_promo'],
+          recommended: 'Use type=catalog to get the FULL product catalog grouped by category (best for AI)'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -77,6 +79,7 @@ serve(async (req) => {
 
     // Check for required scope based on data type
     const requiredScope = {
+      catalog: 'products',
       products: 'products',
       categories: 'products',
       promotions: 'promotions',
@@ -120,6 +123,145 @@ serve(async (req) => {
 
     // Handle different data types
     switch (dataType) {
+      case 'catalog': {
+        // RECOMMENDED: Returns the FULL product catalog grouped by category
+        // This is better for AI to intelligently match products to user requests
+        const includeOutOfStock = url.searchParams.get('include_out_of_stock') === 'true'
+
+        let catalogQuery = supabase
+          .from('chatbot_products')
+          .select('*')
+          .eq('chatbot_id', chatbotId)
+          .order('category', { ascending: true })
+          .order('product_name', { ascending: true })
+
+        if (!includeOutOfStock) {
+          catalogQuery = catalogQuery.eq('in_stock', true)
+        }
+
+        const { data: products, error: catalogError } = await catalogQuery
+
+        if (catalogError) {
+          console.error('Error fetching catalog:', catalogError)
+          throw new Error('Failed to fetch catalog')
+        }
+
+        // Fetch active promotions to apply discounts
+        const { data: activePromotions } = await supabase
+          .from('chatbot_promotions')
+          .select('*')
+          .eq('chatbot_id', chatbotId)
+          .eq('is_active', true)
+
+        // Filter promotions by valid date range
+        const now = new Date()
+        const validPromotions = (activePromotions || []).filter(promo => {
+          const startDate = promo.start_date ? new Date(promo.start_date) : null
+          const endDate = promo.end_date ? new Date(promo.end_date) : null
+          const afterStart = !startDate || now >= startDate
+          const beforeEnd = !endDate || now <= endDate
+          const notMaxedOut = !promo.max_uses || promo.current_uses < promo.max_uses
+          return afterStart && beforeEnd && notMaxedOut
+        })
+
+        // Helper function to find applicable promotions for a product
+        const findApplicablePromotions = (product: any) => {
+          return validPromotions.filter(promo => {
+            const appliesTo = promo.applies_to || 'all'
+            if (appliesTo === 'all') {
+              return true
+            } else if (appliesTo === 'category' && promo.applies_to_categories) {
+              return promo.applies_to_categories.includes(product.category)
+            } else if (appliesTo === 'products' && promo.applies_to_product_ids) {
+              return promo.applies_to_product_ids.includes(product.id)
+            }
+            return false
+          })
+        }
+
+        // Helper function to calculate discounted price
+        const calculateDiscountedPrice = (originalPrice: number, promo: any) => {
+          if (!originalPrice || !promo) return originalPrice
+          let discount = 0
+          if (promo.discount_type === 'percentage') {
+            discount = originalPrice * (promo.discount_value / 100)
+            if (promo.max_discount && discount > promo.max_discount) {
+              discount = promo.max_discount
+            }
+          } else if (promo.discount_type === 'fixed') {
+            discount = promo.discount_value
+          }
+          const discountedPrice = Math.max(0, originalPrice - discount)
+          return Math.round(discountedPrice * 100) / 100
+        }
+
+        // Process products with promotions
+        const processedProducts = (products || []).map(p => {
+          const applicablePromotions = findApplicablePromotions(p)
+          let salePrice = null
+          let appliedPromotion = null
+          let discountDisplay = null
+
+          if (applicablePromotions.length > 0 && p.price) {
+            let bestDiscount = 0
+            for (const promo of applicablePromotions) {
+              const discountedPrice = calculateDiscountedPrice(p.price, promo)
+              const currentDiscount = p.price - discountedPrice
+              if (currentDiscount > bestDiscount) {
+                bestDiscount = currentDiscount
+                salePrice = discountedPrice
+                appliedPromotion = {
+                  title: promo.title,
+                  promo_code: promo.promo_code,
+                  discount_type: promo.discount_type,
+                  discount_value: promo.discount_value
+                }
+                discountDisplay = promo.discount_type === 'percentage'
+                  ? `${promo.discount_value}% OFF`
+                  : `RM${promo.discount_value} OFF`
+              }
+            }
+          }
+
+          return {
+            id: p.id,
+            name: p.product_name,
+            sku: p.sku,
+            category: p.category || 'Uncategorized',
+            description: p.description,
+            price: p.price,
+            sale_price: salePrice,
+            has_discount: salePrice !== null && salePrice < p.price,
+            discount_display: discountDisplay,
+            applied_promotion: appliedPromotion,
+            currency: p.currency || 'MYR',
+            in_stock: p.in_stock,
+            stock_quantity: p.stock_quantity,
+            image_url: p.primary_image_url || p.images?.[0] || null,
+            has_image: !!(p.primary_image_url || p.images?.[0])
+          }
+        })
+
+        // Group by category for easier AI understanding
+        const productsByCategory: Record<string, any[]> = {}
+        processedProducts.forEach((p: any) => {
+          const cat = p.category
+          if (!productsByCategory[cat]) productsByCategory[cat] = []
+          productsByCategory[cat].push(p)
+        })
+
+        responseData = {
+          type: 'catalog',
+          total_products: processedProducts.length,
+          categories: Object.keys(productsByCategory),
+          products_by_category: productsByCategory,
+          all_products: processedProducts,
+          active_promotions_count: validPromotions.length,
+          note: 'This is the COMPLETE catalog. AI should use its intelligence to recommend relevant products based on what the customer is asking for. Use product names, categories, and descriptions to match user intent.'
+        }
+        break
+      }
+
       case 'products': {
         let productsQuery = supabase
           .from('chatbot_products')

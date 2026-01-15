@@ -3,9 +3,23 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Loader2, Bot, User, RefreshCw, TestTube, Package, Tag, FileText, Sparkles } from 'lucide-react';
+import { Send, Loader2, Bot, User, RefreshCw, TestTube, Package, Tag, FileText, Sparkles, History, ChevronDown, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+interface PromptVersion {
+  id: string;
+  version_number: number;
+  version_name: string | null;
+  is_active: boolean;
+}
 
 // Helper function to render message content with images
 function renderMessageWithImages(content: string): ReactNode[] {
@@ -13,10 +27,10 @@ function renderMessageWithImages(content: string): ReactNode[] {
   let keyIndex = 0;
 
   // Combined pattern to find all image references:
-  // - [IMAGE:url:caption] format
-  // - Markdown images ![caption](url)
-  // - Direct image URLs
-  const combinedPattern = /\[IMAGE:(https?:\/\/[^\]]+):([^\]]*)\]|!\[([^\]]*)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp))/gi;
+  // 1. [IMAGE:content] format - we'll parse URL:caption manually
+  // 2. Markdown images ![caption](url)
+  // 3. Direct image URLs
+  const combinedPattern = /\[IMAGE:([^\]]+)\]|!\[([^\]]*)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<>"']*)?)/gi;
 
   let lastIndex = 0;
   let match;
@@ -37,17 +51,34 @@ function renderMessageWithImages(content: string): ReactNode[] {
     let imageUrl = '';
     let caption = '';
 
-    if (match[1] && match[2] !== undefined) {
-      // [IMAGE:url:caption] format
-      imageUrl = match[1];
-      caption = match[2];
-    } else if (match[3] !== undefined && match[4]) {
+    if (match[1]) {
+      // [IMAGE:content] format - parse URL and caption
+      // Format is URL:caption, where URL contains :// but caption doesn't
+      const imageContent = match[1];
+      // Find the last colon that's NOT part of http:// or https://
+      const schemeMatch = imageContent.match(/^(https?:\/\/)/);
+      if (schemeMatch) {
+        const afterScheme = imageContent.slice(schemeMatch[1].length);
+        const colonIndex = afterScheme.indexOf(':');
+        if (colonIndex !== -1) {
+          imageUrl = schemeMatch[1] + afterScheme.slice(0, colonIndex);
+          caption = afterScheme.slice(colonIndex + 1);
+        } else {
+          imageUrl = imageContent;
+          caption = '';
+        }
+      } else {
+        // No scheme, just use the whole thing as URL
+        imageUrl = imageContent;
+        caption = '';
+      }
+    } else if (match[2] !== undefined && match[3]) {
       // ![caption](url) format
-      imageUrl = match[4];
-      caption = match[3];
-    } else if (match[5]) {
+      imageUrl = match[3];
+      caption = match[2];
+    } else if (match[4]) {
       // Direct URL
-      imageUrl = match[5];
+      imageUrl = match[4];
       caption = 'Image';
     }
 
@@ -117,6 +148,8 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
     knowledgeFiles: 0,
     hasSystemPrompt: false
   });
+  const [versions, setVersions] = useState<PromptVersion[]>([]);
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('active');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
@@ -135,10 +168,26 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
     adjustTextareaHeight();
   }, [inputMessage, adjustTextareaHeight]);
 
-  // Load context information
+  // Load context information and versions
   useEffect(() => {
     loadContextInfo();
+    loadVersions();
   }, [chatbotId]);
+
+  const loadVersions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('avatar_prompt_versions')
+        .select('id, version_number, version_name, is_active')
+        .eq('avatar_id', chatbotId)
+        .order('version_number', { ascending: false });
+
+      if (error) throw error;
+      setVersions(data || []);
+    } catch (error) {
+      console.error('Error loading versions:', error);
+    }
+  };
 
   const loadContextInfo = async () => {
     try {
@@ -230,7 +279,9 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
             role: m.role,
             content: m.content
           })),
-          model: 'gpt-4o-mini'
+          model: 'gpt-4o-mini',
+          // Pass specific version ID if not using active
+          ...(selectedVersionId !== 'active' && { prompt_version_id: selectedVersionId })
         })
       });
 
@@ -241,32 +292,135 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
 
       const data = await response.json();
 
-      // Check if message contains || for splitting into multiple messages
-      const messageParts = data.message.split('||').map((part: string) => part.trim()).filter((part: string) => part.length > 0);
+      // DEBUG: Log raw response
+      console.log('Raw AI response:', data.message);
 
+      // ============================================
+      // COMPREHENSIVE IMAGE EXTRACTION & REMOVAL
+      // Extract all image formats, dedupe by URL, keep only ONE per unique URL
+      // ============================================
+
+      // Helper to extract URL from different formats
+      const extractUrl = (imageStr: string): string => {
+        // [IMAGE:url:caption] format
+        const imageTagMatch = imageStr.match(/\[IMAGE:(https?:\/\/[^:\]]+)/i);
+        if (imageTagMatch) return imageTagMatch[1];
+
+        // ![caption](url) format
+        const markdownMatch = imageStr.match(/!\[[^\]]*\]\((https?:\/\/[^)]+)\)/i);
+        if (markdownMatch) return markdownMatch[1];
+
+        // Direct URL
+        if (imageStr.startsWith('http')) return imageStr;
+
+        return imageStr;
+      };
+
+      // Pattern 1: [IMAGE:url:caption] format
+      const imageTagPattern = /\[IMAGE:[^\]]+\]/gi;
+      // Pattern 2: Markdown images ![caption](url)
+      const markdownImagePattern = /!\[[^\]]*\]\([^)]+\)/gi;
+      // Pattern 3: Direct image URLs
+      const directUrlPattern = /https?:\/\/[^\s<>"'\])+]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<>"'\])]*)?/gi;
+
+      // Extract all images
+      const imageTagMatches = data.message.match(imageTagPattern) || [];
+      const markdownMatches = data.message.match(markdownImagePattern) || [];
+      const directUrlMatches = data.message.match(directUrlPattern) || [];
+
+      // Dedupe by URL - prefer [IMAGE:...] format as it has caption
+      const urlToImageMap = new Map<string, string>();
+
+      // Add direct URLs first (lowest priority)
+      directUrlMatches.forEach((img: string) => {
+        const url = extractUrl(img);
+        if (!urlToImageMap.has(url)) {
+          urlToImageMap.set(url, img);
+        }
+      });
+
+      // Add markdown images (medium priority)
+      markdownMatches.forEach((img: string) => {
+        const url = extractUrl(img);
+        urlToImageMap.set(url, img); // Override direct URL
+      });
+
+      // Add [IMAGE:...] tags (highest priority - has caption)
+      imageTagMatches.forEach((img: string) => {
+        const url = extractUrl(img);
+        urlToImageMap.set(url, img); // Override all others
+      });
+
+      // Get unique images (one per URL, preferring [IMAGE:...] format)
+      const uniqueImages = Array.from(urlToImageMap.values());
+
+      console.log('All extracted:', { imageTagMatches, markdownMatches, directUrlMatches });
+      console.log('Unique images (deduped by URL):', uniqueImages);
+
+      // Remove ALL image formats from the text
+      let messageWithoutImages = data.message;
+      messageWithoutImages = messageWithoutImages.replace(imageTagPattern, ' ');
+      messageWithoutImages = messageWithoutImages.replace(markdownImagePattern, ' ');
+      messageWithoutImages = messageWithoutImages.replace(directUrlPattern, ' ');
+
+      // Clean up: remove extra whitespace, normalize || separators
+      messageWithoutImages = messageWithoutImages
+        .replace(/\s+/g, ' ')           // Multiple spaces to single space
+        .replace(/\s*\|\|\s*/g, '||')   // Clean up around ||
+        .replace(/^\|\||\|\|$/g, '')    // Remove leading/trailing ||
+        .trim();
+
+      console.log('Message without images:', messageWithoutImages);
+
+      // Split by || for multiple message bubbles
+      const messageParts = messageWithoutImages
+        .split('||')
+        .map((part: string) => part.trim())
+        .filter((part: string) => part.length > 0);
+
+      console.log('Message parts:', messageParts);
+      console.log('Number of parts:', messageParts.length);
+
+      // Process messages - images ONLY go on the LAST message
       if (messageParts.length > 1) {
-        // Add messages one by one with delay to simulate multiple messages
         for (let i = 0; i < messageParts.length; i++) {
+          const isLastPart = i === messageParts.length - 1;
+
+          // ONLY add images to the very last message part
+          const content = (isLastPart && uniqueImages.length > 0)
+            ? messageParts[i] + '\n\n' + uniqueImages.join('\n')
+            : messageParts[i];
+
           const assistantMessage: Message = {
             role: 'assistant',
-            content: messageParts[i],
+            content,
             timestamp: new Date()
           };
 
           if (i === 0) {
-            // Add first message immediately
             setMessages(prev => [...prev, assistantMessage]);
           } else {
-            // Add subsequent messages with delay
             await new Promise(resolve => setTimeout(resolve, 800));
             setMessages(prev => [...prev, assistantMessage]);
           }
         }
-      } else {
-        // Single message, no splitting needed
+      } else if (messageParts.length === 1) {
+        // Single message - append images at the end
+        const finalContent = uniqueImages.length > 0
+          ? messageParts[0] + '\n\n' + uniqueImages.join('\n')
+          : messageParts[0];
+
         const assistantMessage: Message = {
           role: 'assistant',
-          content: data.message,
+          content: finalContent,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      } else {
+        // No text, only images
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: uniqueImages.join('\n'),
           timestamp: new Date()
         };
         setMessages(prev => [...prev, assistantMessage]);
@@ -332,10 +486,38 @@ export function BusinessChatbotTest({ chatbotId, chatbotName }: BusinessChatbotT
               Simulate customer conversations to test responses
             </CardDescription>
           </div>
-          <Button onClick={handleReset} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Clear
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Version Selector */}
+            {versions.length > 0 && (
+              <Select value={selectedVersionId} onValueChange={setSelectedVersionId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <History className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select version" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-3 w-3 text-green-600" />
+                      <span>Active Version</span>
+                    </div>
+                  </SelectItem>
+                  {versions.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      <div className="flex items-center gap-2">
+                        {v.is_active && <Check className="h-3 w-3 text-green-600" />}
+                        <span>v{v.version_number}{v.version_name ? `: ${v.version_name}` : ''}</span>
+                        {v.is_active && <span className="text-xs text-muted-foreground">(active)</span>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button onClick={handleReset} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Clear
+            </Button>
+          </div>
         </div>
 
         {/* Context Stats */}

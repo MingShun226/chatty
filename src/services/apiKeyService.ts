@@ -104,27 +104,44 @@ export const apiKeyService = {
   },
 
   // Get decrypted API key for use (only for current user)
+  // Handles case-insensitive service matching for backwards compatibility
   async getDecryptedApiKey(userId: string, service: string): Promise<string | null> {
-    const { data, error } = await supabase
+    // Try exact match first
+    let { data, error } = await supabase
       .from('user_api_keys')
-      .select('api_key_encrypted')
+      .select('api_key_encrypted, service')
       .eq('user_id', userId)
       .eq('service', service)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    // If no exact match, try case-insensitive match (for backwards compatibility with 'openai' vs 'OpenAI')
+    if (!data && service.toLowerCase() === 'openai') {
+      const { data: fallbackData } = await supabase
+        .from('user_api_keys')
+        .select('api_key_encrypted, service')
+        .eq('user_id', userId)
+        .ilike('service', 'openai')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      data = fallbackData;
+    }
 
     if (error || !data) {
       return null;
     }
 
-    // Update last_used_at
+    // Update last_used_at using the actual service name from the database
     await supabase
       .from('user_api_keys')
       .update({ last_used_at: new Date().toISOString() })
       .eq('user_id', userId)
-      .eq('service', service)
+      .eq('service', data.service)
       .eq('status', 'active');
 
     return simpleDecrypt(data.api_key_encrypted);

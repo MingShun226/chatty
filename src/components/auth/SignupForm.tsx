@@ -1,14 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext';
 
 interface SignupFormProps {
   onLogin: (token: string) => void;
@@ -16,6 +20,7 @@ interface SignupFormProps {
 }
 
 const SignupForm: React.FC<SignupFormProps> = ({ onLogin, onSwitchToLogin }) => {
+  const { settings: platformSettings } = usePlatformSettings();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -29,13 +34,40 @@ const SignupForm: React.FC<SignupFormProps> = ({ onLogin, onSwitchToLogin }) => 
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsEnabled, setTermsEnabled] = useState(false);
   const { toast } = useToast();
   const { signUp } = useAuth();
+
+  useEffect(() => {
+    fetchTermsSettings();
+  }, []);
+
+  const fetchTermsSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('setting_value')
+        .eq('setting_key', 'terms_and_conditions')
+        .maybeSingle();
+
+      if (data?.setting_value?.enabled) {
+        setTermsEnabled(true);
+      }
+    } catch (error) {
+      console.error('Error fetching terms settings:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
+    if (termsEnabled && !agreedToTerms) {
+      setError('You must agree to the Terms & Conditions to create an account');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -184,6 +216,25 @@ const SignupForm: React.FC<SignupFormProps> = ({ onLogin, onSwitchToLogin }) => 
               onChange={(e) => setFormData({...formData, referrerCode: e.target.value})}
             />
           </div>
+
+          {termsEnabled && (
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+              />
+              <label
+                htmlFor="terms"
+                className="text-sm text-muted-foreground leading-tight cursor-pointer"
+              >
+                I agree to the{' '}
+                <Link to="/terms" className="text-primary hover:underline" target="_blank">
+                  Terms & Conditions
+                </Link>
+              </label>
+            </div>
+          )}
 
           {error && (
             <Alert variant="destructive">

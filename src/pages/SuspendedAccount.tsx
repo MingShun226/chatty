@@ -1,13 +1,19 @@
 import { useAuth } from '@/hooks/useAuth';
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, MessageCircle, LogOut } from 'lucide-react';
+import { AlertTriangle, MessageCircle, LogOut, Mail, Phone } from 'lucide-react';
 
 export const SuspendedAccount = () => {
   const { signOut } = useAuth();
+  const { settings: platformSettings } = usePlatformSettings();
+
+  const whatsappNumber = platformSettings.support_whatsapp || '60165230268';
+  const supportPhone = platformSettings.support_phone || '+60 16-523 0268';
+  const supportEmail = platformSettings.support_email;
 
   const handleContactSupport = () => {
-    window.open('https://wa.me/60165230268', '_blank');
+    window.open(`https://wa.me/${whatsappNumber}`, '_blank');
   };
 
   return (
@@ -23,11 +29,16 @@ export const SuspendedAccount = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-gray-100 rounded-lg p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-2">
+          <div className="bg-gray-100 rounded-lg p-4 text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
               If you believe this is a mistake or would like to appeal, please contact our support team:
             </p>
-            <p className="font-mono text-lg font-semibold">+60 16-523 0268</p>
+            {supportPhone && (
+              <p className="font-mono text-lg font-semibold">{supportPhone}</p>
+            )}
+            {supportEmail && (
+              <p className="text-sm text-muted-foreground">{supportEmail}</p>
+            )}
           </div>
 
           <div className="flex flex-col gap-3">

@@ -63,7 +63,9 @@
       "Bash(python:*)",
       "Bash(git restore:*)",
       "Bash(railway list:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(wc:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

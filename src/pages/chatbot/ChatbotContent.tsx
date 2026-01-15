@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { ChatbotPageLayout } from '@/components/business-chatbot/ChatbotPageLayout';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,12 +16,34 @@ import {
   BookOpen
 } from 'lucide-react';
 
+// Helper to get/set tab state from localStorage
+const TAB_STORAGE_KEY = 'chatbot-content-active-tab';
+const getStoredTab = () => {
+  try {
+    return localStorage.getItem(TAB_STORAGE_KEY) || 'products';
+  } catch {
+    return 'products';
+  }
+};
+const setStoredTab = (tab: string) => {
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  } catch {
+    // Ignore
+  }
+};
+
 // Content tabs component
 const ContentTabs = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: () => void }) => {
-  const [activeTab, setActiveTab] = useState('products');
+  const [activeTab, setActiveTab] = useState(getStoredTab);
+
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setStoredTab(tab);
+  }, []);
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       <TabsList className="grid w-full grid-cols-3 mb-6">
         <TabsTrigger value="products" className="gap-2">
           <ShoppingBag className="h-4 w-4" />

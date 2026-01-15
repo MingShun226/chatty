@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useFeatureAccess, featureInfo } from '@/hooks/useFeatureAccess';
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext';
 import { Loader2 } from 'lucide-react';
 
 // Check if there's any cached tier data in localStorage (for optimistic rendering)
@@ -31,6 +32,7 @@ export const FeatureGate: React.FC<FeatureGateProps> = ({
   fallbackContent,
 }) => {
   const { hasFeatureAccess, getTiersWithFeature, tierInfo, loading } = useFeatureAccess();
+  const { settings: platformSettings } = usePlatformSettings();
 
   // While loading, render children (optimistic - assume access)
   // This prevents the loading flash
@@ -58,8 +60,8 @@ export const FeatureGate: React.FC<FeatureGateProps> = ({
     return <>{fallbackContent}</>;
   }
 
-  // WhatsApp contact link
-  const whatsappNumber = '60165230268';
+  // WhatsApp contact link - use platform settings or default
+  const whatsappNumber = platformSettings.support_whatsapp || '60165230268';
   const whatsappLink = `https://wa.me/${whatsappNumber}?text=Hi, I need help choosing a plan for ${feature?.name || 'this feature'}.`;
 
   return (

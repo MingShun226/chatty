@@ -48,7 +48,7 @@ export const SimpleAvatarSelector: React.FC<SimpleAvatarSelectorProps> = ({
         .from('avatars')
         .select('id, name')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
+        .eq('status', 'active') // Only show active chatbots (matches RLS policy)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

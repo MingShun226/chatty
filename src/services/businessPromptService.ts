@@ -45,10 +45,10 @@ export class BusinessPromptService {
       // 3. Get knowledge base files
       const { data: knowledgeFiles } = await supabase
         .from('avatar_knowledge_files')
-        .select('file_name, original_name, extracted_text')
+        .select('file_name, original_name')
         .eq('avatar_id', chatbotId)
         .eq('user_id', userId)
-        .eq('is_linked', true);
+        .eq('processing_status', 'processed');
 
       const knowledgeSummary = this.generateKnowledgeSummary(knowledgeFiles || []);
 
@@ -129,9 +129,7 @@ Note: Full product catalog with ${products.length} items is available for querie
     }
 
     const fileSummary = files.map(f => {
-      const displayName = f.original_name || f.file_name;
-      const hasContent = f.extracted_text && f.extracted_text.trim().length > 0;
-      return `- ${displayName} ${hasContent ? '(Processed)' : '(Pending extraction)'}`;
+      return `- ${f.original_name || f.file_name}`;
     }).join('\n');
 
     return `

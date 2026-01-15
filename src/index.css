@@ -7,6 +7,9 @@
 
 @layer base {
   :root {
+    /* Help browsers handle system UI elements (cursors, scrollbars) correctly */
+    color-scheme: light;
+
     /* Base Colors - Monochromatic Palette */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
@@ -67,6 +70,8 @@
   }
 
   .dark {
+    color-scheme: dark;
+
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
 
@@ -117,6 +122,70 @@
 
   body {
     @apply bg-background text-foreground font-sans;
+  }
+
+  /* ===== CURSOR VISIBILITY FIX FOR WINDOWS ===== */
+  /* Windows inverts cursor color based on background, causing white cursor on light backgrounds */
+
+  /* Force black text cursor (caret) in all text inputs */
+  input,
+  textarea,
+  [contenteditable="true"],
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"] {
+    caret-color: #000000 !important;
+    cursor: text !important;
+  }
+
+  /* Dark mode: force white text cursor */
+  .dark input,
+  .dark textarea,
+  .dark [contenteditable="true"],
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="password"],
+  .dark input[type="search"],
+  .dark input[type="tel"],
+  .dark input[type="url"],
+  .dark input[type="number"] {
+    caret-color: #ffffff !important;
+  }
+
+  /* Ensure proper mouse cursor on hover for interactive elements */
+  button,
+  [role="button"],
+  a,
+  label[for],
+  select,
+  [type="checkbox"],
+  [type="radio"],
+  [type="submit"],
+  [type="button"] {
+    cursor: pointer !important;
+  }
+
+  /* Add subtle off-white background to inputs to help Windows cursor inversion */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]),
+  textarea {
+    background-color: #fafafa !important;
+  }
+
+  /* Dark mode: dark gray background for inputs */
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]),
+  .dark textarea {
+    background-color: #1a1a1a !important;
+  }
+
+  /* Ensure contenteditable areas also have proper cursor */
+  [contenteditable="true"]:hover,
+  input:hover,
+  textarea:hover {
+    cursor: text !important;
   }
 
   /* Custom Animations */

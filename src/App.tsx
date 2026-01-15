@@ -6,6 +6,7 @@ import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
 import Dashboard from '@/pages/Dashboard';
 import NotFound from '@/pages/NotFound';
+import Terms from '@/pages/Terms';
 import AvatarDetail from '@/pages/AvatarDetailNew';
 import MyAvatars from '@/pages/MyAvatars';
 // Note: ChatbotStudio is deprecated - redirects to /chatbot/overview
@@ -19,6 +20,7 @@ import CreateAvatar from '@/pages/CreateAvatar';
 import APIKeys from '@/pages/APIKeys';
 import TestChatbotSetup from '@/pages/TestChatbotSetup';
 import { ChatbotCreationWizard } from '@/components/chatbot-creation/ChatbotCreationWizard';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
 // Chatbot sub-pages (consolidated 5-page structure)
 import ChatbotOverview from '@/pages/chatbot/ChatbotOverview';
@@ -37,10 +39,14 @@ import { UsersManagement } from '@/pages/admin/UsersManagement';
 import { TiersManagementNew } from '@/pages/admin/TiersManagementNew';
 import { UserDetails } from '@/pages/admin/UserDetails';
 import { AdminSettings } from '@/pages/admin/AdminSettings';
+import { AdminStatistics } from '@/pages/admin/AdminStatistics';
+import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs';
+import { AdminManagement } from '@/pages/admin/AdminManagement';
 
 import { useAuth } from '@/hooks/useAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { ContactsCacheProvider } from '@/contexts/ContactsCacheContext';
+import { PlatformSettingsProvider } from '@/contexts/PlatformSettingsContext';
 import { GlobalNotification } from '@/components/notifications';
 import SuspendedAccount from '@/pages/SuspendedAccount';
 
@@ -55,7 +61,7 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { user, loading, accountStatus } = useAuth();
+  const { user, loading, accountStatus, onboardingCompleted, refetchProfile } = useAuth();
 
   // Show loading screen while checking auth state
   if (loading) {
@@ -63,6 +69,20 @@ function App() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
+    );
+  }
+
+  // Show onboarding wizard for new users who haven't completed setup
+  // Only show when: user exists, not suspended, and onboarding explicitly false (not null/loading)
+  if (user && accountStatus !== 'suspended' && onboardingCompleted === false) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <PlatformSettingsProvider>
+          <OnboardingWizard onComplete={refetchProfile} />
+          <Toaster />
+          <SonnerToaster />
+        </PlatformSettingsProvider>
+      </QueryClientProvider>
     );
   }
 
@@ -87,6 +107,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <PlatformSettingsProvider>
       <SidebarProvider>
       <ContactsCacheProvider>
         <Router>
@@ -104,6 +125,10 @@ function App() {
           <Route
             path="/auth"
             element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/terms"
+            element={<Terms />}
           />
           <Route
             path="/suspended"
@@ -232,6 +257,9 @@ function App() {
             <Route path="users" element={<UsersManagement />} />
             <Route path="users/:userId" element={<UserDetails />} />
             <Route path="tiers" element={<TiersManagementNew />} />
+            <Route path="statistics" element={<AdminStatistics />} />
+            <Route path="audit-logs" element={<AdminAuditLogs />} />
+            <Route path="admins" element={<AdminManagement />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 
@@ -243,6 +271,7 @@ function App() {
         </Router>
       </ContactsCacheProvider>
       </SidebarProvider>
+      </PlatformSettingsProvider>
     </QueryClientProvider>
   );
 }

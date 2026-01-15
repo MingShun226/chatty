@@ -270,10 +270,10 @@ BEGIN
   INSERT INTO followup_tags (chatbot_id, user_id, tag_name, description, color, auto_followup, followup_delay_hours, is_system)
   VALUES
     (p_chatbot_id, p_user_id, 'hot_lead', 'High interest, likely to convert', '#f59e0b', true, 24, true),
-    (p_chatbot_id, p_user_id, 'new_lead', 'First-time inquiry', '#3b82f6', true, 24, true),
-    (p_chatbot_id, p_user_id, 'customer', 'Already purchased or existing customer', '#10b981', true, 72, true),
-    (p_chatbot_id, p_user_id, 'needs_help', 'Has questions or issues to resolve', '#ef4444', true, 12, true),
-    (p_chatbot_id, p_user_id, 'inactive', 'Conversation went cold', '#6b7280', false, 0, true)
+    (p_chatbot_id, p_user_id, 'new_lead', 'First-time inquiry, getting information', '#3b82f6', true, 48, true),
+    (p_chatbot_id, p_user_id, 'customer', 'Already purchased or existing customer', '#10b981', false, 0, true),
+    (p_chatbot_id, p_user_id, 'needs_help', 'Has questions or issues to resolve', '#ef4444', true, 24, true),
+    (p_chatbot_id, p_user_id, 'inactive', 'Conversation went cold, no engagement', '#6b7280', false, 0, true)
   ON CONFLICT (chatbot_id, tag_name) DO NOTHING;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

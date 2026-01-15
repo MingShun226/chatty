@@ -97,6 +97,13 @@ export const UsersManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
+      // First, get all admin user IDs to exclude them from the list
+      const { data: adminUsers } = await supabase
+        .from('admin_users')
+        .select('user_id');
+
+      const adminUserIds = new Set(adminUsers?.map(a => a.user_id) || []);
+
       // Fetch profiles with tier info
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
@@ -117,9 +124,12 @@ export const UsersManagement = () => {
 
       if (profilesError) throw profilesError;
 
+      // Filter out admin users - they are managed in Admin Management page
+      const nonAdminProfiles = (profiles || []).filter(p => !adminUserIds.has(p.id));
+
       // Fetch chatbot counts for each user in parallel
       const usersWithCounts = await Promise.all(
-        (profiles || []).map(async (profile) => {
+        nonAdminProfiles.map(async (profile) => {
           const { count: chatbotsCount } = await supabase
             .from('avatars')
             .select('*', { count: 'exact', head: true })

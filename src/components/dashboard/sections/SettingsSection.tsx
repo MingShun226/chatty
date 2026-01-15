@@ -1,48 +1,40 @@
 import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Settings,
-  Key,
-  Eye,
-  EyeOff,
-  Plus,
-  Trash2,
-  Loader2
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Settings, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { UserProfile } from '@/components/settings/UserProfile';
 import ReferralSection from '@/components/settings/ReferralSection';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { apiKeyService, ApiKeyDisplay } from '@/services/apiKeyService';
+import { useToast } from '@/hooks/use-toast';
 
 const SettingsSection = () => {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-  const [newApiKey, setNewApiKey] = useState({ name: '', service: '', key: '' });
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
-
-  // Fetch API keys from database
-  const { data: apiKeys = [], isLoading: apiKeysLoading } = useQuery({
-    queryKey: ['api-keys', user?.id],
-    queryFn: () => apiKeyService.getUserApiKeys(user!.id),
-    enabled: !!user?.id
-  });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch profile data for referral section
   const { data: profileData } = useQuery({
     queryKey: ['profile-referral', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      
+
       const { data, error } = await supabase
         .from('profiles')
         .select('referral_code, referrer_id')
@@ -64,60 +56,62 @@ const SettingsSection = () => {
     console.log('Referral updated:', data);
   };
 
-  // Add API key mutation
-  const addApiKeyMutation = useMutation({
-    mutationFn: ({ name, service, key }: { name: string; service: string; key: string }) =>
-      apiKeyService.addApiKey(user!.id, name, service, key),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys', user?.id] });
-      setNewApiKey({ name: '', service: '', key: '' });
+  const handleDeleteAccount = async () => {
+    if (!user?.id || deleteConfirmation !== 'DELETE') return;
+
+    setIsDeleting(true);
+    try {
+      // Delete storage files first (not handled by the RPC function)
+      try {
+        const { data: avatarFiles } = await supabase.storage
+          .from('avatars')
+          .list(user.id);
+        if (avatarFiles && avatarFiles.length > 0) {
+          await supabase.storage
+            .from('avatars')
+            .remove(avatarFiles.map(f => `${user.id}/${f.name}`));
+        }
+
+        const { data: knowledgeFiles } = await supabase.storage
+          .from('knowledge-base')
+          .list(user.id);
+        if (knowledgeFiles && knowledgeFiles.length > 0) {
+          await supabase.storage
+            .from('knowledge-base')
+            .remove(knowledgeFiles.map(f => `${user.id}/${f.name}`));
+        }
+      } catch (storageError) {
+        console.error('Error deleting storage files:', storageError);
+        // Continue with account deletion even if storage deletion fails
+      }
+
+      // Call the database function to delete all user data and auth record
+      const { error } = await supabase.rpc('delete_user_account');
+
+      if (error) {
+        throw error;
+      }
+
       toast({
-        title: "API Key Added",
-        description: "Your API key has been successfully added.",
+        title: 'Account Deleted',
+        description: 'Your account and all associated data have been permanently deleted.',
       });
-    },
-    onError: (error) => {
+
+      // Sign out the user (session will be invalid anyway)
+      await signOut();
+
+    } catch (error) {
+      console.error('Error deleting account:', error);
       toast({
-        title: "Error",
-        description: "Failed to add API key. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to delete account. Please contact support.',
+        variant: 'destructive',
       });
-      console.error('Error adding API key:', error);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setDeleteConfirmation('');
     }
-  });
-
-  const handleAddApiKey = () => {
-    if (newApiKey.name && newApiKey.service && newApiKey.key) {
-      addApiKeyMutation.mutate(newApiKey);
-    }
-  };
-
-  // Delete API key mutation
-  const deleteApiKeyMutation = useMutation({
-    mutationFn: (keyId: string) => apiKeyService.deleteApiKey(keyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys', user?.id] });
-      toast({
-        title: "API Key Deleted",
-        description: "The API key has been removed from your account.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to delete API key. Please try again.",
-        variant: "destructive"
-      });
-      console.error('Error deleting API key:', error);
-    }
-  });
-
-  const handleDeleteApiKey = (id: string) => {
-    deleteApiKeyMutation.mutate(id);
-  };
-
-  const toggleKeyVisibility = (id: string) => {
-    setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -129,15 +123,15 @@ const SettingsSection = () => {
           Settings
         </h1>
         <p className="text-sm text-muted-foreground">
-          Manage your profile and API configurations
+          Manage your profile and referral settings
         </p>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="profile">Profile Management</TabsTrigger>
-          <TabsTrigger value="referral">Referral System</TabsTrigger>
-          <TabsTrigger value="api">API Management</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="referral">Referral</TabsTrigger>
+          <TabsTrigger value="account">Account</TabsTrigger>
         </TabsList>
 
         {/* Profile Management Tab */}
@@ -158,140 +152,100 @@ const SettingsSection = () => {
           )}
         </TabsContent>
 
-        {/* API Management Tab */}
-        <TabsContent value="api" className="space-y-4">
-          {/* Add New API Key */}
-          <Card className="card-modern">
+        {/* Account Management Tab */}
+        <TabsContent value="account" className="space-y-4">
+          <Card className="border-destructive/50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Plus className="h-5 w-5" />
-                Add New API Key
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Danger Zone
               </CardTitle>
               <CardDescription>
-                Configure API keys for AI services. Add your OpenAI key for GPT and DALL-E. Add your KIE.AI key for image/video/music generation.
+                Irreversible and destructive actions
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="keyName">Key Name</Label>
-                  <Input
-                    id="keyName"
-                    placeholder="e.g., OpenAI GPT-4"
-                    value={newApiKey.name}
-                    onChange={(e) => setNewApiKey({...newApiKey, name: e.target.value})}
-                    className="input-modern"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="service">Service</Label>
-                  <Select value={newApiKey.service} onValueChange={(value) => setNewApiKey({...newApiKey, service: value})}>
-                    <SelectTrigger className="input-modern">
-                      <SelectValue placeholder="Select a service..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="openai">OpenAI (GPT, DALL-E, Whisper)</SelectItem>
-                      <SelectItem value="kie-ai">KIE.AI (Images, Videos, Music)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    placeholder="sk-..."
-                    value={newApiKey.key}
-                    onChange={(e) => setNewApiKey({...newApiKey, key: e.target.value})}
-                    className="input-modern"
-                  />
-                </div>
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <h4 className="font-semibold text-destructive mb-2">Delete Account</h4>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Once you delete your account, there is no going back. This action will permanently delete:
+                </p>
+                <ul className="text-sm text-muted-foreground list-disc list-inside mb-4 space-y-1">
+                  <li>Your profile and personal information</li>
+                  <li>All your chatbots and their configurations</li>
+                  <li>All products, promotions, and knowledge base files</li>
+                  <li>All conversation history and contacts</li>
+                  <li>All API keys and WhatsApp connections</li>
+                  <li>All training data and prompt versions</li>
+                </ul>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete My Account
+                </Button>
               </div>
-              
-              <Button
-                onClick={handleAddApiKey}
-                disabled={addApiKeyMutation.isPending || !newApiKey.name || !newApiKey.service || !newApiKey.key}
-                className="btn-hero"
-              >
-                {addApiKeyMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-1" />
-                )}
-                {addApiKeyMutation.isPending ? 'Adding...' : 'Add API Key'}
-              </Button>
             </CardContent>
           </Card>
 
-          {/* Existing API Keys */}
-          <Card className="card-modern">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Key className="h-5 w-5" />
-                Your API Keys
-              </CardTitle>
-              <CardDescription>
-                Manage your existing API keys and their usage
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {apiKeysLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="ml-2">Loading API keys...</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {apiKeys.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No API keys configured yet. Add one above to get started.
+          {/* Delete Account Confirmation Dialog */}
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Delete Account Permanently?
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      This action cannot be undone. All your data will be permanently deleted from our servers.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="delete-confirmation">
+                        Type <span className="font-bold text-destructive">DELETE</span> to confirm:
+                      </Label>
+                      <Input
+                        id="delete-confirmation"
+                        value={deleteConfirmation}
+                        onChange={(e) => setDeleteConfirmation(e.target.value.toUpperCase())}
+                        placeholder="Type DELETE"
+                        className="border-destructive/50"
+                      />
                     </div>
-                  ) : (
-                    apiKeys.map((apiKey) => (
-                  <div key={apiKey.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{apiKey.name}</span>
-                        <Badge 
-                          variant={apiKey.status === 'active' ? 'default' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {apiKey.status}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{apiKey.service}</p>
-                      <div className="flex items-center gap-2">
-                        <code className="text-xs bg-muted px-2 py-1 rounded">
-                          {showKeys[apiKey.id] ? apiKey.key.replace('••••••••••••••••••••••••••••••••••••••••••••••••', 'ACTUAL_KEY_HERE') : apiKey.key}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleKeyVisibility(apiKey.id)}
-                        >
-                          {showKeys[apiKey.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Last used: {apiKey.lastUsed}</p>
-                    </div>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteApiKey(apiKey.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
-                    ))
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  onClick={() => {
+                    setDeleteConfirmation('');
+                    setShowDeleteDialog(false);
+                  }}
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirmation !== 'DELETE' || isDeleting}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Forever
+                    </>
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
       </Tabs>
     </div>

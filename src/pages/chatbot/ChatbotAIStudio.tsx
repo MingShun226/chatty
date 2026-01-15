@@ -1,9 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { ChatbotPageLayout } from '@/components/business-chatbot/ChatbotPageLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Tab persistence utilities
+const AI_STUDIO_TAB_STORAGE_KEY = 'chatbot-ai-studio-active-tab';
+const getStoredTab = () => {
+  try {
+    return localStorage.getItem(AI_STUDIO_TAB_STORAGE_KEY) || 'prompt';
+  } catch {
+    return 'prompt';
+  }
+};
+const setStoredTab = (tab: string) => {
+  try {
+    localStorage.setItem(AI_STUDIO_TAB_STORAGE_KEY, tab);
+  } catch {
+    // Ignore storage errors
+  }
+};
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -45,7 +62,9 @@ import {
   Edit2,
   Save,
   Loader2,
-  Check
+  Check,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface PromptVersion {
@@ -68,9 +87,11 @@ const VersionDropdown = ({ chatbotId, userId, onVersionChange }: {
   const [loading, setLoading] = useState(true);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<PromptVersion | null>(null);
   const [editedPrompt, setEditedPrompt] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -173,6 +194,44 @@ const VersionDropdown = ({ chatbotId, userId, onVersionChange }: {
     }
   };
 
+  const handleDeleteVersion = async () => {
+    if (!selectedVersion) return;
+
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('avatar_prompt_versions')
+        .delete()
+        .eq('id', selectedVersion.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Version Deleted",
+        description: `v${selectedVersion.version_number} has been deleted`,
+      });
+
+      setDeleteDialogOpen(false);
+      setSelectedVersion(null);
+      loadVersions();
+      onVersionChange?.();
+    } catch (error) {
+      console.error('Error deleting version:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete version",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleConfirmDelete = (version: PromptVersion) => {
+    setSelectedVersion(version);
+    setDeleteDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <Button variant="outline" size="sm" disabled>
@@ -246,15 +305,26 @@ const VersionDropdown = ({ chatbotId, userId, onVersionChange }: {
                     Edit
                   </Button>
                   {!version.is_active && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-green-600 hover:text-green-700"
-                      onClick={() => handleActivateVersion(version)}
-                    >
-                      <Play className="h-3 w-3 mr-1" />
-                      Activate
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-green-600 hover:text-green-700"
+                        onClick={() => handleActivateVersion(version)}
+                      >
+                        <Play className="h-3 w-3 mr-1" />
+                        Activate
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleConfirmDelete(version)}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -331,6 +401,41 @@ const VersionDropdown = ({ chatbotId, userId, onVersionChange }: {
                 <>
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Prompt Version
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>v{selectedVersion?.version_number}</strong>
+              {selectedVersion?.version_name && ` (${selectedVersion.version_name})`}?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteVersion} disabled={deleting}>
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Version
                 </>
               )}
             </Button>
@@ -427,11 +532,16 @@ const ModelTrainingTab = ({ chatbot, isTraining, onRefresh, user }: any) => {
 
 // AI Studio tabs component
 const AIStudioTabs = ({ chatbot, isTraining, onRefresh }: { chatbot: any; isTraining: boolean; onRefresh: () => void }) => {
-  const [activeTab, setActiveTab] = useState('prompt');
+  const [activeTab, setActiveTab] = useState(getStoredTab);
   const { user } = useAuth();
 
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setStoredTab(tab);
+  }, []);
+
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       <TabsList className="grid w-full grid-cols-4 mb-6">
         <TabsTrigger value="prompt" className="gap-2">
           <Wand2 className="h-4 w-4" />

@@ -8,21 +8,32 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [accountStatus, setAccountStatus] = useState<string | null>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
 
-  // Fetch account status from profiles
-  const fetchAccountStatus = async (userId: string) => {
+  // Fetch account status and onboarding status from profiles
+  const fetchProfileStatus = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('account_status')
+        .select('account_status, onboarding_completed')
         .eq('id', userId)
         .single();
 
       if (!error && data) {
         setAccountStatus(data.account_status);
+        setOnboardingCompleted(data.onboarding_completed ?? false);
       }
     } catch (err) {
-      console.warn('[Auth] Failed to fetch account status:', err);
+      console.warn('[Auth] Failed to fetch profile status:', err);
+      // Default to completed if we can't fetch (to not block users)
+      setOnboardingCompleted(true);
+    }
+  };
+
+  // Refetch profile (used after onboarding completion)
+  const refetchProfile = async () => {
+    if (user?.id) {
+      await fetchProfileStatus(user.id);
     }
   };
 
@@ -42,11 +53,12 @@ export const useAuth = () => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Fetch account status when user is set
+        // Fetch profile status when user is set
         if (session?.user) {
-          fetchAccountStatus(session.user.id);
+          fetchProfileStatus(session.user.id);
         } else {
           setAccountStatus(null);
+          setOnboardingCompleted(null);
         }
 
         setLoading(false);
@@ -67,13 +79,14 @@ export const useAuth = () => {
         setSession(null);
         setUser(null);
         setAccountStatus(null);
+        setOnboardingCompleted(null);
       } else {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Fetch account status when user is set
+        // Fetch profile status when user is set
         if (session?.user) {
-          fetchAccountStatus(session.user.id);
+          fetchProfileStatus(session.user.id);
         }
       }
       setLoading(false);
@@ -174,9 +187,11 @@ export const useAuth = () => {
     session,
     loading,
     accountStatus,
+    onboardingCompleted,
     signUp,
     signIn,
     signOut,
-    resetPassword
+    resetPassword,
+    refetchProfile
   };
 };
