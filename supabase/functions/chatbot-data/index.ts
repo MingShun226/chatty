@@ -552,7 +552,7 @@ serve(async (req) => {
         // Fetch ALL knowledge files with download URLs
         const { data: knowledgeFiles, error: filesError } = await supabase
           .from('avatar_knowledge_files')
-          .select('id, file_name, original_name, file_path, content_type, processing_status, file_size, uploaded_at')
+          .select('id, file_name, original_name, file_path, content_type, processing_status, file_size, uploaded_at, shareable')
           .eq('avatar_id', chatbotId)
           .eq('user_id', userId)
           .eq('is_linked', true)
@@ -588,7 +588,8 @@ serve(async (req) => {
               status: file.processing_status,
               size: file.file_size,
               uploaded_at: file.uploaded_at,
-              download_url: fileUrl
+              download_url: fileUrl,
+              shareable: file.shareable === true // Only true if explicitly set to true
             }
           })
         )

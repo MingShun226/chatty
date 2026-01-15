@@ -993,7 +993,9 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
             // Include additional prompt version fields if available
             personality_traits: activePromptVersion?.personality_traits || chatbot.personality_traits,
             behavior_rules: activePromptVersion?.behavior_rules || null,
-            prompt_version: activePromptVersion ? `v${activePromptVersion.version_number}` : null
+            prompt_version: activePromptVersion ? `v${activePromptVersion.version_number}` : null,
+            // Pricing visibility setting - when false, AI should not reveal prices
+            price_visible: chatbot.price_visible !== false // Default to true if not set
           },
 
           // API endpoints for fetching data on-demand (use HTTP tool in AI agent)
