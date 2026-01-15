@@ -59,7 +59,8 @@ const ContentTabs = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: () => v
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="products" className="mt-0">
+      {/* Use forceMount to keep components mounted when switching tabs - prevents form data loss */}
+      <TabsContent value="products" className="mt-0" forceMount hidden={activeTab !== 'products'}>
         <ProductGalleryFull
           chatbotId={chatbot.id}
           chatbotName={chatbot.name}
@@ -68,14 +69,14 @@ const ContentTabs = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: () => v
         />
       </TabsContent>
 
-      <TabsContent value="promotions" className="mt-0">
+      <TabsContent value="promotions" className="mt-0" forceMount hidden={activeTab !== 'promotions'}>
         <PromotionsGalleryFull
           chatbotId={chatbot.id}
           chatbotName={chatbot.name}
         />
       </TabsContent>
 
-      <TabsContent value="knowledge" className="mt-0">
+      <TabsContent value="knowledge" className="mt-0" forceMount hidden={activeTab !== 'knowledge'}>
         <KnowledgeBase
           avatarId={chatbot.id}
           isTraining={false}

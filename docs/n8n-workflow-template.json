@@ -284,6 +284,12 @@
               "name": "chatbotId",
               "value": "={{ $json.chatbotConfig.id }}",
               "type": "string"
+            },
+            {
+              "id": "platformApiKey",
+              "name": "platformApiKey",
+              "value": "YOUR_PLATFORM_API_KEY",
+              "type": "string"
             }
           ]
         },
@@ -378,7 +384,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "YOUR_PLATFORM_API_KEY"
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
             }
           ]
         },
@@ -416,7 +422,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "YOUR_PLATFORM_API_KEY"
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
             }
           ]
         },
@@ -458,7 +464,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "YOUR_PLATFORM_API_KEY"
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
             }
           ]
         },
@@ -496,7 +502,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "YOUR_PLATFORM_API_KEY"
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
             }
           ]
         },
