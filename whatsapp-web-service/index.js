@@ -328,43 +328,37 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
 
         try {
           let fromNumber = msg.key.remoteJid
+          let contactName = msg.pushName || null // Customer's WhatsApp display name
+          const lidNumber = fromNumber?.endsWith('@lid') ? fromNumber : null // Store LID for reference
 
           // Handle Linked ID (LID) format - WhatsApp's new privacy format
           // LID format: 123456789@lid (not a real phone number)
-          // Try to get actual phone number from participant or message metadata
+          // The actual phone number is in remoteJidAlt field
           if (fromNumber?.endsWith('@lid')) {
-            console.log(`[LID DEBUG] =====================`)
-            console.log(`[LID DEBUG] LID detected: ${fromNumber}`)
-            console.log(`[LID DEBUG] Message key:`, JSON.stringify(msg.key, null, 2))
-            console.log(`[LID DEBUG] Push name: ${msg.pushName || 'N/A'}`)
-            console.log(`[LID DEBUG] Verified biz name: ${msg.verifiedBizName || 'N/A'}`)
+            console.log(`[LID] Detected LID: ${fromNumber}`)
 
-            // Try to get actual phone number from participant field
-            const participant = msg.key.participant
-            if (participant && !participant.endsWith('@lid')) {
-              console.log(`[LID DEBUG] Found participant phone: ${participant}`)
-              fromNumber = participant
-            } else {
-              // Try to get phone from the message's deviceSentMeta or other fields
-              const deviceSentMeta = msg.message?.deviceSentMessage?.message
-              console.log(`[LID DEBUG] Device sent meta available: ${!!deviceSentMeta}`)
+            // PRIORITY 1: Use remoteJidAlt - this contains the actual phone number
+            if (msg.key.remoteJidAlt && msg.key.remoteJidAlt.endsWith('@s.whatsapp.net')) {
+              console.log(`[LID] Found real phone in remoteJidAlt: ${msg.key.remoteJidAlt}`)
+              fromNumber = msg.key.remoteJidAlt
+            }
+            // PRIORITY 2: Use participant field (for group messages)
+            else if (msg.key.participant && !msg.key.participant.endsWith('@lid')) {
+              console.log(`[LID] Found real phone in participant: ${msg.key.participant}`)
+              fromNumber = msg.key.participant
+            }
+            // PRIORITY 3: Fall back to LID (no real phone available)
+            else {
+              console.log(`[LID] No real phone number found, using LID as identifier`)
+            }
 
-              // Check if sock has lidToJid mapping (some Baileys versions support this)
-              try {
-                if (sock.store?.contacts) {
-                  const contact = sock.store.contacts[fromNumber]
-                  console.log(`[LID DEBUG] Contact from store:`, contact ? JSON.stringify(contact) : 'Not found')
-                }
-              } catch (e) {
-                console.log(`[LID DEBUG] Could not access store contacts`)
-              }
-
-              console.log(`[LID DEBUG] Using LID as identifier (actual phone number not available)`)
-              console.log(`[LID DEBUG] =====================`)
+            // Log the contact name from pushName
+            if (contactName) {
+              console.log(`[LID] Contact name from pushName: ${contactName}`)
             }
           }
 
-          console.log(`Message received on session ${sessionId}: ${fromNumber}`)
+          console.log(`Message received on session ${sessionId}: ${fromNumber}${contactName ? ` (${contactName})` : ''}`)
 
           // Determine message type and extract content
           let messageText = ''
@@ -587,7 +581,7 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
           await syncToN8nChatHistory(chatbotId, fromNumber, 'user', messageText)
 
           // Process message with chatbot (pass media data if available)
-          await processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData)
+          await processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData, contactName)
         } catch (err) {
           console.error('Error handling message:', err)
         }
@@ -834,7 +828,7 @@ async function sendWhatsAppMessage(sock, toNumber, text, delimiter = null, wpm =
 /**
  * Process batched messages (combine and send to n8n)
  */
-async function processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock) {
+async function processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock, contactName = null) {
   // Messages are objects with { text, type, media } structure
   // Extract text from each message and combine with line breaks
   const combinedMessage = messages.map(m => m.text).join('\n')
@@ -846,13 +840,13 @@ async function processBatchedMessages(sessionId, chatbotId, fromNumber, messages
   const mediaData = lastMessage?.media || null
 
   // Process as single message with the last message's media context
-  await processMessageWithChatbot(sessionId, chatbotId, fromNumber, combinedMessage, sock, messageType, mediaData)
+  await processMessageWithChatbot(sessionId, chatbotId, fromNumber, combinedMessage, sock, messageType, mediaData, contactName)
 }
 
 /**
  * Process inbound message with batching support
  */
-async function processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null) {
+async function processInboundMessage(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null, contactName = null) {
   try {
     // Get chatbot settings to check batch timeout
     const { data: chatbot } = await supabase
@@ -870,7 +864,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
 
     // If batching is disabled (timeout = 0), process immediately
     if (batchTimeout === 0) {
-      await processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData)
+      await processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType, mediaData, contactName)
       return
     }
 
@@ -881,14 +875,17 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
       // Add to existing buffer
       const buffer = messageBatchBuffers.get(bufferKey)
       buffer.messages.push({ text: messageText, type: messageType, media: mediaData })
+      // Update contact name if we have one (use latest)
+      if (contactName) buffer.contactName = contactName
       console.log(`Added message to batch buffer (${buffer.messages.length} messages, ${batchTimeout}s timeout)`)
 
       // Clear existing timer and restart
       clearTimeout(buffer.timer)
       buffer.timer = setTimeout(async () => {
         const messages = buffer.messages
+        const storedContactName = buffer.contactName
         messageBatchBuffers.delete(bufferKey)
-        await processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock)
+        await processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock, storedContactName)
       }, batchTimeout * 1000)
     } else {
       // Create new buffer
@@ -896,15 +893,17 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
         const buffer = messageBatchBuffers.get(bufferKey)
         if (buffer) {
           const messages = buffer.messages
+          const storedContactName = buffer.contactName
           messageBatchBuffers.delete(bufferKey)
-          await processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock)
+          await processBatchedMessages(sessionId, chatbotId, fromNumber, messages, sock, storedContactName)
         }
       }, batchTimeout * 1000)
 
       messageBatchBuffers.set(bufferKey, {
         messages: [{ text: messageText, type: messageType, media: mediaData }],
         timer,
-        chatbotId
+        chatbotId,
+        contactName
       })
       console.log(`Started batch buffer (${batchTimeout}s timeout)`)
     }
@@ -916,7 +915,7 @@ async function processInboundMessage(sessionId, chatbotId, fromNumber, messageTe
 /**
  * Process message with chatbot (n8n integration)
  */
-async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null) {
+async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messageText, sock, messageType = 'text', mediaData = null, contactName = null) {
   try {
     // Get userId from socket data (for AI tagging)
     const socketData = whatsappSockets.get(sessionId)
@@ -1000,6 +999,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
           message: messageText,
           message_type: messageType,
           from_number: fromNumber,
+          contact_name: contactName, // Customer's WhatsApp display name (from pushName)
 
           // Media data (for images, videos, audio, documents)
           media: mediaData ? {
@@ -1275,7 +1275,7 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
     await syncToN8nChatHistory(chatbotId, fromNumber, 'assistant', fullReply)
 
     // Analyze and tag contact for smart follow-ups (async, don't wait)
-    analyzeAndTagContact(chatbotId, fromNumber, userId, sessionId)
+    analyzeAndTagContact(chatbotId, fromNumber, userId, sessionId, contactName)
       .catch(err => console.error('Error in background tagging:', err))
 
   } catch (err) {
@@ -1526,11 +1526,11 @@ Reply to this customer now!`
  * Analyze conversation and update contact profile with AI-assigned tags
  * Called after each message exchange
  */
-async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
+async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId, contactName = null) {
   try {
     // Clean phone number - remove @s.whatsapp.net suffix if present
     const cleanPhoneNumber = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/[^0-9]/g, '')
-    console.log(`Analyzing contact for tagging: ${phoneNumber} (cleaned: ${cleanPhoneNumber})`)
+    console.log(`Analyzing contact for tagging: ${phoneNumber} (cleaned: ${cleanPhoneNumber})${contactName ? ` Name: ${contactName}` : ''}`)
 
     // Check if auto-tagging is enabled for this chatbot
     let { data: settings, error: settingsError } = await supabase
@@ -1752,26 +1752,35 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
       .or(`from_number.eq.${phoneNumber},to_number.eq.${phoneNumber}`)
 
     // Upsert contact profile (store cleaned phone number for consistency)
+    // Build upsert data - only include name if we have one (don't overwrite with null)
+    const upsertData = {
+      chatbot_id: chatbotId,
+      phone_number: cleanPhoneNumber,
+      user_id: userId,
+      session_id: sessionId,
+      tags: analysis.tags || [],
+      primary_tag: analysis.primaryTag,
+      last_message_at: new Date().toISOString(),
+      last_message_role: 'user',
+      message_count: messageCount || 0,
+      ai_summary: analysis.summary,
+      ai_sentiment: analysis.sentiment,
+      ai_analysis: analysis,
+      analyzed_at: new Date().toISOString(),
+      followup_due_at: followupDueAt,
+      // Reset followup count if user replied (new conversation thread)
+      followup_count: 0
+    }
+
+    // Add contact name from WhatsApp pushName if available
+    if (contactName) {
+      upsertData.name = contactName
+      console.log(`Setting contact name from WhatsApp: ${contactName}`)
+    }
+
     const { error: upsertError } = await supabase
       .from('contact_profiles')
-      .upsert({
-        chatbot_id: chatbotId,
-        phone_number: cleanPhoneNumber,
-        user_id: userId,
-        session_id: sessionId,
-        tags: analysis.tags || [],
-        primary_tag: analysis.primaryTag,
-        last_message_at: new Date().toISOString(),
-        last_message_role: 'user',
-        message_count: messageCount || 0,
-        ai_summary: analysis.summary,
-        ai_sentiment: analysis.sentiment,
-        ai_analysis: analysis,
-        analyzed_at: new Date().toISOString(),
-        followup_due_at: followupDueAt,
-        // Reset followup count if user replied (new conversation thread)
-        followup_count: 0
-      }, { onConflict: 'chatbot_id,phone_number' })
+      .upsert(upsertData, { onConflict: 'chatbot_id,phone_number' })
 
     if (upsertError) {
       console.error('Error upserting contact profile:', upsertError)
