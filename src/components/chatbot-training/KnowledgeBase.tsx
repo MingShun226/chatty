@@ -65,13 +65,15 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
   const { user } = useAuth();
 
   // Load files automatically when component mounts or avatarId changes
+  // Use user?.id instead of user to prevent reloading when user object reference changes (e.g., on token refresh)
   useEffect(() => {
     if (avatarId && user) {
       loadKnowledgeFiles();
     }
-  }, [avatarId, user]);
+  }, [avatarId, user?.id]);
 
   // Set up real-time updates for knowledge files
+  // Use user?.id instead of user to prevent re-subscribing when user object reference changes
   useEffect(() => {
     if (!avatarId || !user) return;
 
@@ -96,7 +98,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [avatarId, user]);
+  }, [avatarId, user?.id]);
 
   // Auto-process PDF for RAG
   const processFileForRAG = async (fileId: string, fileName: string) => {

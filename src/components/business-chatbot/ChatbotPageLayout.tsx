@@ -43,11 +43,12 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
   const navigate = useNavigate();
 
   // Check if user has any chatbots
+  // Use user?.id instead of user to prevent reloading when user object reference changes (e.g., on token refresh)
   useEffect(() => {
     if (user) {
       checkUserChatbots();
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (chatbotIdFromUrl && chatbotIdFromUrl !== selectedChatbotId) {
@@ -57,6 +58,7 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
     }
   }, [chatbotIdFromUrl]);
 
+  // Use user?.id instead of user to prevent reloading when user object reference changes
   useEffect(() => {
     if (selectedChatbotId && user) {
       fetchChatbotData(selectedChatbotId);
@@ -64,7 +66,7 @@ export const ChatbotPageLayout = ({ title, children }: ChatbotPageLayoutProps) =
     } else {
       setSelectedChatbot(null);
     }
-  }, [selectedChatbotId, user]);
+  }, [selectedChatbotId, user?.id]);
 
   const checkUserChatbots = async () => {
     try {
