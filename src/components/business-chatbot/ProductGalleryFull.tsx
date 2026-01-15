@@ -1038,19 +1038,20 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
         </>
       )}
 
-      {/* Add/Edit Product Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={(open) => {
-        if (!open) {
-          setShowAddDialog(false);
-          setEditingProduct(null);
-          resetForm();
-        }
-      }}>
+      {/* Add/Edit Product Dialog - Controlled dialog that only closes on explicit user action */}
+      <Dialog open={showAddDialog} modal={false}>
         <DialogContent
           className="max-w-2xl max-h-[90vh] overflow-y-auto"
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onCloseClick={() => {
+            setShowAddDialog(false);
+            setEditingProduct(null);
+            resetForm();
+          }}
         >
           <DialogHeader>
             <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>

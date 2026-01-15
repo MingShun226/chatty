@@ -544,13 +544,16 @@ export function PromotionsGalleryFull({ chatbotId, chatbotName }: PromotionsGall
         </div>
       )}
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={(open) => !open && setShowAddDialog(false)}>
+      {/* Add/Edit Dialog - Controlled dialog that only closes on explicit user action */}
+      <Dialog open={showAddDialog} modal={false}>
         <DialogContent
           className="max-w-2xl max-h-[90vh] overflow-y-auto"
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onCloseClick={() => setShowAddDialog(false)}
         >
           <DialogHeader>
             <DialogTitle>
