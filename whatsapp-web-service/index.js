@@ -55,7 +55,7 @@ const messageBatchBuffers = new Map()
 async function syncToN8nChatHistory(chatbotId, phoneNumber, role, content) {
   try {
     // Clean phone number
-    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/[^0-9]/g, '')
 
     // Session key combines chatbot ID and phone for unique conversations
     // Format: {chatbotId}_{phoneNumber}
@@ -132,7 +132,7 @@ async function uploadMediaToStorage(buffer, mimeType, chatbotId, fromNumber) {
     // Create unique filename
     const timestamp = Date.now()
     const randomId = Math.random().toString(36).substring(2, 8)
-    const cleanNumber = fromNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const cleanNumber = fromNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/[^0-9]/g, '')
     const fileName = `${cleanNumber}/${timestamp}_${randomId}.${ext}`
     const bucketName = 'whatsapp-media'
 
@@ -327,7 +327,26 @@ async function initializeWhatsAppSocket(sessionId, chatbotId, userId) {
         if (msg.key.fromMe) continue // Skip messages sent by us
 
         try {
-          const fromNumber = msg.key.remoteJid
+          let fromNumber = msg.key.remoteJid
+
+          // Handle Linked ID (LID) format - WhatsApp's new privacy format
+          // LID format: 123456789@lid (not a real phone number)
+          // Try to get actual phone number from participant or message metadata
+          if (fromNumber?.endsWith('@lid')) {
+            console.log(`LID detected: ${fromNumber}`)
+            // Try to get actual phone number from participant field (for group messages)
+            // or from the message's pushName/verifiedBizName
+            const participant = msg.key.participant
+            if (participant && !participant.endsWith('@lid')) {
+              console.log(`Found participant phone: ${participant}`)
+              fromNumber = participant
+            } else {
+              // LID is the only identifier - use it as-is for messaging
+              // but log that this is a LID contact
+              console.log(`Using LID as identifier (actual phone number not available)`)
+            }
+          }
+
           console.log(`Message received on session ${sessionId}: ${fromNumber}`)
 
           // Determine message type and extract content
@@ -1493,7 +1512,7 @@ Reply to this customer now!`
 async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId) {
   try {
     // Clean phone number - remove @s.whatsapp.net suffix if present
-    const cleanPhoneNumber = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const cleanPhoneNumber = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/[^0-9]/g, '')
     console.log(`Analyzing contact for tagging: ${phoneNumber} (cleaned: ${cleanPhoneNumber})`)
 
     // Check if auto-tagging is enabled for this chatbot
@@ -2271,7 +2290,7 @@ app.get('/api/chat-history', async (req, res) => {
     }
 
     // Clean phone number - handle both formats
-    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/[^0-9]/g, '')
     const phoneWithSuffix = `${cleanPhone}@s.whatsapp.net`
 
     // Fetch messages from whatsapp_web_messages
@@ -2323,7 +2342,7 @@ app.post('/api/chat-history', async (req, res) => {
     }
 
     // Clean phone number
-    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+    const cleanPhone = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/[^0-9]/g, '')
     const phoneWithSuffix = `${cleanPhone}@s.whatsapp.net`
 
     // Fetch messages
