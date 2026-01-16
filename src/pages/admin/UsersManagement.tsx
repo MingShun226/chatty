@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,8 @@ import {
   ExternalLink,
   Loader2,
   Bot,
-  RefreshCw
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -65,6 +67,7 @@ interface UserRow {
 }
 
 export const UsersManagement = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
@@ -368,6 +371,21 @@ export const UsersManagement = () => {
                         {/* Actions */}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* View Details */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => navigate(`/admin/users/${user.id}`)}
+                                  className="h-8 px-2"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View user details</TooltipContent>
+                            </Tooltip>
+
                             {/* Login As */}
                             <Tooltip>
                               <TooltipTrigger asChild>
