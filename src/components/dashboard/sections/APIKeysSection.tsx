@@ -552,10 +552,9 @@ const APIKeysSection = () => {
       </div>
 
       <Tabs defaultValue="platform" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="platform">Platform API Keys</TabsTrigger>
-          <TabsTrigger value="external">External API Keys</TabsTrigger>
-          <TabsTrigger value="usage">Balances & Usage</TabsTrigger>
+          <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="docs">Documentation</TabsTrigger>
         </TabsList>
 
@@ -671,198 +670,7 @@ const APIKeysSection = () => {
 
         </TabsContent>
 
-        {/* External API Keys Tab (for OpenAI, Kie.AI) */}
-        <TabsContent value="external" className="space-y-6">
-          {/* Info Alert */}
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>External API Keys</strong> are used to connect to AI services like OpenAI and Kie.AI.
-              These keys power AI features such as the Prompt Engineer, image generation, and video creation.
-            </AlertDescription>
-          </Alert>
-
-          {/* Add New External API Key */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Plus className="h-5 w-5" />
-                Add External API Key
-              </CardTitle>
-              <CardDescription>
-                Configure API keys for AI services. Add your OpenAI key for GPT and DALL-E. Add your Kie.AI key for image/video/music generation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="externalKeyName">Key Name</Label>
-                  <Input
-                    id="externalKeyName"
-                    placeholder="e.g., OpenAI GPT-4"
-                    value={newExternalApiKey.name}
-                    onChange={(e) => setNewExternalApiKey({...newExternalApiKey, name: e.target.value})}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="externalService">Service</Label>
-                  <Select value={newExternalApiKey.service} onValueChange={(value) => setNewExternalApiKey({...newExternalApiKey, service: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a service..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="openai">OpenAI (GPT, DALL-E, Whisper)</SelectItem>
-                      <SelectItem value="kie-ai">Kie.AI (Images, Videos, Music)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="externalApiKey">API Key</Label>
-                  <Input
-                    id="externalApiKey"
-                    type="password"
-                    placeholder="sk-..."
-                    value={newExternalApiKey.key}
-                    onChange={(e) => setNewExternalApiKey({...newExternalApiKey, key: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <Button
-                onClick={handleAddExternalApiKey}
-                disabled={addExternalApiKeyMutation.isPending || !newExternalApiKey.name || !newExternalApiKey.service || !newExternalApiKey.key}
-              >
-                {addExternalApiKeyMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-1" />
-                )}
-                {addExternalApiKeyMutation.isPending ? 'Adding...' : 'Add API Key'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Existing External API Keys */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Key className="h-5 w-5" />
-                Your External API Keys
-              </CardTitle>
-              <CardDescription>
-                Manage your AI service API keys for OpenAI and Kie.AI
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {externalApiKeysLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="ml-2">Loading API keys...</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {externalApiKeys.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Key className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No external API keys configured yet.</p>
-                      <p className="text-sm mt-1">Add your OpenAI or Kie.AI API key above to enable AI features.</p>
-                    </div>
-                  ) : (
-                    externalApiKeys.map((apiKey) => (
-                      <div key={apiKey.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{apiKey.name}</span>
-                            <Badge
-                              variant={apiKey.status === 'active' ? 'default' : 'secondary'}
-                              className="text-xs"
-                            >
-                              {apiKey.status}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground capitalize">
-                            {apiKey.service === 'openai' && '🤖 OpenAI'}
-                            {apiKey.service === 'kie-ai' && '🎨 Kie.AI'}
-                            {!['openai', 'kie-ai'].includes(apiKey.service) && apiKey.service}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                              {showExternalKeys[apiKey.id] ? 'Key hidden for security' : apiKey.key}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleExternalKeyVisibility(apiKey.id)}
-                            >
-                              {showExternalKeys[apiKey.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Last used: {apiKey.lastUsed}</p>
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteExternalApiKey(apiKey.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Links to OpenAI and Kie.AI */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">🤖</span>
-                  <div>
-                    <h4 className="font-semibold">OpenAI</h4>
-                    <p className="text-sm text-muted-foreground">GPT-4, DALL-E, Whisper</p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Powers chatbot AI conversations, image generation, and speech-to-text.
-                </p>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
-                    Get API Key <ExternalLink className="h-3 w-3 ml-1" />
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 border-purple-200 dark:border-purple-800">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">🎨</span>
-                  <div>
-                    <h4 className="font-semibold">Kie.AI</h4>
-                    <p className="text-sm text-muted-foreground">Images, Videos, Music</p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Powers product image generation, promo videos, and background music.
-                </p>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="https://kie.ai/dashboard" target="_blank" rel="noopener noreferrer">
-                    Get API Key <ExternalLink className="h-3 w-3 ml-1" />
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Balances & Usage Tab */}
+        {/* Usage Tab */}
         <TabsContent value="usage" className="space-y-6">
           {/* API Balances Section */}
           <div className="space-y-4">
@@ -875,77 +683,26 @@ const APIKeysSection = () => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              {/* OpenAI Balance Card */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              {/* Info about API Keys */}
+              <Card className="md:col-span-2">
+                <CardHeader>
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <span className="text-lg">🤖</span>
-                    OpenAI Balance
+                    <Key className="h-4 w-4" />
+                    AI Service API Keys
                   </CardTitle>
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  {externalApiKeys.some(k => k.service.toLowerCase() === 'openai') ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">API Key configured</p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer">
-                          View Usage & Balance <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">No API key configured</p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer">
-                          View Usage & Balance <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Kie.AI Balance Card */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <span className="text-lg">🎨</span>
-                    Kie.AI Balance
-                  </CardTitle>
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  {externalApiKeys.some(k => k.service.toLowerCase() === 'kie-ai') ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">API Key configured</p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://kie.ai/dashboard" target="_blank" rel="noopener noreferrer">
-                          View Usage & Balance <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">No API key configured</p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://kie.ai/dashboard" target="_blank" rel="noopener noreferrer">
-                          View Usage & Balance <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
-                      </Button>
-                    </div>
-                  )}
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      API keys for AI services (OpenAI, etc.) are managed by your administrator as part of your subscription.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Your usage is included in your subscription plan. Contact your administrator if you have questions about usage limits.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </div>
-
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                API providers don't expose balance information via API. Click the links above to check your credits directly on each provider's dashboard.
-              </AlertDescription>
-            </Alert>
           </div>
 
           <div className="border-t pt-6">

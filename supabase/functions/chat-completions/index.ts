@@ -65,20 +65,51 @@ serve(async (req: Request) => {
     // Get request body
     const requestBody = await req.json()
 
-    // Get user's OpenAI API key
-    const { data: userKey, error: keyError } = await supabase
-      .from('user_api_keys')
+    // First check for admin-assigned API key (platform-managed)
+    let apiKey: string | null = null
+    let keySource: 'admin' | 'user' = 'admin'
+
+    const { data: adminKey } = await supabase
+      .from('admin_assigned_api_keys')
       .select('api_key_encrypted')
       .eq('user_id', user.id)
       .eq('service', 'openai')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('is_active', true)
       .maybeSingle()
 
-    if (keyError || !userKey?.api_key_encrypted) {
+    if (adminKey?.api_key_encrypted) {
+      try {
+        apiKey = atob(adminKey.api_key_encrypted)
+      } catch (e) {
+        console.error('Failed to decrypt admin-assigned API key')
+      }
+    }
+
+    // Fall back to user's own key if no admin-assigned key
+    if (!apiKey) {
+      keySource = 'user'
+      const { data: userKey } = await supabase
+        .from('user_api_keys')
+        .select('api_key_encrypted')
+        .eq('user_id', user.id)
+        .eq('service', 'openai')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (userKey?.api_key_encrypted) {
+        try {
+          apiKey = atob(userKey.api_key_encrypted)
+        } catch (e) {
+          console.error('Failed to decrypt user API key')
+        }
+      }
+    }
+
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'No OpenAI API key found. Please add one in Settings > API Keys.' }),
+        JSON.stringify({ error: 'No OpenAI API key configured. Please contact your administrator.' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -86,29 +117,26 @@ serve(async (req: Request) => {
       )
     }
 
-    // Decrypt API key
-    let apiKey: string
-    try {
-      apiKey = atob(userKey.api_key_encrypted)
-    } catch (e) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to decrypt API key' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    // Update last_used_at for the appropriate key (async, don't wait)
+    if (keySource === 'admin') {
+      supabase
+        .from('admin_assigned_api_keys')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('service', 'openai')
+        .eq('is_active', true)
+        .then(() => {})
+        .catch(() => {})
+    } else {
+      supabase
+        .from('user_api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('service', 'openai')
+        .eq('status', 'active')
+        .then(() => {})
+        .catch(() => {})
     }
-
-    // Update last_used_at (async, don't wait)
-    supabase
-      .from('user_api_keys')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .eq('service', 'openai')
-      .eq('status', 'active')
-      .then(() => {})
-      .catch(() => {})
 
     // Proxy request to OpenAI
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {

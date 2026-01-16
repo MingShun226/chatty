@@ -53,7 +53,14 @@ import {
   ExternalLink,
   Eye,
   ChevronDown,
+  Plus,
+  Trash2,
+  Save,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import type { SubscriptionTier } from '@/types/admin';
@@ -119,6 +126,18 @@ interface UserContact {
   last_message_at: string | null;
 }
 
+interface AdminAssignedApiKey {
+  id: string;
+  user_id: string;
+  service: string;
+  api_key_encrypted: string;
+  project_name: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export const UserDetails = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
@@ -136,6 +155,18 @@ export const UserDetails = () => {
   const [showLoginAsDialog, setShowLoginAsDialog] = useState(false);
   const [loginAsLoading, setLoginAsLoading] = useState(false);
 
+  // Admin API Keys State
+  const [adminApiKeys, setAdminApiKeys] = useState<AdminAssignedApiKey[]>([]);
+  const [apiKeyForm, setApiKeyForm] = useState({
+    service: 'openai',
+    apiKey: '',
+    projectName: '',
+    notes: '',
+    isActive: true,
+  });
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [showApiKeyForm, setShowApiKeyForm] = useState(false);
+
   useEffect(() => {
     if (userId) {
       fetchAllData();
@@ -150,7 +181,8 @@ export const UserDetails = () => {
       fetchUserChatbots(),
       fetchUserProducts(),
       fetchUserContacts(),
-      fetchTiers()
+      fetchTiers(),
+      fetchAdminApiKeys()
     ]);
     setLoading(false);
   };
@@ -302,6 +334,138 @@ export const UserDetails = () => {
     } catch (error) {
       console.error('Error fetching tiers:', error);
     }
+  };
+
+  const fetchAdminApiKeys = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('admin_assigned_api_keys')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAdminApiKeys(data || []);
+    } catch (error) {
+      console.error('Error fetching admin API keys:', error);
+    }
+  };
+
+  const handleSaveApiKey = async () => {
+    if (!userId || !apiKeyForm.apiKey.trim()) {
+      toast({ title: 'Error', description: 'API key is required', variant: 'destructive' });
+      return;
+    }
+
+    setApiKeySaving(true);
+    try {
+      // Get current admin user ID
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      // Encrypt API key (Base64 for consistency with user_api_keys)
+      const encryptedKey = btoa(apiKeyForm.apiKey.trim());
+
+      // Check if key already exists for this service
+      const existingKey = adminApiKeys.find(k => k.service === apiKeyForm.service);
+
+      if (existingKey) {
+        // Update existing key
+        const { error } = await supabase
+          .from('admin_assigned_api_keys')
+          .update({
+            api_key_encrypted: encryptedKey,
+            project_name: apiKeyForm.projectName || null,
+            notes: apiKeyForm.notes || null,
+            is_active: apiKeyForm.isActive,
+            assigned_by: currentUser?.id,
+          })
+          .eq('id', existingKey.id);
+
+        if (error) throw error;
+        toast({ title: 'API Key Updated', description: `${apiKeyForm.service} API key has been updated for this user.` });
+      } else {
+        // Insert new key
+        const { error } = await supabase
+          .from('admin_assigned_api_keys')
+          .insert({
+            user_id: userId,
+            service: apiKeyForm.service,
+            api_key_encrypted: encryptedKey,
+            project_name: apiKeyForm.projectName || null,
+            notes: apiKeyForm.notes || null,
+            is_active: apiKeyForm.isActive,
+            assigned_by: currentUser?.id,
+          });
+
+        if (error) throw error;
+        toast({ title: 'API Key Assigned', description: `${apiKeyForm.service} API key has been assigned to this user.` });
+      }
+
+      // Reset form and refresh
+      setApiKeyForm({ service: 'openai', apiKey: '', projectName: '', notes: '', isActive: true });
+      setShowApiKeyForm(false);
+      await fetchAdminApiKeys();
+    } catch (error: any) {
+      console.error('Error saving API key:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to save API key', variant: 'destructive' });
+    } finally {
+      setApiKeySaving(false);
+    }
+  };
+
+  const handleDeleteApiKey = async (keyId: string, serviceName: string) => {
+    try {
+      const { error } = await supabase
+        .from('admin_assigned_api_keys')
+        .delete()
+        .eq('id', keyId);
+
+      if (error) throw error;
+
+      toast({ title: 'API Key Removed', description: `${serviceName} API key has been removed from this user.` });
+      await fetchAdminApiKeys();
+    } catch (error: any) {
+      console.error('Error deleting API key:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to delete API key', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleApiKeyStatus = async (keyId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('admin_assigned_api_keys')
+        .update({ is_active: !currentStatus })
+        .eq('id', keyId);
+
+      if (error) throw error;
+
+      toast({ title: 'Status Updated', description: `API key ${!currentStatus ? 'activated' : 'deactivated'}.` });
+      await fetchAdminApiKeys();
+    } catch (error: any) {
+      console.error('Error toggling API key status:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to update status', variant: 'destructive' });
+    }
+  };
+
+  const maskApiKey = (key: string): string => {
+    try {
+      const decrypted = atob(key);
+      if (decrypted.length <= 10) return '••••••••••';
+      return `${decrypted.substring(0, 7)}...${decrypted.substring(decrypted.length - 4)}`;
+    } catch {
+      return '••••••••••';
+    }
+  };
+
+  const editApiKey = (key: AdminAssignedApiKey) => {
+    setApiKeyForm({
+      service: key.service,
+      apiKey: '', // Don't show the actual key, user must re-enter
+      projectName: key.project_name || '',
+      notes: key.notes || '',
+      isActive: key.is_active,
+    });
+    setShowApiKeyForm(true);
   };
 
   const handleSuspendUser = async () => {
@@ -581,6 +745,7 @@ export const UserDetails = () => {
           <TabsTrigger value="chatbots">Chatbots ({chatbots.length})</TabsTrigger>
           <TabsTrigger value="products">Products ({products.length})</TabsTrigger>
           <TabsTrigger value="contacts">Contacts ({contacts.length})</TabsTrigger>
+          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="subscription">Subscription</TabsTrigger>
         </TabsList>
 
@@ -798,6 +963,183 @@ export const UserDetails = () => {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* API Keys Tab */}
+        <TabsContent value="api-keys" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Platform API Keys</CardTitle>
+                  <CardDescription>Assign API keys from your OpenAI projects to this user</CardDescription>
+                </div>
+                <Button onClick={() => setShowApiKeyForm(true)} disabled={showApiKeyForm}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Assign API Key
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add/Edit API Key Form */}
+              {showApiKeyForm && (
+                <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
+                  <h4 className="font-medium">
+                    {adminApiKeys.find(k => k.service === apiKeyForm.service) ? 'Update' : 'Add'} API Key
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Service</Label>
+                      <Select
+                        value={apiKeyForm.service}
+                        onValueChange={(v) => setApiKeyForm({ ...apiKeyForm, service: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="anthropic">Anthropic</SelectItem>
+                          <SelectItem value="stability">Stability AI</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Project Name (for reference)</Label>
+                      <Input
+                        placeholder="e.g., User_JohnDoe_Project"
+                        value={apiKeyForm.projectName}
+                        onChange={(e) => setApiKeyForm({ ...apiKeyForm, projectName: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>API Key</Label>
+                    <Input
+                      type="password"
+                      placeholder="sk-proj-..."
+                      value={apiKeyForm.apiKey}
+                      onChange={(e) => setApiKeyForm({ ...apiKeyForm, apiKey: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste the full API key. It will be encrypted before storage.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Notes (optional)</Label>
+                    <Textarea
+                      placeholder="Any notes about this API key..."
+                      value={apiKeyForm.notes}
+                      onChange={(e) => setApiKeyForm({ ...apiKeyForm, notes: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        checked={apiKeyForm.isActive}
+                        onCheckedChange={(v) => setApiKeyForm({ ...apiKeyForm, isActive: v })}
+                      />
+                      <Label>Active</Label>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowApiKeyForm(false);
+                          setApiKeyForm({ service: 'openai', apiKey: '', projectName: '', notes: '', isActive: true });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveApiKey} disabled={apiKeySaving || !apiKeyForm.apiKey.trim()}>
+                        {apiKeySaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Existing API Keys List */}
+              {adminApiKeys.length === 0 && !showApiKeyForm ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Key className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No API keys assigned to this user yet.</p>
+                  <p className="text-sm mt-1">Click "Assign API Key" to add one.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {adminApiKeys.map((key) => (
+                    <div
+                      key={key.id}
+                      className={`border rounded-lg p-4 ${!key.is_active ? 'opacity-60 bg-muted/30' : ''}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium capitalize">{key.service}</span>
+                            <Badge variant={key.is_active ? 'default' : 'secondary'}>
+                              {key.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm font-mono text-muted-foreground">
+                            {maskApiKey(key.api_key_encrypted)}
+                          </p>
+                          {key.project_name && (
+                            <p className="text-sm text-muted-foreground">
+                              Project: {key.project_name}
+                            </p>
+                          )}
+                          {key.notes && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {key.notes}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Added {formatDistanceToNow(new Date(key.created_at), { addSuffix: true })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={key.is_active}
+                            onCheckedChange={() => handleToggleApiKeyStatus(key.id, key.is_active)}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => editApiKey(key)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteApiKey(key.id, key.service)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p className="font-medium">How it works:</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>Create a project in your OpenAI account for this user</li>
+                  <li>Generate an API key for that project</li>
+                  <li>Assign the key here - it will be used for all AI features</li>
+                  <li>Also configure the same key in the user's n8n workflow credentials</li>
+                </ol>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
