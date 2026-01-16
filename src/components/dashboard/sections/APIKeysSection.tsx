@@ -29,13 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Key, Plus, Copy, Trash2, Eye, EyeOff, AlertCircle, BookOpen, Code, Zap, Download, BarChart3, TrendingUp, Clock, DollarSign, RefreshCw, Loader2, Wallet, ExternalLink } from 'lucide-react';
+import { Key, Plus, Copy, Trash2, Eye, EyeOff, AlertCircle, BookOpen, Zap, Download } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { apiKeyService, ApiKeyDisplay } from '@/services/apiKeyService';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface PlatformAPIKey {
   id: string;
@@ -57,38 +55,9 @@ interface Avatar {
   name: string;
 }
 
-interface TokenUsage {
-  id: string;
-  service: string;
-  operation: string;
-  model: string | null;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  cost_usd: number;
-  created_at: string;
-}
-
-interface UsageSummary {
-  service: string;
-  request_count: number;
-  total_tokens: number;
-  total_cost: number;
-}
-
-interface APIBalance {
-  service: string;
-  balance: number | null;
-  currency: string;
-  error?: string;
-  loading: boolean;
-  lastUpdated?: Date;
-}
-
 const APIKeysSection = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const [apiKeys, setApiKeys] = useState<PlatformAPIKey[]>([]);
   const [avatars, setAvatars] = useState<Avatar[]>([]);
@@ -105,22 +74,6 @@ const APIKeysSection = () => {
 
   // Docs state
   const [selectedDocsAvatar, setSelectedDocsAvatar] = useState<string>('');
-
-  // Usage state
-  const [usageData, setUsageData] = useState<TokenUsage[]>([]);
-  const [usageSummary, setUsageSummary] = useState<UsageSummary[]>([]);
-  const [usageLoading, setUsageLoading] = useState(false);
-  const [usagePeriod, setUsagePeriod] = useState<'7d' | '30d' | '90d'>('30d');
-
-  // External API Keys state (for OpenAI, Kie.AI)
-  const [showExternalKeys, setShowExternalKeys] = useState<Record<string, boolean>>({});
-  const [newExternalApiKey, setNewExternalApiKey] = useState({ name: '', service: '', key: '' });
-
-  // API Balances state
-  const [apiBalances, setApiBalances] = useState<APIBalance[]>([
-    { service: 'openai', balance: null, currency: 'USD', loading: false },
-    { service: 'kie-ai', balance: null, currency: 'USD', loading: false }
-  ]);
 
   // Constants
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA';
@@ -172,7 +125,7 @@ const APIKeysSection = () => {
         .from('avatars')
         .select('id, name')
         .eq('user_id', user?.id)
-        .eq('status', 'active') // Only show active chatbots (matches RLS policy)
+        .eq('status', 'active')
         .order('name');
 
       if (error) throw error;
@@ -181,223 +134,6 @@ const APIKeysSection = () => {
       console.error('Error loading avatars:', error);
     }
   };
-
-  const loadUsageData = async () => {
-    setUsageLoading(true);
-    try {
-      // Calculate date range
-      const days = usagePeriod === '7d' ? 7 : usagePeriod === '30d' ? 30 : 90;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-
-      // Fetch usage data
-      const { data, error } = await supabase
-        .from('token_usage')
-        .select('*')
-        .eq('user_id', user?.id)
-        .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      // Handle table not existing (migration not run yet)
-      if (error && (error.code === 'PGRST205' || error.message?.includes('not find'))) {
-        // Table doesn't exist yet, just show empty state
-        setUsageData([]);
-        setUsageSummary([]);
-        return;
-      }
-
-      if (error) throw error;
-
-      setUsageData(data || []);
-
-      // Calculate summary by service
-      const summaryMap = new Map<string, UsageSummary>();
-      (data || []).forEach(item => {
-        const existing = summaryMap.get(item.service) || {
-          service: item.service,
-          request_count: 0,
-          total_tokens: 0,
-          total_cost: 0
-        };
-        existing.request_count += 1;
-        existing.total_tokens += item.total_tokens || 0;
-        existing.total_cost += parseFloat(item.cost_usd?.toString() || '0');
-        summaryMap.set(item.service, existing);
-      });
-
-      setUsageSummary(Array.from(summaryMap.values()));
-    } catch (error: any) {
-      // Silently handle errors - usage tracking is optional
-      console.warn('Usage tracking not available:', error.message);
-      setUsageData([]);
-      setUsageSummary([]);
-    } finally {
-      setUsageLoading(false);
-    }
-  };
-
-  // Load usage data when period changes
-  useEffect(() => {
-    if (user) {
-      loadUsageData();
-    }
-  }, [user, usagePeriod]);
-
-  // Fetch External API keys from database
-  const { data: externalApiKeys = [], isLoading: externalApiKeysLoading } = useQuery({
-    queryKey: ['external-api-keys', user?.id],
-    queryFn: () => apiKeyService.getUserApiKeys(user!.id),
-    enabled: !!user?.id
-  });
-
-  // Add External API key mutation
-  const addExternalApiKeyMutation = useMutation({
-    mutationFn: ({ name, service, key }: { name: string; service: string; key: string }) =>
-      apiKeyService.addApiKey(user!.id, name, service, key),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['external-api-keys', user?.id] });
-      setNewExternalApiKey({ name: '', service: '', key: '' });
-      toast({
-        title: "API Key Added",
-        description: "Your external API key has been successfully added.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to add API key. Please try again.",
-        variant: "destructive"
-      });
-      console.error('Error adding API key:', error);
-    }
-  });
-
-  const handleAddExternalApiKey = () => {
-    if (newExternalApiKey.name && newExternalApiKey.service && newExternalApiKey.key) {
-      addExternalApiKeyMutation.mutate(newExternalApiKey);
-    }
-  };
-
-  // Delete External API key mutation
-  const deleteExternalApiKeyMutation = useMutation({
-    mutationFn: (keyId: string) => apiKeyService.deleteApiKey(keyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['external-api-keys', user?.id] });
-      toast({
-        title: "API Key Deleted",
-        description: "The API key has been removed from your account.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to delete API key. Please try again.",
-        variant: "destructive"
-      });
-      console.error('Error deleting API key:', error);
-    }
-  });
-
-  const handleDeleteExternalApiKey = (id: string) => {
-    deleteExternalApiKeyMutation.mutate(id);
-  };
-
-  const toggleExternalKeyVisibility = (id: string) => {
-    setShowExternalKeys(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  // Fetch OpenAI balance
-  const fetchOpenAIBalance = async () => {
-    setApiBalances(prev => prev.map(b =>
-      b.service === 'openai' ? { ...b, loading: true, error: undefined } : b
-    ));
-
-    try {
-      // Get the OpenAI API key from user's stored keys (use 'OpenAI' to match stored service name)
-      const openaiKey = await apiKeyService.getDecryptedApiKey(user!.id, 'OpenAI');
-
-      if (!openaiKey) {
-        setApiBalances(prev => prev.map(b =>
-          b.service === 'openai' ? { ...b, loading: false, error: 'No OpenAI API key configured' } : b
-        ));
-        return;
-      }
-
-      // Note: OpenAI's billing API is not publicly available through API keys
-      // Users should check their balance at platform.openai.com/usage
-      setApiBalances(prev => prev.map(b =>
-        b.service === 'openai' ? {
-          ...b,
-          loading: false,
-          balance: null,
-          error: 'Check balance at platform.openai.com/usage',
-          lastUpdated: new Date()
-        } : b
-      ));
-
-    } catch (error: any) {
-      setApiBalances(prev => prev.map(b =>
-        b.service === 'openai' ? {
-          ...b,
-          loading: false,
-          error: 'Check balance at platform.openai.com/usage'
-        } : b
-      ));
-    }
-  };
-
-  // Fetch Kie.AI balance
-  const fetchKieAIBalance = async () => {
-    setApiBalances(prev => prev.map(b =>
-      b.service === 'kie-ai' ? { ...b, loading: true, error: undefined } : b
-    ));
-
-    try {
-      const kieKey = await apiKeyService.getDecryptedApiKey(user!.id, 'kie-ai');
-
-      if (!kieKey) {
-        setApiBalances(prev => prev.map(b =>
-          b.service === 'kie-ai' ? { ...b, loading: false, error: 'No Kie.AI API key configured' } : b
-        ));
-        return;
-      }
-
-      // Note: Kie.AI balance API endpoint may vary
-      // Users should check their balance at kie.ai/dashboard
-      setApiBalances(prev => prev.map(b =>
-        b.service === 'kie-ai' ? {
-          ...b,
-          loading: false,
-          balance: null,
-          error: 'Check balance at kie.ai/dashboard',
-          lastUpdated: new Date()
-        } : b
-      ));
-
-    } catch (error: any) {
-      setApiBalances(prev => prev.map(b =>
-        b.service === 'kie-ai' ? {
-          ...b,
-          loading: false,
-          error: 'Check balance at kie.ai/dashboard'
-        } : b
-      ));
-    }
-  };
-
-  // Fetch all balances
-  const fetchAllBalances = async () => {
-    if (!user) return;
-    await Promise.all([fetchOpenAIBalance(), fetchKieAIBalance()]);
-  };
-
-  // Auto-fetch balances on load when external keys exist
-  useEffect(() => {
-    if (user && externalApiKeys.length > 0) {
-      fetchAllBalances();
-    }
-  }, [user, externalApiKeys]);
 
   const generateAPIKey = () => {
     const randomBytes = new Uint8Array(32);
@@ -552,9 +288,8 @@ const APIKeysSection = () => {
       </div>
 
       <Tabs defaultValue="platform" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="platform">Platform API Keys</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="docs">Documentation</TabsTrigger>
         </TabsList>
 
@@ -577,319 +312,88 @@ const APIKeysSection = () => {
             </Button>
           </div>
 
-      {/* API Keys Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Your API Keys</CardTitle>
-          <CardDescription>
-            Manage your platform API keys for integrations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
-          ) : apiKeys.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No API keys yet. Create one to get started.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Key</TableHead>
-                  <TableHead>Chatbot</TableHead>
-                  <TableHead>Scopes</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Usage</TableHead>
-                  <TableHead>Last Used</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {apiKeys.map((key) => (
-                  <TableRow key={key.id}>
-                    <TableCell className="font-medium">
-                      {key.key_name}
-                      {key.description && (
-                        <div className="text-xs text-muted-foreground mt-1">{key.description}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {key.api_key_prefix}
-                    </TableCell>
-                    <TableCell>
-                      {key.avatar_name || 'All Chatbots'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {key.scopes.map(scope => (
-                          <Badge key={scope} variant="outline" className="text-xs">
-                            {scope}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={key.status === 'active' ? 'default' : 'secondary'}>
-                        {key.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {key.request_count.toLocaleString()} requests
-                    </TableCell>
-                    <TableCell>
-                      {formatDate(key.last_used_at)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => toggleKeyStatus(key.id, key.status)}
-                        >
-                          {key.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteAPIKey(key.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-        </TabsContent>
-
-        {/* Usage Tab */}
-        <TabsContent value="usage" className="space-y-6">
-          {/* API Balances Section */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-medium flex items-center gap-2">
-                <Wallet className="h-5 w-5" />
-                API Credit Balances
-              </h3>
-              <p className="text-sm text-muted-foreground">Check your credit balances at each provider's dashboard</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Info about API Keys */}
-              <Card className="md:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Key className="h-4 w-4" />
-                    AI Service API Keys
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      API keys for AI services (OpenAI, etc.) are managed by your administrator as part of your subscription.
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Your usage is included in your subscription plan. Contact your administrator if you have questions about usage limits.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          <div className="border-t pt-6">
-            {/* Period Selector */}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-medium">Token Usage Overview</h3>
-                <p className="text-sm text-muted-foreground">Track your API and AI token usage across services</p>
-              </div>
-              <Select value={usagePeriod} onValueChange={(v) => setUsagePeriod(v as '7d' | '30d' | '90d')}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7d">Last 7 days</SelectItem>
-                  <SelectItem value="30d">Last 30 days</SelectItem>
-                  <SelectItem value="90d">Last 90 days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-          {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {usageSummary.reduce((acc, s) => acc + s.request_count, 0).toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {usagePeriod === '7d' ? 'Last 7 days' : usagePeriod === '30d' ? 'Last 30 days' : 'Last 90 days'}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {usageSummary.reduce((acc, s) => acc + s.total_tokens, 0).toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Input + Output tokens
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Est. Cost (USD)</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  ${usageSummary.reduce((acc, s) => acc + s.total_cost, 0).toFixed(4)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Approximate cost
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Services Used</CardTitle>
-                <Zap className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {usageSummary.length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Active services
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Usage by Service */}
+          {/* API Keys Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Usage by Service</CardTitle>
-              <CardDescription>Breakdown of token usage across different services</CardDescription>
+              <CardTitle>Your API Keys</CardTitle>
+              <CardDescription>
+                Manage your platform API keys for integrations
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {usageLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Loading usage data...</div>
-              ) : usageSummary.length === 0 ? (
-                <div className="text-center py-8">
-                  <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No usage data yet</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Token usage will appear here as you use AI services like Prompt Engineer, n8n workflows, and more.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {usageSummary.map((service) => (
-                    <div key={service.service} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          {service.service === 'openai' && <span className="text-lg">🤖</span>}
-                          {service.service === 'n8n' && <Zap className="w-5 h-5 text-orange-500" />}
-                          {service.service === 'kie_ai' && <span className="text-lg">🎨</span>}
-                          {service.service === 'whatsapp' && <span className="text-lg">💬</span>}
-                          {!['openai', 'n8n', 'kie_ai', 'whatsapp'].includes(service.service) && (
-                            <BarChart3 className="w-5 h-5 text-primary" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium capitalize">{service.service.replace('_', ' ')}</p>
-                          <p className="text-sm text-muted-foreground">{service.request_count} requests</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">{service.total_tokens.toLocaleString()} tokens</p>
-                        <p className="text-sm text-muted-foreground">${service.total_cost.toFixed(4)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                Recent Activity
-              </CardTitle>
-              <CardDescription>Latest token usage across all services</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {usageLoading ? (
+              {isLoading ? (
                 <div className="text-center py-8 text-muted-foreground">Loading...</div>
-              ) : usageData.length === 0 ? (
+              ) : apiKeys.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No recent activity to display
+                  No API keys yet. Create one to get started.
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Service</TableHead>
-                      <TableHead>Operation</TableHead>
-                      <TableHead>Model</TableHead>
-                      <TableHead className="text-right">Tokens</TableHead>
-                      <TableHead className="text-right">Cost</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Key</TableHead>
+                      <TableHead>Chatbot</TableHead>
+                      <TableHead>Scopes</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Usage</TableHead>
+                      <TableHead>Last Used</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {usageData.slice(0, 20).map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(item.created_at).toLocaleString('en-MY', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                    {apiKeys.map((key) => (
+                      <TableRow key={key.id}>
+                        <TableCell className="font-medium">
+                          {key.key_name}
+                          {key.description && (
+                            <div className="text-xs text-muted-foreground mt-1">{key.description}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {key.api_key_prefix}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {item.service.replace('_', ' ')}
+                          {key.avatar_name || 'All Chatbots'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {key.scopes.map(scope => (
+                              <Badge key={scope} variant="outline" className="text-xs">
+                                {scope}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={key.status === 'active' ? 'default' : 'secondary'}>
+                            {key.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm">{item.operation}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {item.model || '-'}
+                        <TableCell>
+                          {key.request_count.toLocaleString()} requests
                         </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-sm">{item.total_tokens.toLocaleString()}</span>
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({item.input_tokens}+{item.output_tokens})
-                          </span>
+                        <TableCell>
+                          {formatDate(key.last_used_at)}
                         </TableCell>
-                        <TableCell className="text-right text-sm">
-                          ${parseFloat(item.cost_usd?.toString() || '0').toFixed(4)}
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleKeyStatus(key.id, key.status)}
+                            >
+                              {key.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteAPIKey(key.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -898,16 +402,6 @@ const APIKeysSection = () => {
               )}
             </CardContent>
           </Card>
-
-          {/* Info Card */}
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Token usage is tracked automatically when you use AI-powered features like Prompt Engineer, n8n AI workflows, and image/video generation.
-              Costs shown are estimates based on standard API pricing and may vary.
-            </AlertDescription>
-          </Alert>
-          </div>
         </TabsContent>
 
         {/* API Documentation Tab */}
