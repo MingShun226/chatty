@@ -126,24 +126,51 @@ export async function processChatbotMessage(
   )
 
   // =======================================
-  // 6. GET OPENAI API KEY
+  // 6. GET OPENAI API KEY (admin-assigned > user's key)
   // =======================================
-  const { data: apiKeyData } = await supabase
-    .from('user_api_keys')
+  let openaiApiKey: string | null = null
+
+  // First check for admin-assigned API key (platform-managed)
+  const { data: adminKey } = await supabase
+    .from('admin_assigned_api_keys')
     .select('api_key_encrypted')
     .eq('user_id', userId)
-    .ilike('service', 'openai')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
+    .eq('service', 'openai')
+    .eq('is_active', true)
+    .maybeSingle()
 
-  if (!apiKeyData) {
-    throw new Error('No OpenAI API key found for user')
+  if (adminKey?.api_key_encrypted) {
+    try {
+      openaiApiKey = atob(adminKey.api_key_encrypted)
+    } catch (e) {
+      console.error('Failed to decrypt admin-assigned API key')
+    }
   }
 
-  // Decrypt API key (simple base64 decode)
-  const openaiApiKey = atob(apiKeyData.api_key_encrypted)
+  // Fall back to user's own key if no admin-assigned key
+  if (!openaiApiKey) {
+    const { data: userKey } = await supabase
+      .from('user_api_keys')
+      .select('api_key_encrypted')
+      .eq('user_id', userId)
+      .ilike('service', 'openai')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (userKey?.api_key_encrypted) {
+      try {
+        openaiApiKey = atob(userKey.api_key_encrypted)
+      } catch (e) {
+        console.error('Failed to decrypt user API key')
+      }
+    }
+  }
+
+  if (!openaiApiKey) {
+    throw new Error('No OpenAI API key configured. Please contact your administrator.')
+  }
 
   // =======================================
   // 7. DEFINE TOOLS (FUNCTION CALLING)

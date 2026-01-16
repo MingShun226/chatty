@@ -65,7 +65,9 @@
       "Bash(railway list:*)",
       "Bash(npx tsc:*)",
       "Bash(wc:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(copy /Y \"public\\\\n8n-workflow-template.json\" \"docs\\\\n8n-workflow-template.json\")",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": []

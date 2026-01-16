@@ -298,26 +298,78 @@ When you have the full catalog from browse_full_catalog:
 
 After getting tool results, respond naturally based on the data returned.`
 
-    // Get OpenAI API key (case-insensitive search for service name)
-    const { data: apiKeyData } = await supabase
-      .from('user_api_keys')
+    // Get OpenAI API key (admin-assigned > user's key)
+    let openaiApiKey: string | null = null
+    let keySource: 'admin' | 'user' = 'admin'
+
+    // First check for admin-assigned API key (platform-managed)
+    const { data: adminKey } = await supabase
+      .from('admin_assigned_api_keys')
       .select('api_key_encrypted')
       .eq('user_id', userId)
-      .ilike('service', 'openai')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+      .eq('service', 'openai')
+      .eq('is_active', true)
+      .maybeSingle()
 
-    if (!apiKeyData) {
+    if (adminKey?.api_key_encrypted) {
+      try {
+        openaiApiKey = atob(adminKey.api_key_encrypted)
+        console.log('Using admin-assigned OpenAI API key')
+      } catch (e) {
+        console.error('Failed to decrypt admin-assigned API key')
+      }
+    }
+
+    // Fall back to user's own key if no admin-assigned key
+    if (!openaiApiKey) {
+      keySource = 'user'
+      const { data: userKey } = await supabase
+        .from('user_api_keys')
+        .select('api_key_encrypted')
+        .eq('user_id', userId)
+        .ilike('service', 'openai')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (userKey?.api_key_encrypted) {
+        try {
+          openaiApiKey = atob(userKey.api_key_encrypted)
+          console.log('Using user personal OpenAI API key')
+        } catch (e) {
+          console.error('Failed to decrypt user API key')
+        }
+      }
+    }
+
+    if (!openaiApiKey) {
       return new Response(
-        JSON.stringify({ error: 'No OpenAI API key found for user' }),
+        JSON.stringify({ error: 'No OpenAI API key configured. Please contact your administrator.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Decrypt API key (simple base64 decode - match your encryption)
-    const openaiApiKey = atob(apiKeyData.api_key_encrypted)
+    // Update last_used_at for the appropriate key (async, don't wait)
+    if (keySource === 'admin') {
+      supabase
+        .from('admin_assigned_api_keys')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('service', 'openai')
+        .eq('is_active', true)
+        .then(() => {})
+        .catch(() => {})
+    } else {
+      supabase
+        .from('user_api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('service', 'openai')
+        .eq('status', 'active')
+        .then(() => {})
+        .catch(() => {})
+    }
 
     // Define tools/functions the AI can call
     const tools = [

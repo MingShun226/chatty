@@ -43,7 +43,7 @@ async function uploadToStorage(
   return publicUrl;
 }
 
-// Helper function to get API key
+// Helper function to get API key (admin-assigned > user's key > platform key)
 async function getApiKey(
   supabase: any,
   userId: string,
@@ -52,6 +52,36 @@ async function getApiKey(
 ): Promise<string> {
   console.log(`Getting API key for provider: ${provider}, user: ${userId}`);
 
+  // First check for admin-assigned API key (platform-managed)
+  const { data: adminKey } = await supabase
+    .from('admin_assigned_api_keys')
+    .select('api_key_encrypted')
+    .eq('user_id', userId)
+    .eq('service', provider)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (adminKey?.api_key_encrypted) {
+    console.log(`Using admin-assigned ${provider} API key`);
+
+    // Update last_used_at (async, don't wait)
+    supabase
+      .from('admin_assigned_api_keys')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('service', provider)
+      .eq('is_active', true)
+      .then(() => {})
+      .catch(() => {});
+
+    try {
+      return atob(adminKey.api_key_encrypted);
+    } catch (e) {
+      console.error('Failed to decrypt admin-assigned API key:', e);
+    }
+  }
+
+  // Fall back to user's personal API key
   const { data: userKey, error } = await supabase
     .from('user_api_keys')
     .select('api_key_encrypted')
@@ -60,17 +90,20 @@ async function getApiKey(
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!error && userKey?.api_key_encrypted) {
     console.log(`Using user's personal ${provider} API key`);
 
-    await supabase
+    // Update last_used_at (async, don't wait)
+    supabase
       .from('user_api_keys')
       .update({ last_used_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('service', provider)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .then(() => {})
+      .catch(() => {});
 
     try {
       return atob(userKey.api_key_encrypted);
@@ -80,6 +113,7 @@ async function getApiKey(
     }
   }
 
+  // Fall back to platform key
   if (platformKey) {
     console.log(`Using platform ${provider} API key`);
     return platformKey;
@@ -90,7 +124,7 @@ async function getApiKey(
   };
 
   const providerName = providerNames[provider] || provider;
-  const errorMessage = `No ${providerName} API key configured. Please add your API key in Settings > API Management to use this service.`;
+  const errorMessage = `No ${providerName} API key configured. Please contact your administrator.`;
 
   console.error(errorMessage);
   throw new Error(errorMessage);

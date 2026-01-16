@@ -45,9 +45,36 @@ function getSizeMultiplier(quality: string): number {
   }
 }
 
-// Get KIE.AI API key
+// Get KIE.AI API key (admin-assigned > user's key > platform key)
 async function getKieApiKey(supabase: any, userId: string): Promise<string> {
-  // Try user's personal key first
+  // First check for admin-assigned API key (platform-managed)
+  const { data: adminKey } = await supabase
+    .from('admin_assigned_api_keys')
+    .select('api_key_encrypted')
+    .eq('user_id', userId)
+    .eq('service', 'kie-ai')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (adminKey?.api_key_encrypted) {
+    try {
+      console.log('Using admin-assigned KIE.AI API key');
+      // Update last_used_at (async, don't wait)
+      supabase
+        .from('admin_assigned_api_keys')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('service', 'kie-ai')
+        .eq('is_active', true)
+        .then(() => {})
+        .catch(() => {});
+      return atob(adminKey.api_key_encrypted);
+    } catch (e) {
+      console.error('Failed to decrypt admin-assigned KIE API key');
+    }
+  }
+
+  // Fall back to user's personal key
   const { data: userKey } = await supabase
     .from('user_api_keys')
     .select('api_key_encrypted')
@@ -55,10 +82,20 @@ async function getKieApiKey(supabase: any, userId: string): Promise<string> {
     .eq('service', 'kie-ai')
     .eq('status', 'active')
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (userKey?.api_key_encrypted) {
     try {
+      console.log('Using user personal KIE.AI API key');
+      // Update last_used_at (async, don't wait)
+      supabase
+        .from('user_api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('service', 'kie-ai')
+        .eq('status', 'active')
+        .then(() => {})
+        .catch(() => {});
       return atob(userKey.api_key_encrypted);
     } catch (e) {
       console.error('Failed to decrypt user KIE API key');
@@ -68,8 +105,9 @@ async function getKieApiKey(supabase: any, userId: string): Promise<string> {
   // Fall back to platform key
   const platformKey = Deno.env.get('KIE_API_KEY');
   if (!platformKey) {
-    throw new Error('No KIE.AI API key available. Please add your API key in Settings.');
+    throw new Error('No KIE.AI API key configured. Please contact your administrator.');
   }
+  console.log('Using platform KIE.AI API key');
   return platformKey;
 }
 

@@ -75,22 +75,58 @@ serve(async (req: Request) => {
       )
     }
 
-    // Get user's OpenAI API key
-    const { data: userKey, error: keyError } = await supabase
-      .from('user_api_keys')
+    // Get OpenAI API key (admin-assigned > user's key)
+    let apiKey: string | null = null
+    let keySource: 'admin' | 'user' = 'admin'
+
+    // First check for admin-assigned API key (platform-managed)
+    const { data: adminKey } = await supabase
+      .from('admin_assigned_api_keys')
       .select('api_key_encrypted')
       .eq('user_id', user.id)
       .eq('service', 'openai')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('is_active', true)
       .maybeSingle()
 
-    console.log('API Key Query:', { user_id: user.id, keyError, hasKey: !!userKey?.api_key_encrypted })
+    if (adminKey?.api_key_encrypted) {
+      try {
+        apiKey = atob(adminKey.api_key_encrypted)
+        console.log('Using admin-assigned OpenAI API key')
+      } catch (e) {
+        console.error('Failed to decrypt admin-assigned API key')
+      }
+    }
 
-    if (keyError) {
+    // Fall back to user's own key if no admin-assigned key
+    if (!apiKey) {
+      keySource = 'user'
+      const { data: userKey, error: keyError } = await supabase
+        .from('user_api_keys')
+        .select('api_key_encrypted')
+        .eq('user_id', user.id)
+        .eq('service', 'openai')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (keyError) {
+        console.error('Error fetching user API key:', keyError.message)
+      }
+
+      if (userKey?.api_key_encrypted) {
+        try {
+          apiKey = atob(userKey.api_key_encrypted)
+          console.log('Using user personal OpenAI API key')
+        } catch (e) {
+          console.error('Failed to decrypt user API key')
+        }
+      }
+    }
+
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: `Database error fetching API key: ${keyError.message}` }),
+        JSON.stringify({ error: 'No OpenAI API key configured. Please contact your administrator.' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -98,39 +134,26 @@ serve(async (req: Request) => {
       )
     }
 
-    if (!userKey?.api_key_encrypted) {
-      return new Response(
-        JSON.stringify({ error: 'No OpenAI API key found. Please add one in Settings > API Keys.' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    // Update last_used_at for the appropriate key (async, don't wait)
+    if (keySource === 'admin') {
+      supabase
+        .from('admin_assigned_api_keys')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('service', 'openai')
+        .eq('is_active', true)
+        .then(() => {})
+        .catch(() => {})
+    } else {
+      supabase
+        .from('user_api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('service', 'openai')
+        .eq('status', 'active')
+        .then(() => {})
+        .catch(() => {})
     }
-
-    // Decrypt API key
-    let apiKey: string
-    try {
-      apiKey = atob(userKey.api_key_encrypted)
-    } catch (e) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to decrypt API key' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Update last_used_at (async, don't wait)
-    supabase
-      .from('user_api_keys')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .eq('service', 'OpenAI')
-      .eq('status', 'active')
-      .then(() => {})
-      .catch(() => {})
 
     // Call OpenAI Vision API to analyze the product image
     const visionPrompt = prompt || `Analyze this product image in detail. Provide a structured JSON response with:
