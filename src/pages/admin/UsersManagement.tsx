@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import {
   Table,
   TableBody,
@@ -31,6 +32,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -45,9 +53,16 @@ import {
   Loader2,
   Bot,
   RefreshCw,
-  Eye
+  Settings,
+  Key,
+  Save,
+  Trash2,
+  X,
+  Calendar,
+  Mail,
+  User,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import type { SubscriptionTier } from '@/types/admin';
 
@@ -66,8 +81,17 @@ interface UserRow {
   chatbots_count: number;
 }
 
+interface AdminAssignedApiKey {
+  id: string;
+  user_id: string;
+  service: string;
+  api_key_encrypted: string;
+  project_name: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export const UsersManagement = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
@@ -76,6 +100,18 @@ export const UsersManagement = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [loginAsDialog, setLoginAsDialog] = useState<{ open: boolean; user: UserRow | null }>({ open: false, user: null });
   const [loginAsLoading, setLoginAsLoading] = useState(false);
+
+  // User Details Sheet State
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [userApiKeys, setUserApiKeys] = useState<AdminAssignedApiKey[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+
+  // API Key Form State
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [kieaiKey, setKieaiKey] = useState('');
+  const [savingOpenai, setSavingOpenai] = useState(false);
+  const [savingKieai, setSavingKieai] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -100,14 +136,12 @@ export const UsersManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // First, get all admin user IDs to exclude them from the list
       const { data: adminUsers } = await supabase
         .from('admin_users')
         .select('user_id');
 
       const adminUserIds = new Set(adminUsers?.map(a => a.user_id) || []);
 
-      // Fetch profiles with tier info
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select(`
@@ -127,10 +161,8 @@ export const UsersManagement = () => {
 
       if (profilesError) throw profilesError;
 
-      // Filter out admin users - they are managed in Admin Management page
       const nonAdminProfiles = (profiles || []).filter(p => !adminUserIds.has(p.id));
 
-      // Fetch chatbot counts for each user in parallel
       const usersWithCounts = await Promise.all(
         nonAdminProfiles.map(async (profile) => {
           const { count: chatbotsCount } = await supabase
@@ -155,6 +187,123 @@ export const UsersManagement = () => {
     }
   };
 
+  const fetchUserApiKeys = async (userId: string) => {
+    setApiKeysLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('admin_assigned_api_keys')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      setUserApiKeys(data || []);
+
+      // Reset form fields
+      setOpenaiKey('');
+      setKieaiKey('');
+    } catch (error) {
+      console.error('Error fetching user API keys:', error);
+    } finally {
+      setApiKeysLoading(false);
+    }
+  };
+
+  const handleOpenUserSheet = (user: UserRow) => {
+    setSelectedUser(user);
+    setSheetOpen(true);
+    fetchUserApiKeys(user.id);
+  };
+
+  const handleCloseSheet = () => {
+    setSheetOpen(false);
+    setSelectedUser(null);
+    setUserApiKeys([]);
+    setOpenaiKey('');
+    setKieaiKey('');
+  };
+
+  const handleSaveApiKey = async (service: 'openai' | 'kie-ai', apiKey: string) => {
+    if (!selectedUser || !apiKey.trim()) return;
+
+    const setSaving = service === 'openai' ? setSavingOpenai : setSavingKieai;
+    setSaving(true);
+
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const encryptedKey = btoa(apiKey.trim());
+
+      const existingKey = userApiKeys.find(k => k.service === service);
+
+      if (existingKey) {
+        const { error } = await supabase
+          .from('admin_assigned_api_keys')
+          .update({
+            api_key_encrypted: encryptedKey,
+            assigned_by: currentUser?.id,
+            is_active: true,
+          })
+          .eq('id', existingKey.id);
+
+        if (error) throw error;
+        toast({ title: 'API Key Updated', description: `${service === 'openai' ? 'OpenAI' : 'KIE.AI'} API key updated.` });
+      } else {
+        const { error } = await supabase
+          .from('admin_assigned_api_keys')
+          .insert({
+            user_id: selectedUser.id,
+            service: service,
+            api_key_encrypted: encryptedKey,
+            assigned_by: currentUser?.id,
+            is_active: true,
+          });
+
+        if (error) throw error;
+        toast({ title: 'API Key Assigned', description: `${service === 'openai' ? 'OpenAI' : 'KIE.AI'} API key assigned.` });
+      }
+
+      // Clear input and refresh
+      if (service === 'openai') setOpenaiKey('');
+      else setKieaiKey('');
+      await fetchUserApiKeys(selectedUser.id);
+    } catch (error: any) {
+      console.error('Error saving API key:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to save API key', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteApiKey = async (keyId: string, serviceName: string) => {
+    if (!selectedUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('admin_assigned_api_keys')
+        .delete()
+        .eq('id', keyId);
+
+      if (error) throw error;
+
+      toast({ title: 'API Key Removed', description: `${serviceName} API key removed.` });
+      await fetchUserApiKeys(selectedUser.id);
+    } catch (error: any) {
+      console.error('Error deleting API key:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to delete API key', variant: 'destructive' });
+    }
+  };
+
+  const maskApiKey = (key: string): string => {
+    try {
+      const decrypted = atob(key);
+      if (decrypted.length <= 10) return '****';
+      return `${decrypted.substring(0, 7)}...${decrypted.substring(decrypted.length - 4)}`;
+    } catch {
+      return '****';
+    }
+  };
+
+  const getExistingKey = (service: string) => userApiKeys.find(k => k.service === service);
+
   const handleTierChange = async (userId: string, newTierId: string) => {
     setActionLoading(userId);
     try {
@@ -165,7 +314,6 @@ export const UsersManagement = () => {
 
       if (error) throw error;
 
-      // Update local state
       setUsers(prev => prev.map(u => {
         if (u.id === userId) {
           const newTier = tiers.find(t => t.id === newTierId);
@@ -273,7 +421,7 @@ export const UsersManagement = () => {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage platform users, subscriptions, and access</CardDescription>
+                <CardDescription>Manage platform users, subscriptions, and API keys</CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={fetchUsers}>
                 <RefreshCw className="h-4 w-4 mr-2" />
@@ -317,7 +465,7 @@ export const UsersManagement = () => {
                     </TableRow>
                   ) : (
                     filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
+                      <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleOpenUserSheet(user)}>
                         {/* User Info */}
                         <TableCell>
                           <div>
@@ -330,7 +478,7 @@ export const UsersManagement = () => {
                         </TableCell>
 
                         {/* Subscription Tier */}
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Select
                             value={user.subscription_tier_id || 'none'}
                             onValueChange={(value) => handleTierChange(user.id, value === 'none' ? '' : value)}
@@ -369,21 +517,21 @@ export const UsersManagement = () => {
                         </TableCell>
 
                         {/* Actions */}
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
-                            {/* View Details */}
+                            {/* Settings */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => navigate(`/admin/users/${user.id}`)}
+                                  onClick={() => handleOpenUserSheet(user)}
                                   className="h-8 px-2"
                                 >
-                                  <Eye className="h-3.5 w-3.5" />
+                                  <Settings className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>View user details</TooltipContent>
+                              <TooltipContent>Manage user</TooltipContent>
                             </Tooltip>
 
                             {/* Login As */}
@@ -450,6 +598,189 @@ export const UsersManagement = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* User Details Sheet */}
+        <Sheet open={sheetOpen} onOpenChange={(open) => !open && handleCloseSheet()}>
+          <SheetContent className="w-[400px] sm:w-[450px] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                User Settings
+              </SheetTitle>
+              <SheetDescription>
+                Manage API keys and view user details
+              </SheetDescription>
+            </SheetHeader>
+
+            {selectedUser && (
+              <div className="mt-6 space-y-6">
+                {/* User Info Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{selectedUser.name || 'No name'}</p>
+                      <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Joined {format(new Date(selectedUser.created_at), 'MMM d, yyyy')}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(selectedUser.account_status)}
+                    </div>
+                  </div>
+
+                  {selectedUser.subscription_tier && (
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">Current Plan</p>
+                      <p className="font-medium">{selectedUser.subscription_tier.display_name}</p>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* API Keys Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4" />
+                    <h3 className="font-medium">API Keys</h3>
+                  </div>
+
+                  {apiKeysLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* OpenAI Key */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">OpenAI API Key</Label>
+                        {getExistingKey('openai') ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 p-2 bg-muted rounded-md font-mono text-sm">
+                              {maskApiKey(getExistingKey('openai')!.api_key_encrypted)}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteApiKey(getExistingKey('openai')!.id, 'OpenAI')}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              type="password"
+                              placeholder="sk-proj-..."
+                              value={openaiKey}
+                              onChange={(e) => setOpenaiKey(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveApiKey('openai', openaiKey)}
+                              disabled={savingOpenai || !openaiKey.trim()}
+                            >
+                              {savingOpenai ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        )}
+                        {getExistingKey('openai') && (
+                          <div className="flex gap-2">
+                            <Input
+                              type="password"
+                              placeholder="Enter new key to update..."
+                              value={openaiKey}
+                              onChange={(e) => setOpenaiKey(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSaveApiKey('openai', openaiKey)}
+                              disabled={savingOpenai || !openaiKey.trim()}
+                            >
+                              {savingOpenai ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Update'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* KIE.AI Key */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">KIE.AI API Key</Label>
+                        {getExistingKey('kie-ai') ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 p-2 bg-muted rounded-md font-mono text-sm">
+                              {maskApiKey(getExistingKey('kie-ai')!.api_key_encrypted)}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteApiKey(getExistingKey('kie-ai')!.id, 'KIE.AI')}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              type="password"
+                              placeholder="kie-..."
+                              value={kieaiKey}
+                              onChange={(e) => setKieaiKey(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveApiKey('kie-ai', kieaiKey)}
+                              disabled={savingKieai || !kieaiKey.trim()}
+                            >
+                              {savingKieai ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        )}
+                        {getExistingKey('kie-ai') && (
+                          <div className="flex gap-2">
+                            <Input
+                              type="password"
+                              placeholder="Enter new key to update..."
+                              value={kieaiKey}
+                              onChange={(e) => setKieaiKey(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSaveApiKey('kie-ai', kieaiKey)}
+                              disabled={savingKieai || !kieaiKey.trim()}
+                            >
+                              {savingKieai ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Update'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    These API keys will be used for this user's AI features (chatbot, image generation).
+                  </p>
+                </div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
 
         {/* Login As Confirmation Dialog */}
         <AlertDialog open={loginAsDialog.open} onOpenChange={(open) => setLoginAsDialog({ open, user: open ? loginAsDialog.user : null })}>

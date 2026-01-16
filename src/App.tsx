@@ -37,7 +37,6 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminDashboard } from '@/pages/admin/AdminDashboard';
 import { UsersManagement } from '@/pages/admin/UsersManagement';
 import { TiersManagementNew } from '@/pages/admin/TiersManagementNew';
-import { UserDetails } from '@/pages/admin/UserDetails';
 import { AdminSettings } from '@/pages/admin/AdminSettings';
 import { AdminStatistics } from '@/pages/admin/AdminStatistics';
 import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs';
@@ -255,7 +254,6 @@ function App() {
           >
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<UsersManagement />} />
-            <Route path="users/:userId" element={<UserDetails />} />
             <Route path="tiers" element={<TiersManagementNew />} />
             <Route path="statistics" element={<AdminStatistics />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
