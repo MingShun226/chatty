@@ -36,11 +36,15 @@ const hashApiKey = async (apiKey: string): Promise<string> => {
 /**
  * Create a platform API key for a chatbot
  * This is used when a chatbot is created to auto-generate an API key
+ *
+ * When an admin creates a key for another user, it uses the admin_create_platform_api_key
+ * database function to bypass RLS and correctly store the target user's user_id.
  */
 export const createPlatformApiKey = async (
   userId: string,
   chatbotId: string | null,
-  chatbotName: string
+  chatbotName: string,
+  isAdminCreating: boolean = false
 ): Promise<PlatformApiKeyResult> => {
   try {
     // Generate the API key
@@ -51,36 +55,68 @@ export const createPlatformApiKey = async (
     // Default scopes for auto-generated keys
     const defaultScopes = ['chat', 'config', 'products', 'promotions', 'knowledge'];
 
-    // Insert the API key into the database
-    const { data, error } = await supabase
-      .from('platform_api_keys')
-      .insert({
-        user_id: userId,
-        key_name: chatbotId ? `Auto: ${chatbotName}` : chatbotName,
-        api_key_hash: apiKeyHash,
-        api_key_prefix: apiKeyPrefix,
-        scopes: defaultScopes,
-        avatar_id: chatbotId, // Can be null for general keys
-        description: chatbotId
-          ? `Auto-generated API key for ${chatbotName}. Use this key for n8n integrations.`
-          : `General API key: ${chatbotName}`,
-        status: 'active'
-      })
-      .select('id')
-      .single();
+    const keyName = chatbotId ? `Auto: ${chatbotName}` : chatbotName;
+    const description = chatbotId
+      ? `Auto-generated API key for ${chatbotName}. Use this key for n8n integrations.`
+      : `General API key: ${chatbotName}`;
 
-    if (error) {
-      console.error('Error creating platform API key:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+    let keyId: string;
+
+    // If admin is creating key for another user, use the RPC function to bypass RLS
+    if (isAdminCreating) {
+      console.log('Admin creating API key for user:', userId, 'chatbot:', chatbotId);
+
+      const { data, error } = await supabase.rpc('admin_create_platform_api_key', {
+        p_user_id: userId,
+        p_key_name: keyName,
+        p_api_key_hash: apiKeyHash,
+        p_api_key_prefix: apiKeyPrefix,
+        p_scopes: defaultScopes,
+        p_avatar_id: chatbotId,
+        p_description: description
+      });
+
+      if (error) {
+        console.error('Error creating platform API key via admin RPC:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+
+      keyId = data;
+    } else {
+      // Regular insert for users creating their own keys
+      const { data, error } = await supabase
+        .from('platform_api_keys')
+        .insert({
+          user_id: userId,
+          key_name: keyName,
+          api_key_hash: apiKeyHash,
+          api_key_prefix: apiKeyPrefix,
+          scopes: defaultScopes,
+          avatar_id: chatbotId,
+          description: description,
+          status: 'active'
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Error creating platform API key:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+
+      keyId = data.id;
     }
 
     return {
       success: true,
       apiKey,
-      apiKeyId: data.id
+      apiKeyId: keyId
     };
   } catch (error: any) {
     console.error('Error in createPlatformApiKey:', error);
@@ -143,7 +179,8 @@ export const hasPlatformApiKey = async (
 export const regeneratePlatformApiKey = async (
   userId: string,
   chatbotId: string,
-  chatbotName: string
+  chatbotName: string,
+  isAdminCreating: boolean = false
 ): Promise<PlatformApiKeyResult> => {
   try {
     // Deactivate existing keys for this chatbot
@@ -155,7 +192,7 @@ export const regeneratePlatformApiKey = async (
       .eq('status', 'active');
 
     // Create a new key
-    return await createPlatformApiKey(userId, chatbotId, chatbotName);
+    return await createPlatformApiKey(userId, chatbotId, chatbotName, isAdminCreating);
   } catch (error: any) {
     console.error('Error regenerating platform API key:', error);
     return {

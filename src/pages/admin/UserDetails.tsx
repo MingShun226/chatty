@@ -349,7 +349,8 @@ export const UserDetails = () => {
       const result = await createPlatformApiKey(
         userId,
         chatbotId || null,
-        chatbotName || `API Key ${platformApiKeys.length + 1}`
+        chatbotName || `API Key ${platformApiKeys.length + 1}`,
+        true // isAdminCreating - use RPC to bypass RLS
       );
 
       if (result.success && result.apiKey) {
