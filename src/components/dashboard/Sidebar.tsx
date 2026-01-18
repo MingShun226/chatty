@@ -28,7 +28,6 @@ import {
   BookOpen,
   TestTube,
   Zap,
-  Wand2,
   Tag,
   UserPlus
 } from 'lucide-react';
@@ -48,7 +47,6 @@ const navigationItems = [
     children: [
       { id: 'chatbot-overview', label: 'Overview', icon: LayoutDashboard, path: '/chatbot/overview' },
       { id: 'chatbot-content', label: 'Content', icon: ShoppingBag, path: '/chatbot/content' },
-      { id: 'chatbot-ai-studio', label: 'Chatbot', icon: Wand2, path: '/chatbot/ai-studio' },
       { id: 'chatbot-whatsapp', label: 'WhatsApp', icon: MessageCircle, path: '/chatbot/whatsapp' },
       { id: 'chatbot-contacts', label: 'Contacts', icon: UserPlus, path: '/chatbot/contacts' },
     ]
@@ -62,7 +60,7 @@ const navigationItems = [
       { id: 'videos', label: 'Promo Videos', icon: Film, path: '/video-studio' },
     ]
   },
-  { id: 'api-keys', label: 'API Keys', icon: Key, path: '/api-keys' },
+  // API Keys removed - now managed by admin through User Details page
   { id: 'billing', label: 'Billing & Plans', icon: CreditCard, path: '/billing' },
 ];
 

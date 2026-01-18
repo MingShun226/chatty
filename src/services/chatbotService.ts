@@ -1,4 +1,3 @@
-import { apiKeyService } from './apiKeyService';
 import { supabase } from '@/integrations/supabase/client';
 import { RAGService } from './ragService';
 import { TrainingService } from './trainingService';
@@ -50,13 +49,6 @@ export const chatbotService = {
     model: string = 'gpt-3.5-turbo'
   ): Promise<string> {
     try {
-      // Get OpenAI API key from stored keys
-      const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-
-      if (!apiKey) {
-        throw new Error('No OpenAI API key found. Please add one in Settings > API Keys.');
-      }
-
       // Check if avatar has an active fine-tuned model
       const { data: avatarProfile, error: avatarError } = await supabase
         .from('avatars')

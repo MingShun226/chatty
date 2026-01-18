@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { apiKeyService } from './apiKeyService';
 
 export interface DocumentChunk {
   id: string;
@@ -77,33 +76,36 @@ export class RAGService {
     return chunks.filter(chunk => chunk.length > 50); // Filter out very small chunks
   }
 
-  // Generate embeddings using OpenAI API
+  // Generate embeddings using edge function (API key handled server-side)
   static async generateEmbedding(text: string, userId: string): Promise<number[]> {
-    const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-
-    if (!apiKey) {
-      throw new Error('OpenAI API key required for embeddings');
+    // Get session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
     }
 
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-ada-002',
-        input: text.slice(0, 8000) // Limit input length for API
-      })
-    });
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-embedding`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          text: text.slice(0, 8000),
+          model: 'text-embedding-ada-002'
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`Embedding API error: ${error.message || response.statusText}`);
+      throw new Error(error.error || `Embedding API error: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.data[0].embedding;
+    return data.embedding;
   }
 
   // Process and store document chunks with embeddings

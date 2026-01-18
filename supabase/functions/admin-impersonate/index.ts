@@ -1,7 +1,7 @@
 // Supabase Edge Function for Admin Impersonation
 // Allows admins to login as any user for support purposes
 // Endpoint: POST /admin-impersonate
-// Body: { targetUserId: string, targetEmail: string }
+// Body: { targetUserId: string }
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -83,16 +83,16 @@ serve(async (req) => {
     }
 
     // Get request body
-    const { targetUserId, targetEmail } = await req.json()
+    const { targetUserId } = await req.json()
 
-    if (!targetUserId || !targetEmail) {
+    if (!targetUserId) {
       return new Response(
-        JSON.stringify({ error: 'Missing targetUserId or targetEmail' }),
+        JSON.stringify({ error: 'Missing targetUserId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Verify target user exists and is active
+    // Verify target user exists and is active, and get their email
     const { data: targetUser, error: targetError } = await supabaseAdmin
       .from('profiles')
       .select('id, email, account_status')
@@ -106,6 +106,13 @@ serve(async (req) => {
       )
     }
 
+    if (!targetUser.email) {
+      return new Response(
+        JSON.stringify({ error: 'Target user has no email' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     if (targetUser.account_status !== 'active') {
       return new Response(
         JSON.stringify({ error: 'Cannot impersonate inactive user' }),
@@ -114,11 +121,12 @@ serve(async (req) => {
     }
 
     // Generate magic link for the target user
-    const siteUrl = Deno.env.get('SITE_URL') || 'https://chatty.my'
+    // Use SITE_URL env var, fallback to production URL
+    const siteUrl = Deno.env.get('SITE_URL') || 'https://chatty-five-blush.vercel.app'
 
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
-      email: targetEmail,
+      email: targetUser.email,
       options: {
         redirectTo: `${siteUrl}/dashboard`
       }
@@ -138,7 +146,7 @@ serve(async (req) => {
       action: 'impersonate_user',
       resource_type: 'user',
       resource_id: targetUserId,
-      description: `Admin ${callerUser.email} logged in as ${targetEmail}`,
+      description: `Admin ${callerUser.email} logged in as ${targetUser.email}`,
       severity: 'warning'
     })
 

@@ -22,10 +22,9 @@ import TestChatbotSetup from '@/pages/TestChatbotSetup';
 import { ChatbotCreationWizard } from '@/components/chatbot-creation/ChatbotCreationWizard';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
-// Chatbot sub-pages (consolidated 5-page structure)
+// Chatbot sub-pages (consolidated 4-page structure - AI Studio removed, now admin-only)
 import ChatbotOverview from '@/pages/chatbot/ChatbotOverview';
 import ChatbotContent from '@/pages/chatbot/ChatbotContent';
-import ChatbotAIStudio from '@/pages/chatbot/ChatbotAIStudio';
 import WhatsAppIntegration from '@/pages/chatbot/WhatsAppIntegration';
 import ChatbotContacts from '@/pages/chatbot/ChatbotContacts';
 
@@ -36,11 +35,13 @@ import { AdminRoute } from '@/components/admin/AdminRoute';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminDashboard } from '@/pages/admin/AdminDashboard';
 import { UsersManagement } from '@/pages/admin/UsersManagement';
+import { UserDetails } from '@/pages/admin/UserDetails';
 import { TiersManagementNew } from '@/pages/admin/TiersManagementNew';
 import { AdminSettings } from '@/pages/admin/AdminSettings';
 import { AdminStatistics } from '@/pages/admin/AdminStatistics';
 import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs';
 import { AdminManagement } from '@/pages/admin/AdminManagement';
+import { WorkflowTemplates } from '@/pages/admin/WorkflowTemplates';
 
 import { useAuth } from '@/hooks/useAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
@@ -169,7 +170,7 @@ function App() {
           />
           <Route
             path="/chatbot/ai-studio"
-            element={protectedRoute(<ChatbotAIStudio />)}
+            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
           />
           <Route
             path="/chatbot/whatsapp"
@@ -183,7 +184,7 @@ function App() {
           {/* Legacy Chatbot Routes (redirect to new consolidated pages) */}
           <Route
             path="/chatbot/settings"
-            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
+            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
           />
           <Route
             path="/chatbot/products"
@@ -199,11 +200,11 @@ function App() {
           />
           <Route
             path="/chatbot/prompt-engineer"
-            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
+            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
           />
           <Route
             path="/chatbot/model-training"
-            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
+            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
           />
           <Route
             path="/chatbot/followups"
@@ -211,7 +212,7 @@ function App() {
           />
           <Route
             path="/chatbot/test"
-            element={protectedRoute(<Navigate to="/chatbot/ai-studio" replace />)}
+            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
           />
 
           <Route
@@ -254,10 +255,12 @@ function App() {
           >
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<UsersManagement />} />
+            <Route path="users/:userId" element={<UserDetails />} />
             <Route path="tiers" element={<TiersManagementNew />} />
             <Route path="statistics" element={<AdminStatistics />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="admins" element={<AdminManagement />} />
+            <Route path="workflows" element={<WorkflowTemplates />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

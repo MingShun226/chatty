@@ -8,6 +8,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { apiKeyService } from './apiKeyService';
 
+// Note: Fine-tuning features require direct OpenAI API access.
+// The apiKeyService is still used here for fine-tuning operations.
+// Consider creating a dedicated edge function for fine-tuning if needed.
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -920,7 +924,7 @@ Aim for quality over quantity.`
   // --------------------------------------------------------------------------
 
   /**
-   * Get OpenAI API key from user's API key management
+   * Get OpenAI API key (admin-assigned priority > user's key)
    */
   private static async getOpenAIKey(): Promise<string> {
     // Get current user
@@ -930,20 +934,31 @@ Aim for quality over quantity.`
       throw new Error('User not authenticated');
     }
 
-    // Try to get from API key service (stored in user_api_keys table)
+    // Priority 1: Check for admin-assigned API key
+    const { data: adminKey } = await supabase
+      .from('admin_assigned_api_keys')
+      .select('api_key_encrypted')
+      .eq('user_id', user.id)
+      .eq('service', 'openai')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (adminKey?.api_key_encrypted) {
+      try {
+        return atob(adminKey.api_key_encrypted);
+      } catch (e) {
+        console.error('Failed to decrypt admin-assigned API key');
+      }
+    }
+
+    // Priority 2: Fall back to user's own key (for backward compatibility)
     const apiKey = await apiKeyService.getDecryptedApiKey(user.id, 'OpenAI');
 
     if (apiKey) {
       return apiKey;
     }
 
-    // Fallback to environment variable
-    const envKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (envKey) {
-      return envKey;
-    }
-
-    throw new Error('OpenAI API key not found. Please add your API key in Settings > API Management.');
+    throw new Error('No OpenAI API key configured. Please contact your administrator.');
   }
 
   /**

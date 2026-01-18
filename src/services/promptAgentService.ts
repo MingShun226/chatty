@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { apiKeyService } from './apiKeyService';
 
 export interface PromptAgentMessage {
   role: 'user' | 'assistant';
@@ -25,12 +24,6 @@ export class PromptAgentService {
     }
   ): Promise<string> {
     try {
-      // Get OpenAI API key
-      const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-      if (!apiKey) {
-        throw new Error('OpenAI API key not found');
-      }
-
       // Build the Prompt Agent's system prompt
       const agentSystemPrompt = this.buildPromptAgentSystemPrompt(currentPrompt, chatbotContext);
 

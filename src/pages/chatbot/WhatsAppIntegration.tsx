@@ -6,7 +6,6 @@
  * Features:
  * - Connect WhatsApp via QR code scan
  * - Configure message splitting and typing speed
- * - Configure n8n webhook integration
  */
 
 import { useState, useEffect } from 'react'
@@ -20,7 +19,6 @@ import { supabase } from '@/integrations/supabase/client'
 import { MessageCircle, Settings2, LogOut, RefreshCw } from 'lucide-react'
 import { WhatsAppWebConnectionModal } from '@/components/whatsapp/WhatsAppWebConnectionModal'
 import { WhatsAppSettings } from '@/components/chatbot-settings/WhatsAppSettings'
-import { N8nConfigurationCard } from '@/components/n8n/N8nConfigurationCard'
 import { useToast } from '@/hooks/use-toast'
 
 const WHATSAPP_SERVICE_URL = import.meta.env.VITE_WHATSAPP_SERVICE_URL || 'http://localhost:3001'
@@ -277,9 +275,6 @@ const WhatsAppIntegrationContent = ({ chatbot, onRefresh }: { chatbot: any; onRe
           </div>
         )}
       </Card>
-
-      {/* n8n Integration */}
-      <N8nConfigurationCard chatbot={chatbot} onUpdate={onRefresh} />
 
       {/* WhatsApp Connection Modal */}
       <WhatsAppWebConnectionModal

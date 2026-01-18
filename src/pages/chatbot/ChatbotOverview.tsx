@@ -43,8 +43,18 @@ import {
   Tag,
   Search,
   DollarSign,
-  HelpCircle
+  HelpCircle,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Settings,
+  Rocket,
+  FileText,
+  Calendar,
+  Headphones,
+  Cog
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ContactItem {
   id: string;
@@ -94,6 +104,186 @@ interface OverviewStats {
   whatsappConnected: boolean;
   whatsappPhone: string;
 }
+
+// Chatbot type icons
+const CHATBOT_TYPE_ICONS: Record<string, any> = {
+  ecommerce: Package,
+  appointment: Calendar,
+  support: Headphones,
+  custom: Cog,
+};
+
+// Setup Status Card Component
+const SetupStatusCard = ({
+  chatbot,
+  stats,
+  onRequestSetup,
+  isRequesting
+}: {
+  chatbot: any;
+  stats: OverviewStats;
+  onRequestSetup: () => void;
+  isRequesting: boolean;
+}) => {
+  const activationStatus = chatbot?.activation_status || 'draft';
+  const chatbotType = chatbot?.chatbot_type || 'ecommerce';
+  const TypeIcon = CHATBOT_TYPE_ICONS[chatbotType] || Package;
+
+  // Determine setup checklist status
+  const hasContent = stats.productCount > 0 || stats.documentCount > 0;
+  const hasWhatsApp = stats.whatsappConnected;
+
+  const getStatusConfig = () => {
+    switch (activationStatus) {
+      case 'draft':
+        return {
+          color: 'bg-slate-100 border-slate-300 dark:bg-slate-900 dark:border-slate-700',
+          icon: FileText,
+          iconColor: 'text-slate-500',
+          title: 'Draft',
+          description: 'Add your content and request setup when ready',
+          showRequestButton: true,
+        };
+      case 'pending':
+        return {
+          color: 'bg-amber-50 border-amber-300 dark:bg-amber-950 dark:border-amber-700',
+          icon: Clock,
+          iconColor: 'text-amber-500',
+          title: 'Pending Setup',
+          description: 'Your setup request is in queue. Our team will configure your chatbot soon.',
+          showRequestButton: false,
+        };
+      case 'setting_up':
+        return {
+          color: 'bg-blue-50 border-blue-300 dark:bg-blue-950 dark:border-blue-700',
+          icon: Settings,
+          iconColor: 'text-blue-500 animate-spin',
+          title: 'Setting Up',
+          description: 'Our team is configuring your chatbot. This usually takes less than 24 hours.',
+          showRequestButton: false,
+        };
+      case 'active':
+        return {
+          color: 'bg-green-50 border-green-300 dark:bg-green-950 dark:border-green-700',
+          icon: CheckCircle,
+          iconColor: 'text-green-500',
+          title: 'Active',
+          description: 'Your chatbot is live and ready to handle messages!',
+          showRequestButton: false,
+        };
+      case 'suspended':
+        return {
+          color: 'bg-red-50 border-red-300 dark:bg-red-950 dark:border-red-700',
+          icon: AlertCircle,
+          iconColor: 'text-red-500',
+          title: 'Suspended',
+          description: 'Your chatbot has been suspended. Contact support for assistance.',
+          showRequestButton: false,
+        };
+      default:
+        return {
+          color: 'bg-slate-100 border-slate-300',
+          icon: FileText,
+          iconColor: 'text-slate-500',
+          title: 'Unknown',
+          description: 'Status unknown',
+          showRequestButton: false,
+        };
+    }
+  };
+
+  const config = getStatusConfig();
+  const StatusIcon = config.icon;
+
+  // Don't show setup card if already active
+  if (activationStatus === 'active') {
+    return null;
+  }
+
+  return (
+    <Card className={`${config.color} border-2 mb-6`}>
+      <CardContent className="p-6">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          {/* Status Info */}
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-full bg-white dark:bg-background shadow-sm">
+              <StatusIcon className={`h-6 w-6 ${config.iconColor}`} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-lg">{config.title}</h3>
+                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                  <TypeIcon className="h-3 w-3" />
+                  {chatbotType.charAt(0).toUpperCase() + chatbotType.slice(1)}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground max-w-md">{config.description}</p>
+            </div>
+          </div>
+
+          {/* Checklist & Action */}
+          <div className="flex flex-col gap-3">
+            {activationStatus === 'draft' && (
+              <>
+                {/* Setup Checklist */}
+                <div className="text-sm space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    {hasContent ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                    )}
+                    <span className={hasContent ? '' : 'text-muted-foreground'}>
+                      Content added ({stats.productCount} products, {stats.documentCount} docs)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasWhatsApp ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                    )}
+                    <span className={hasWhatsApp ? '' : 'text-muted-foreground'}>
+                      WhatsApp connected
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Request Setup Button */}
+            {config.showRequestButton && (
+              <Button
+                onClick={onRequestSetup}
+                disabled={isRequesting || !hasContent}
+                className="gap-2"
+              >
+                {isRequesting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Requesting...
+                  </>
+                ) : (
+                  <>
+                    <Rocket className="h-4 w-4" />
+                    Request Setup
+                  </>
+                )}
+              </Button>
+            )}
+
+            {activationStatus === 'pending' && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                Requested {chatbot?.activation_requested_at ? new Date(chatbot.activation_requested_at).toLocaleDateString() : 'recently'}
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 // Stats Card Component
 const StatsCard = ({
@@ -158,6 +348,7 @@ const FeatureCard = ({
 // Dashboard Content Component
 const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: () => void }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { prefetchContacts } = useContactsCache();
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,6 +362,7 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
   const [dismissingAlert, setDismissingAlert] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState('');
   const [conversationSearch, setConversationSearch] = useState('');
+  const [isRequestingSetup, setIsRequestingSetup] = useState(false);
 
   const getTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -350,6 +542,41 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
     }
   }, [chatbot?.id, prefetchContacts]);
 
+  // Request setup handler
+  const handleRequestSetup = async () => {
+    if (!chatbot?.id) return;
+
+    setIsRequestingSetup(true);
+    try {
+      const { error } = await supabase
+        .from('avatars')
+        .update({
+          activation_status: 'pending',
+          activation_requested_at: new Date().toISOString()
+        })
+        .eq('id', chatbot.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Setup Requested!',
+        description: 'Your chatbot is now in queue. Our team will configure it and notify you when ready.',
+      });
+
+      // Refresh to show updated status
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      console.error('Error requesting setup:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to request setup. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRequestingSetup(false);
+    }
+  };
+
   const getMoodIcon = (mood: string) => {
     switch (mood) {
       case 'positive': return <Smile className="h-4 w-4 text-green-500" />;
@@ -374,6 +601,14 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
 
   return (
     <div className="space-y-8">
+      {/* Setup Status Card - shows for non-active chatbots */}
+      <SetupStatusCard
+        chatbot={chatbot}
+        stats={stats}
+        onRequestSetup={handleRequestSetup}
+        isRequesting={isRequestingSetup}
+      />
+
       {/* Performance Overview */}
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">

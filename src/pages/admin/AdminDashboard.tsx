@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Users,
   Bot,
@@ -17,7 +20,13 @@ import {
   Activity,
   Calendar,
   UserPlus,
-  ShoppingBag
+  ShoppingBag,
+  Clock,
+  Settings,
+  Headphones,
+  ChevronRight,
+  Rocket,
+  AlertCircle
 } from 'lucide-react';
 
 interface PlatformStats {
@@ -54,10 +63,35 @@ interface RecentChatbot {
   has_whatsapp: boolean;
 }
 
+interface PendingSetupRequest {
+  id: string;
+  name: string;
+  chatbot_type: string;
+  company_name: string;
+  user_id: string;
+  user_email: string;
+  user_name: string;
+  activation_status: string;
+  activation_requested_at: string;
+  products_count: number;
+  documents_count: number;
+  has_prompt: boolean;
+}
+
+// Chatbot type icons and labels
+const CHATBOT_TYPE_CONFIG: Record<string, { icon: any; label: string; color: string }> = {
+  ecommerce: { icon: Package, label: 'E-commerce', color: 'text-green-500' },
+  appointment: { icon: Calendar, label: 'Appointment', color: 'text-purple-500' },
+  support: { icon: Headphones, label: 'Support', color: 'text-blue-500' },
+  custom: { icon: Settings, label: 'Custom', color: 'text-orange-500' },
+};
+
 export const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [recentChatbots, setRecentChatbots] = useState<RecentChatbot[]>([]);
+  const [pendingSetups, setPendingSetups] = useState<PendingSetupRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,7 +103,8 @@ export const AdminDashboard = () => {
       await Promise.all([
         fetchPlatformStats(),
         fetchRecentUsers(),
-        fetchRecentChatbots()
+        fetchRecentChatbots(),
+        fetchPendingSetups()
       ]);
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -184,6 +219,74 @@ export const AdminDashboard = () => {
     }
   };
 
+  const fetchPendingSetups = async () => {
+    try {
+      // Get chatbots with pending or setting_up status
+      const { data: chatbotsData, error: chatbotsError } = await supabase
+        .from('avatars')
+        .select(`
+          id,
+          name,
+          chatbot_type,
+          company_name,
+          user_id,
+          activation_status,
+          activation_requested_at,
+          profiles:user_id (email, name)
+        `)
+        .in('activation_status', ['pending', 'setting_up'])
+        .is('deleted_at', null)
+        .order('activation_requested_at', { ascending: true });
+
+      if (chatbotsError) throw chatbotsError;
+      if (!chatbotsData || chatbotsData.length === 0) {
+        setPendingSetups([]);
+        return;
+      }
+
+      // Get counts for each chatbot
+      const chatbotIds = chatbotsData.map(c => c.id);
+
+      const [productsRes, docsRes, promptsRes] = await Promise.all([
+        supabase.from('chatbot_products').select('chatbot_id').in('chatbot_id', chatbotIds),
+        supabase.from('avatar_knowledge_files').select('avatar_id').in('avatar_id', chatbotIds),
+        supabase.from('avatar_prompt_versions').select('avatar_id').in('avatar_id', chatbotIds).eq('is_active', true)
+      ]);
+
+      // Count per chatbot
+      const productCounts = (productsRes.data || []).reduce((acc, p) => {
+        acc[p.chatbot_id] = (acc[p.chatbot_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const docCounts = (docsRes.data || []).reduce((acc, d) => {
+        acc[d.avatar_id] = (acc[d.avatar_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const hasPromptSet = new Set((promptsRes.data || []).map(p => p.avatar_id));
+
+      const formatted: PendingSetupRequest[] = chatbotsData.map(item => ({
+        id: item.id,
+        name: item.name,
+        chatbot_type: item.chatbot_type || 'ecommerce',
+        company_name: item.company_name || '',
+        user_id: item.user_id,
+        user_email: (item.profiles as any)?.email || 'Unknown',
+        user_name: (item.profiles as any)?.name || 'Unknown',
+        activation_status: item.activation_status,
+        activation_requested_at: item.activation_requested_at || item.created_at,
+        products_count: productCounts[item.id] || 0,
+        documents_count: docCounts[item.id] || 0,
+        has_prompt: hasPromptSet.has(item.id),
+      }));
+
+      setPendingSetups(formatted);
+    } catch (error) {
+      console.error('Error fetching pending setups:', error);
+    }
+  };
+
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -284,6 +387,87 @@ export const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Pending Setup Requests - Alert Card */}
+      {pendingSetups.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Rocket className="h-5 w-5 text-amber-500" />
+                Pending Setup Requests
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                  {pendingSetups.length}
+                </Badge>
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/admin/users')}
+                className="gap-1"
+              >
+                View All
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <CardDescription>Chatbots waiting for workflow configuration</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-[280px]">
+              <div className="space-y-3">
+                {pendingSetups.map((setup) => {
+                  const typeConfig = CHATBOT_TYPE_CONFIG[setup.chatbot_type] || CHATBOT_TYPE_CONFIG.custom;
+                  const TypeIcon = typeConfig.icon;
+                  return (
+                    <div
+                      key={setup.id}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-white dark:bg-background hover:border-primary/50 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/admin/users/${setup.user_id}`)}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`p-2 rounded-lg bg-${typeConfig.color.replace('text-', '')}/10`}>
+                          <TypeIcon className={`h-4 w-4 ${typeConfig.color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{setup.name}</span>
+                            {setup.company_name && (
+                              <span className="text-xs text-muted-foreground">({setup.company_name})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{setup.user_name}</span>
+                            <span className="opacity-50">•</span>
+                            <span>{setup.products_count} products</span>
+                            <span className="opacity-50">•</span>
+                            <span>{setup.documents_count} docs</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant={setup.activation_status === 'setting_up' ? 'default' : 'outline'}
+                          className={setup.activation_status === 'setting_up' ? 'bg-blue-100 text-blue-700' : 'border-amber-300 text-amber-700'}
+                        >
+                          {setup.activation_status === 'setting_up' ? (
+                            <><Settings className="h-3 w-3 mr-1 animate-spin" /> In Progress</>
+                          ) : (
+                            <><Clock className="h-3 w-3 mr-1" /> Pending</>
+                          )}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatTimeAgo(setup.activation_requested_at)}
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

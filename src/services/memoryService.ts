@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { apiKeyService } from './apiKeyService';
 
 export interface MemoryImage {
   id?: string;
@@ -75,32 +74,15 @@ export class MemoryService {
     conversational_hooks?: string[];
     suggested_title?: string;
   }> {
-    const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-    if (!apiKey) {
-      throw new Error('OpenAI API key required for memory analysis');
+    // Get session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
     }
 
     const contextPrompt = context ? `\n\nUser context: ${context}` : '';
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert memory analyst. Analyze photos to extract detailed information that will help an AI avatar remember and naturally reference this moment in future conversations.'
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analyze this memory photo in detail. Extract all relevant information that would help an AI avatar naturally remember and talk about this experience.${contextPrompt}
+    const analysisPrompt = `Analyze this memory photo in detail. Extract all relevant information that would help an AI avatar naturally remember and talk about this experience.${contextPrompt}
 
 Return a JSON object with:
 {
@@ -119,58 +101,33 @@ Return a JSON object with:
 Make conversational_hooks sound natural, like:
 - "Remember when I went to that Italian place last week?"
 - "Oh that reminds me of the birthday dinner!"
-- "I tried the most amazing tiramisu recently..."
-`
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1500,
-        temperature: 0.3
-      })
-    });
+- "I tried the most amazing tiramisu recently..."`;
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-image`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          imageUrl: imageUrl,
+          prompt: analysisPrompt,
+          context: context,
+          model: 'gpt-4o',
+          detail: 'high'
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`Memory analysis failed: ${error.error?.message || response.statusText}`);
+      throw new Error(error.error || `Memory analysis failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    const analysisText = data.choices[0]?.message?.content || '{}';
-
-    try {
-      // Try to parse as JSON
-      let parsed = JSON.parse(analysisText);
-      return parsed;
-    } catch {
-      // If parsing fails, try to extract JSON from text
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0]);
-        } catch {
-          // Fallback to basic description
-          return {
-            description: analysisText,
-            summary: analysisText.substring(0, 100),
-            conversational_hooks: []
-          };
-        }
-      }
-
-      return {
-        description: analysisText,
-        summary: analysisText.substring(0, 100),
-        conversational_hooks: []
-      };
-    }
+    return data.analysis;
   }
 
   // =============================================

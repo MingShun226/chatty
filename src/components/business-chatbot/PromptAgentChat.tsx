@@ -112,23 +112,24 @@ export function PromptAgentChat({ chatbotId, userId, onPromptUpdated, versionDro
     try {
       setAiGenerating(true);
 
+      // Get session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
       // Fetch all chatbot data comprehensively
-      const [chatbotRes, productsRes, promotionsRes, knowledgeRes, apiKeyRes] = await Promise.all([
+      const [chatbotRes, productsRes, promotionsRes, knowledgeRes] = await Promise.all([
         supabase.from('avatars').select('*').eq('id', chatbotId).eq('user_id', userId).single(),
         supabase.from('chatbot_products').select('product_name, description, category, price, in_stock, sku, stock_quantity').eq('chatbot_id', chatbotId).limit(100),
         supabase.from('chatbot_promotions').select('title, description, discount_type, discount_value, promo_code, start_date, end_date').eq('chatbot_id', chatbotId).eq('is_active', true),
-        supabase.from('avatar_knowledge_files').select('file_name, original_name').eq('avatar_id', chatbotId).eq('processing_status', 'processed'),
-        supabase.from('user_api_keys').select('api_key_encrypted').eq('user_id', userId).ilike('service', 'openai').eq('status', 'active').limit(1).single()
+        supabase.from('avatar_knowledge_files').select('file_name, original_name').eq('avatar_id', chatbotId).eq('processing_status', 'processed')
       ]);
 
       const chatbot = chatbotRes.data;
       const products = productsRes.data || [];
       const promotions = promotionsRes.data || [];
       const knowledge = knowledgeRes.data || [];
-
-      if (!apiKeyRes.data) {
-        throw new Error('No OpenAI API key found. Please add your API key in Settings.');
-      }
 
       // Get unique categories with product counts
       const categoryMap = new Map<string, { count: number; samples: string[] }>();
@@ -303,20 +304,21 @@ You are [NAME], the friendly assistant of [COMPANY]...
 
 IMPORTANT: Return ONLY the system prompt. No explanations, no markdown code blocks, no "Here is the prompt:" text. Just the raw prompt content.`;
 
-      // Call OpenAI API
-      const openaiKey = atob(apiKeyRes.data.api_key_encrypted);
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert prompt engineer who creates COMPREHENSIVE, PRODUCTION-READY system prompts for WhatsApp business chatbots.
+      // Call chat-completions edge function (API key handled server-side)
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-completions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'system',
+                content: `You are an expert prompt engineer who creates COMPREHENSIVE, PRODUCTION-READY system prompts for WhatsApp business chatbots.
 
 Your prompts are known for:
 - Being complete and ready to use immediately
@@ -326,17 +328,18 @@ Your prompts are known for:
 - Never being generic or template-like
 
 You always generate prompts that are 1500-2500 words with multiple sections and many examples.`
-            },
-            { role: 'user', content: aiPrompt }
-          ],
-          temperature: 0.8,
-          max_tokens: 6000
-        })
-      });
+              },
+              { role: 'user', content: aiPrompt }
+            ],
+            temperature: 0.8,
+            max_tokens: 6000
+          })
+        }
+      );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to generate prompt');
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to generate prompt');
       }
 
       const data = await response.json();

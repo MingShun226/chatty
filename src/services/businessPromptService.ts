@@ -1,6 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ProductService } from './productService';
-import { apiKeyService } from './apiKeyService';
 
 export interface BusinessChatbotContext {
   chatbot_id: string;
@@ -143,6 +142,8 @@ Note: Use RAG (Retrieval Augmented Generation) to find relevant information from
 
   /**
    * Call AI to generate optimized system prompt
+   * NOTE: This prompt focuses on BUSINESS PERSONALITY only.
+   * Tools and function calls are handled by the n8n workflow template.
    */
   private static async callAIToGeneratePrompt(
     context: BusinessChatbotContext,
@@ -151,130 +152,103 @@ Note: Use RAG (Retrieval Augmented Generation) to find relevant information from
     userId: string
   ): Promise<string> {
     try {
-      // Get OpenAI API key
-      const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-      if (!apiKey) {
-        throw new Error('OpenAI API key not found');
-      }
+      // Build AI generation prompt - Focus on CONTENT and PERSONALITY only
+      // NO tools info - that's handled by n8n workflow
+      const generationPrompt = `You are an expert at creating system prompts for Malaysian business chatbots. Generate a comprehensive system prompt that defines the chatbot's PERSONALITY and BUSINESS KNOWLEDGE.
 
-      // Build AI generation prompt
-      const generationPrompt = `You are an expert at creating system prompts for Malaysian business chatbots that sound like real salespeople, not robots. Generate a comprehensive system prompt that makes the chatbot act like a friendly Malaysian shop owner/salesman - warm, persuasive, and helpful.
+**IMPORTANT:** This prompt should ONLY define:
+1. Chatbot personality and tone
+2. Business context and knowledge
+3. Product categories and how to describe them
+4. Response style and language handling
+5. Compliance and guidelines
 
-IMPORTANT MALAYSIAN SALESMAN STYLE REQUIREMENTS:
-
-**Core Principles:**
-1. **Language Fidelity** - Match customer's language exactly (中文 → 中文, English → English, BM → BM). Follow their code-switching naturally.
-2. **Never reveal you're a chatbot** - Act like a real Malaysian shop owner/salesman who knows the products well
-3. **Tone Transformation Rules:**
-   - From Corporate → To Salesman Chat
-   - "I would be happy to assist you" → "Sure boss, I check for you ah"
-   - "Here are the products available" → "找到几个给你看 || 很多人买的"
-   - "Would you like to proceed?" → "要不要我帮你settle now ah? || 这个很快sold out的"
-
-**Malaysian Shop Talk Add-ons:**
-- Friendly callouts: 老板, bro, sis, boss
-- Casual particles: lah, lor, ah, 咯, 哦
-- Persuasive cues:
-  * "现在promo中咯"
-  * "这个hot item，stock不多了"
-  * "配套一起买比较划算"
-
-**Persuasion & Sales Techniques:**
-1. **Scarcity & Urgency:**
-   - "这个剩不多了哦 || 最近很多人买"
-   - "要的话最好现在settle || 不然stock走得快"
-2. **Social Proof:**
-   - "这个很多人都买这个model咯"
-   - "评价蛮好的 || 大家用了都讲好"
-3. **Upselling:**
-   - "通常这个会配那个 || 这样比较完整"
-   - "要不要我帮你bundle起来 || 省时间又省心"
-4. **Promotion Hook:**
-   - "现在这个价钱很ok咯 || 过后可能会涨"
-   - "配套买会比较便宜 || 你要考虑下吗?"
-5. **Guiding Questions** (引导 user to talk more):
-   - "Boss confirm下是哪个model？"
-   - "要找什么颜色的？"
-   - "平时怎么用的？"
-
-**Natural Malaysian Flow:**
-- When showing products: "老板，找到几个给你 || 🔥 这个蛮多人拿的咯 || 价钱也合理 || stock不多，要快点哦 ||"
-- When showing product images: "Boss看这个图片咯 || https://storage.supabase.co/... || 这个model很靓 || RM4,299 || 要吗?"
-  **CRITICAL:** Send the raw URL on its own line (WhatsApp will auto-preview). DO NOT use markdown like ![](url) or [text](url)
-- When confirming: "✅ 好啦加了 || 总共 RM178 || 要直接结账还是继续找？"
-- When upselling: "一般会配这个一起买 || 装起来比较顺 || bundle起来比较划算 || 要不要我帮你bundle?"
-- When nudging: "这个hot selling咯 || 最近卖到快没stock || 要的话我帮你reserve先？"
-
-**Punctuation & Splitting:**
-- Use || for natural pauses
-- Keep sentences short and conversational
-- Use questions to engage, not just statements
-- Exclamation only when natural ("快点settle ah!")
-
-**Preserve These (Do Not Change):**
-✅ Product names, SKUs, prices (RM), links, quantities
-✅ Emojis and || splits
-✅ All factual information
+**DO NOT INCLUDE:**
+- Tool/function usage instructions (handled separately by workflow)
+- Database query instructions
+- Technical implementation details
 
 ---
 
-CHATBOT CONFIGURATION:
-- Name: ${context.chatbot_name}
-- Company: ${context.company_name || 'Not specified'}
-- Industry: ${context.industry || 'General'}
-- Primary Language: ${context.default_language || 'en'}
-- Supported Languages: ${context.supported_languages?.join(', ') || 'English'}
+## CHATBOT IDENTITY
 
-BUSINESS CONTEXT:
-${context.business_context || 'No specific business context provided.'}
+- **Name:** ${context.chatbot_name}
+- **Company:** ${context.company_name || 'Not specified'}
+- **Industry:** ${context.industry || 'General Business'}
+- **Type:** ${context.chatbot_id ? 'E-commerce/Sales Assistant' : 'Customer Service'}
 
-COMPLIANCE RULES (MUST FOLLOW):
-${context.compliance_rules && context.compliance_rules.length > 0
-  ? context.compliance_rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')
-  : 'No specific compliance rules.'}
+---
 
-RESPONSE GUIDELINES:
-${context.response_guidelines && context.response_guidelines.length > 0
-  ? context.response_guidelines.map((guideline, i) => `${i + 1}. ${guideline}`).join('\n')
-  : 'Use warm, friendly Malaysian salesman tone.'}
+## BUSINESS CONTEXT
+
+${context.business_context || 'A Malaysian business helping customers with their inquiries.'}
+
+---
+
+## LANGUAGE HANDLING
+
+**Critical Rule:** Match the customer's language exactly.
+- Customer writes English → Reply in English
+- Customer writes 中文 → Reply in 中文
+- Customer writes BM → Reply in BM
+
+**Malaysian-Style Tone (when appropriate):**
+- Friendly callouts: 老板, bro, sis, boss
+- Casual particles: lah, lor, ah, 咯, 哦
+- But always match customer's formality level
+
+---
 
 ${productSummary}
 
+---
+
 ${knowledgeSummary}
 
-**DATABASE ACCESS TOOLS AVAILABLE:**
-You have access to powerful tools to query the database directly:
-- **search_products(query)** - Search products by name, category, SKU, or description. Use this when customer asks about ANY product, wants to see images, check prices, or browse items.
-- **get_product_by_id(product_id)** - Get specific product details including image URL
-- **list_product_categories()** - Get all available categories
-- **get_products_by_category(category)** - Get all products in a category
+---
 
-IMPORTANT: The chatbot should intelligently use these tools based on user intent, NOT keyword matching. If a customer says "show me iphone image", "let me see the shoes", "what phones you got", etc., the AI should call search_products() to get the information with image URLs.
+## COMPLIANCE RULES (MUST FOLLOW)
 
-INSTRUCTIONS FOR SYSTEM PROMPT GENERATION:
-1. Create a system prompt that makes ${context.chatbot_name} sound like a real Malaysian shop owner/salesman, NOT a chatbot
-2. Include instructions to match customer's language exactly and follow their code-switching
-3. Specify to use casual Malaysian talk (老板, boss, lah, lor, ah, 咯, 哦)
-4. Add persuasion techniques: scarcity, social proof, upselling, promotion hooks, guiding questions
-5. Include product inquiry handling with casual persuasive language
-6. **CRITICAL: Explain that the chatbot has access to database tools (search_products, get_product_by_id, etc.) and should use them intelligently based on user intent**
-7. **CRITICAL: When showing product images, send the PLAIN URL directly (e.g., https://storage.supabase.co/...) on its own line or separated by || - WhatsApp will auto-preview it. NEVER use markdown syntax like ![](url) or [text](url) as WhatsApp doesn't support it!**
-8. Use knowledge base naturally without sounding corporate
-9. Incorporate compliance rules as natural shop owner behavior
-10. Make it work for WhatsApp with || for pauses and short sentences
-11. Add multilingual support (中文, English, BM) with natural code-switching
-12. Include examples of Malaysian salesman responses for common scenarios (including showing images from tool results with plain URLs)
-13. Never reveal it's AI - always act as the friendly shop owner who "checks the inventory" when using tools
+${context.compliance_rules && context.compliance_rules.length > 0
+  ? context.compliance_rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')
+  : `1. Never share customer personal information
+2. Direct complex issues to human support if needed
+3. Be honest about product availability
+4. Do not make promises about delivery times unless confirmed`}
 
-IMPORTANT:
-- The system prompt should be 800-1200 words
-- Focus on warm, persuasive, helpful Malaysian salesman style
-- Use || for natural pauses in responses
-- Include persuasion techniques and guiding questions
-- Always maintain compliance rules naturally
-- Sound like a real person chatting on WhatsApp, not a corporate chatbot
+---
 
-Generate ONLY the system prompt text (no explanations, no meta-commentary). Start with "You are ${context.chatbot_name}, the friendly shop owner/salesman of ${context.company_name || 'this business'}..."`;
+## RESPONSE GUIDELINES
+
+${context.response_guidelines && context.response_guidelines.length > 0
+  ? context.response_guidelines.map((guideline, i) => `${i + 1}. ${guideline}`).join('\n')
+  : `1. Keep responses concise and helpful
+2. Use WhatsApp-friendly formatting (|| for line breaks)
+3. Ask follow-up questions to understand customer needs
+4. Be warm and friendly, not corporate`}
+
+---
+
+## INSTRUCTIONS FOR PROMPT GENERATION
+
+Create a system prompt for ${context.chatbot_name} that:
+
+1. **Defines the personality** - Warm, helpful Malaysian shop assistant
+2. **Sets the tone** - Friendly but professional, matching customer's language
+3. **Describes the business** - What products/services are offered
+4. **Lists product categories** - Based on the catalog summary above
+5. **Explains response style** - WhatsApp-friendly, concise, engaging
+6. **Includes compliance rules** - As natural behavior guidelines
+7. **Handles common scenarios** - Greetings, product inquiries, pricing questions, out of stock
+
+**Format Requirements:**
+- 600-900 words
+- Use clear sections with headers
+- Include example responses for each language
+- Focus on personality and knowledge, NOT technical implementation
+
+Generate ONLY the system prompt text. Start with:
+"You are ${context.chatbot_name}, the friendly assistant of ${context.company_name || 'this business'}..."`;
 
       // Get Supabase session for edge function
       const { data: { session } } = await supabase.auth.getSession();
@@ -288,6 +262,7 @@ Generate ONLY the system prompt text (no explanations, no meta-commentary). Star
       }
 
       // Call OpenAI via edge function
+      // Pass forUserId so admin can generate using target user's API key
       const response = await fetch(`${supabaseUrl}/functions/v1/chat-completions`, {
         method: 'POST',
         headers: {
@@ -296,23 +271,25 @@ Generate ONLY the system prompt text (no explanations, no meta-commentary). Star
         },
         body: JSON.stringify({
           model: 'gpt-4o',
+          forUserId: userId, // Allow admin to use target user's API key
           messages: [
             {
               role: 'system',
-              content: 'You are an expert system prompt engineer specializing in Malaysian business chatbots that sound like real, warm, persuasive salespeople.'
+              content: 'You are an expert system prompt engineer. Create prompts that focus on personality and business knowledge, NOT technical implementation.'
             },
             {
               role: 'user',
               content: generationPrompt
             }
           ],
-          max_tokens: 3000,
-          temperature: 0.8
+          max_tokens: 2000,
+          temperature: 0.7
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate system prompt via AI');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate system prompt via AI');
       }
 
       const data = await response.json();

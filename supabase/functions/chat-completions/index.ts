@@ -65,33 +65,72 @@ serve(async (req: Request) => {
     // Get request body
     const requestBody = await req.json()
 
-    // First check for admin-assigned API key (platform-managed)
-    let apiKey: string | null = null
-    let keySource: 'admin' | 'user' = 'admin'
-
-    const { data: adminKey } = await supabase
-      .from('admin_assigned_api_keys')
-      .select('api_key_encrypted')
+    // Check if caller is an admin (for admin operations like generating prompts for users)
+    const { data: adminUser } = await supabase
+      .from('admin_users')
+      .select('id, role')
       .eq('user_id', user.id)
-      .eq('service', 'openai')
       .eq('is_active', true)
       .maybeSingle()
 
-    if (adminKey?.api_key_encrypted) {
-      try {
-        apiKey = atob(adminKey.api_key_encrypted)
-      } catch (e) {
-        console.error('Failed to decrypt admin-assigned API key')
+    const isAdmin = !!adminUser
+
+    // Determine which user's API key to use
+    // If admin and forUserId is provided, use that user's key
+    // Otherwise use the caller's key
+    const targetUserId = (isAdmin && requestBody.forUserId) ? requestBody.forUserId : user.id
+
+    // First check for admin-assigned API key (platform-managed)
+    let apiKey: string | null = null
+    let keySource: 'admin' | 'user' | 'platform' = 'admin'
+
+    // For admins, first try to use platform-level API key (admin's own assigned key)
+    if (isAdmin) {
+      const { data: platformKey } = await supabase
+        .from('admin_assigned_api_keys')
+        .select('api_key_encrypted')
+        .eq('user_id', user.id) // Admin's own key
+        .eq('service', 'openai')
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (platformKey?.api_key_encrypted) {
+        try {
+          apiKey = atob(platformKey.api_key_encrypted)
+          keySource = 'platform'
+        } catch (e) {
+          console.error('Failed to decrypt platform API key')
+        }
       }
     }
 
-    // Fall back to user's own key if no admin-assigned key
+    // If no platform key, check for target user's admin-assigned key
+    if (!apiKey) {
+      const { data: adminKey } = await supabase
+        .from('admin_assigned_api_keys')
+        .select('api_key_encrypted')
+        .eq('user_id', targetUserId)
+        .eq('service', 'openai')
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (adminKey?.api_key_encrypted) {
+        try {
+          apiKey = atob(adminKey.api_key_encrypted)
+          keySource = 'admin'
+        } catch (e) {
+          console.error('Failed to decrypt admin-assigned API key')
+        }
+      }
+    }
+
+    // Fall back to target user's own key if no admin-assigned key
     if (!apiKey) {
       keySource = 'user'
       const { data: userKey } = await supabase
         .from('user_api_keys')
         .select('api_key_encrypted')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .eq('service', 'openai')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -108,8 +147,11 @@ serve(async (req: Request) => {
     }
 
     if (!apiKey) {
+      const errorMsg = isAdmin
+        ? 'No OpenAI API key configured. Please assign an API key to yourself (Admin) or to the target user in Admin > Users > User Details > API Keys.'
+        : 'No OpenAI API key configured. Please contact your administrator.'
       return new Response(
-        JSON.stringify({ error: 'No OpenAI API key configured. Please contact your administrator.' }),
+        JSON.stringify({ error: errorMsg }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

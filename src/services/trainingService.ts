@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { apiKeyService } from './apiKeyService';
 
 export interface ConversationPair {
   user_message: string;
@@ -420,9 +419,10 @@ export class TrainingService {
     modificationInstructions: string,
     currentPrompt: string
   ): Promise<any> {
-    const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-    if (!apiKey) {
-      throw new Error('OpenAI API key required for prompt modification');
+    // Get session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
     }
 
     // Call AI to make surgical edits
@@ -482,30 +482,33 @@ Return ONLY valid JSON:
   "change_summary": "brief description of what was changed"
 }`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a surgical prompt editor. You make MINIMAL, TARGETED changes to only the sections requested. You preserve everything else 100%. You do NOT add training sections or examples unless explicitly asked. IMPORTANT: Maintain proper formatting with line breaks (\\n) and spacing to keep the prompt readable and well-structured.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 8000,
-        temperature: 0.1,
-        response_format: { type: "json_object" }
-      })
-    });
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a surgical prompt editor. You make MINIMAL, TARGETED changes to only the sections requested. You preserve everything else 100%. You do NOT add training sections or examples unless explicitly asked. IMPORTANT: Maintain proper formatting with line breaks (\\n) and spacing to keep the prompt readable and well-structured.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 8000,
+          temperature: 0.1,
+          response_format: { type: "json_object" }
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`Modification API error: ${error.error?.message || response.statusText}`);
+      throw new Error(error.error || `Modification API error: ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -843,10 +846,10 @@ Return ONLY valid JSON:
   // =============================================
 
   private static async extractTextFromImage(file: TrainingFile, userId: string): Promise<string> {
-    // Get OpenAI API key
-    const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-    if (!apiKey) {
-      throw new Error('OpenAI API key required for image processing');
+    // Get session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
     }
 
     // Download the image from storage
@@ -861,44 +864,31 @@ Return ONLY valid JSON:
     const base64Image = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
     const dataUrl = `data:${file.content_type};base64,${base64Image}`;
 
-    // Use OpenAI Vision API to extract text
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract all text from this conversation screenshot. Return only the conversation text, preserving the format and structure. If this appears to be a chat conversation, include who said what.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: dataUrl,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1000
-      })
-    });
+    // Use edge function for image analysis
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-image`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          imageUrl: dataUrl,
+          prompt: 'Extract all text from this conversation screenshot. Return only the conversation text, preserving the format and structure. If this appears to be a chat conversation, include who said what.',
+          model: 'gpt-4o',
+          detail: 'high'
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`Vision API error: ${error.error?.message || response.statusText}`);
+      throw new Error(error.error || `Vision API error: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || '';
+    return data.analysis?.description || JSON.stringify(data.analysis) || '';
   }
 
   private static async readTextFile(file: TrainingFile): Promise<string> {
@@ -912,27 +902,30 @@ Return ONLY valid JSON:
   }
 
   private static async analyzeConversationPatterns(content: string, userId: string): Promise<any> {
-    const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-    if (!apiKey) {
-      throw new Error('OpenAI API key required for conversation analysis');
+    // Get session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert conversation analyst specializing in deep learning from conversational examples. Your task is to extract actionable patterns and concrete examples that can be used to train an AI avatar.'
-          },
-          {
-            role: 'user',
-            content: `Analyze this conversation content deeply and extract CONCRETE examples and patterns:
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert conversation analyst specializing in deep learning from conversational examples. Your task is to extract actionable patterns and concrete examples that can be used to train an AI avatar.'
+            },
+            {
+              role: 'user',
+              content: `Analyze this conversation content deeply and extract CONCRETE examples and patterns:
 
 CONVERSATION CONTENT:
 ${content}
@@ -992,14 +985,15 @@ Return this exact JSON structure:
 }`
           }
         ],
-        max_tokens: 3000,
-        temperature: 0.2
-      })
-    });
+          max_tokens: 3000,
+          temperature: 0.2
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`Analysis API error: ${error.error?.message || response.statusText}`);
+      throw new Error(error.error || `Analysis API error: ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -1469,9 +1463,10 @@ ${extractedContent.substring(0, 8000)}${extractedContent.length > 8000 ? '\n...[
     conversationAnalysis: any,
     userId: string
   ): Promise<any> {
-    const apiKey = await apiKeyService.getDecryptedApiKey(userId, 'OpenAI');
-    if (!apiKey) {
-      throw new Error('OpenAI API key required for prompt generation');
+    // Get session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
     }
 
     // Build detailed analysis summary with examples
@@ -1594,30 +1589,33 @@ EXAMPLE 3 - MIXED (User wants both):
 User Request: "Make them more outgoing and change their job to teacher"
 Output: REWRITE personality to be outgoing, REWRITE job/backstory, ADD training for behavioral changes`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert AI prompt engineer specializing in intelligent prompt refinement. You can detect user intent to either REWRITE core sections (backstory, personality, identity) or ENHANCE behavior (conversation style). You analyze what the user wants and apply the appropriate strategy - not just blindly appending content. Always maintain proper formatting with line breaks (\\n) for readability.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 12000,
-        temperature: 0.2,
-        response_format: { type: "json_object" }
-      })
-    });
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert AI prompt engineer specializing in intelligent prompt refinement. You can detect user intent to either REWRITE core sections (backstory, personality, identity) or ENHANCE behavior (conversation style). You analyze what the user wants and apply the appropriate strategy - not just blindly appending content. Always maintain proper formatting with line breaks (\\n) for readability.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 12000,
+          temperature: 0.2,
+          response_format: { type: "json_object" }
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`Prompt generation API error: ${error.error?.message || response.statusText}`);
+      throw new Error(error.error || `Prompt generation API error: ${response.statusText}`);
     }
 
     const data = await response.json();

@@ -16,7 +16,10 @@ import {
   Crown,
   Activity,
   MoreHorizontal,
-  MessageCircle
+  MessageCircle,
+  CheckCircle2,
+  Clock3,
+  AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -53,6 +56,8 @@ interface Chatbot {
   created_at: string;
   contactCount: number;
   whatsappConnected: boolean;
+  activation_status: 'pending' | 'active' | 'suspended';
+  n8n_webhook_url: string | null;
 }
 
 interface RecentConversation {
@@ -89,7 +94,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       // Get user's chatbots first
       const { data: userChatbots } = await supabase
         .from('avatars')
-        .select('id, name, company_name, industry, created_at')
+        .select('id, name, company_name, industry, created_at, activation_status, n8n_webhook_url')
         .eq('user_id', user?.id)
         .eq('status', 'active') // Only show active chatbots (matches RLS policy)
         .order('created_at', { ascending: false });
@@ -194,7 +199,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         return {
           ...chatbot,
           contactCount: contactRes.count || 0,
-          whatsappConnected: whatsappRes.data?.status === 'connected'
+          whatsappConnected: whatsappRes.data?.status === 'connected',
+          activation_status: (chatbot as any).activation_status || 'pending',
+          n8n_webhook_url: (chatbot as any).n8n_webhook_url || null
         };
       });
 
@@ -370,72 +377,123 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
         {chatbots.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {chatbots.map((chatbot) => (
-              <Card
-                key={chatbot.id}
-                className={`hover:shadow-md transition-shadow cursor-pointer ${chatbot.whatsappConnected ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' : ''}`}
-                onClick={() => navigate(`/chatbot/overview?id=${chatbot.id}`)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold ${chatbot.whatsappConnected ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-blue-500 to-indigo-600'}`}>
-                        {chatbot.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-lg">{chatbot.name}</h3>
-                          {chatbot.whatsappConnected && (
-                            <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" title="WhatsApp Connected" />
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {chatbot.company_name || chatbot.industry || 'No details'}
-                        </p>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/ai-studio?id=${chatbot.id}`); }}>
-                          <Bot className="h-4 w-4 mr-2" />
-                          AI Studio
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/content?id=${chatbot.id}`); }}>
-                          <Package className="h-4 w-4 mr-2" />
-                          Content
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/whatsapp?id=${chatbot.id}`); }}>
-                          <MessageCircle className="h-4 w-4 mr-2" />
-                          WhatsApp
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/contacts?id=${chatbot.id}`); }}>
-                          <Users className="h-4 w-4 mr-2" />
-                          Contacts
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+            {chatbots.map((chatbot) => {
+              const isActive = chatbot.activation_status === 'active';
+              const isPending = chatbot.activation_status === 'pending';
+              const isSuspended = chatbot.activation_status === 'suspended';
 
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{chatbot.contactCount} contacts</span>
+              return (
+                <Card
+                  key={chatbot.id}
+                  className={`hover:shadow-md transition-shadow cursor-pointer ${
+                    isActive && chatbot.whatsappConnected
+                      ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800'
+                      : isPending
+                      ? 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800'
+                      : isSuspended
+                      ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
+                      : ''
+                  }`}
+                  onClick={() => navigate(`/chatbot/overview?id=${chatbot.id}`)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold ${
+                          isActive && chatbot.whatsappConnected
+                            ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                            : isPending
+                            ? 'bg-gradient-to-br from-amber-500 to-orange-600'
+                            : isSuspended
+                            ? 'bg-gradient-to-br from-red-500 to-rose-600'
+                            : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                        }`}>
+                          {chatbot.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-lg">{chatbot.name}</h3>
+                            {isActive && chatbot.whatsappConnected && (
+                              <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" title="Active & Running" />
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {chatbot.company_name || chatbot.industry || 'No details'}
+                          </p>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/ai-studio?id=${chatbot.id}`); }}>
+                            <Bot className="h-4 w-4 mr-2" />
+                            AI Studio
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/content?id=${chatbot.id}`); }}>
+                            <Package className="h-4 w-4 mr-2" />
+                            Content
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/whatsapp?id=${chatbot.id}`); }}>
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            WhatsApp
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/chatbot/contacts?id=${chatbot.id}`); }}>
+                            <Users className="h-4 w-4 mr-2" />
+                            Contacts
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    {chatbot.whatsappConnected && (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <MessageCircle className="h-4 w-4" />
-                        <span className="text-sm">WhatsApp Active</span>
+
+                    {/* Activation Status Badge */}
+                    <div className="mb-3">
+                      {isPending && (
+                        <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900 dark:text-amber-300 dark:border-amber-700">
+                          <Clock3 className="h-3 w-3 mr-1" />
+                          Waiting for Activation
+                        </Badge>
+                      )}
+                      {isActive && (
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-300 dark:border-green-700">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Active & Running
+                        </Badge>
+                      )}
+                      {isSuspended && (
+                        <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Suspended
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{chatbot.contactCount} contacts</span>
+                      </div>
+                      {chatbot.whatsappConnected && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <MessageCircle className="h-4 w-4" />
+                          <span className="text-sm">WhatsApp</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pending status message */}
+                    {isPending && (
+                      <div className="mt-3 p-2 bg-amber-100/50 dark:bg-amber-900/30 rounded text-xs text-amber-700 dark:text-amber-300">
+                        Your chatbot is ready! Our team will activate it shortly.
                       </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <Card className="border-dashed">

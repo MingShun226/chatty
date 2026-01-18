@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Settings,
   UserCog,
+  Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +72,12 @@ export const AdminLayout = () => {
       name: 'Audit Logs',
       href: '/admin/audit-logs',
       icon: FileText,
+      permission: 'settings',
+    },
+    {
+      name: 'Workflows',
+      href: '/admin/workflows',
+      icon: Workflow,
       permission: 'settings',
     },
     // Super admin only

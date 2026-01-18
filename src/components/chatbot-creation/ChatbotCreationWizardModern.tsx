@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -14,7 +15,41 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TemplateService, ChatbotTemplate } from '@/services/templateService';
-import { Loader2, Bot, Building2, FileText } from 'lucide-react';
+import { createPlatformApiKey } from '@/services/platformApiKeyService';
+import { Loader2, Bot, Building2, FileText, Package, Calendar, Headphones, Settings2, CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// Chatbot type definitions
+const CHATBOT_TYPES = [
+  {
+    id: 'ecommerce',
+    icon: Package,
+    title: 'E-commerce',
+    description: 'Product inquiries, sales assistance, order support',
+    color: 'from-green-400 to-green-600',
+  },
+  {
+    id: 'appointment',
+    icon: Calendar,
+    title: 'Appointment Booking',
+    description: 'Schedule appointments, manage reservations',
+    color: 'from-purple-400 to-purple-600',
+  },
+  {
+    id: 'support',
+    icon: Headphones,
+    title: 'Customer Support',
+    description: 'FAQ handling, document Q&A, general support',
+    color: 'from-blue-400 to-blue-600',
+  },
+  {
+    id: 'custom',
+    icon: Settings2,
+    title: 'Custom',
+    description: 'Custom workflow - specify your requirements',
+    color: 'from-orange-400 to-orange-600',
+  },
+];
 
 interface ChatbotCreationWizardModernProps {
   onComplete?: (chatbotId: string) => void;
@@ -30,6 +65,7 @@ export function ChatbotCreationWizardModern({ onComplete }: ChatbotCreationWizar
 
   // Form state
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [chatbotType, setChatbotType] = useState<string>('ecommerce');
   const [chatbotName, setChatbotName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [businessDescription, setBusinessDescription] = useState('');
@@ -122,13 +158,14 @@ export function ChatbotCreationWizardModern({ onComplete }: ChatbotCreationWizar
         ? businessContext.replace(/\[COMPANY_NAME\]/g, companyName)
         : businessDescription;
 
-      // Create chatbot
+      // Create chatbot with draft status - admin will activate after setup
       const { data: newChatbot, error: createError } = await supabase
         .from('avatars')
         .insert({
           user_id: user.id,
           name: chatbotName,
-          chatbot_type: 'business',
+          chatbot_type: chatbotType, // Use selected chatbot type
+          activation_status: 'draft', // Start as draft until user requests setup
           industry: template.industry,
           company_name: companyName,
           business_context: businessContextWithCompany,
@@ -143,6 +180,20 @@ export function ChatbotCreationWizardModern({ onComplete }: ChatbotCreationWizar
 
       if (createError) {
         throw createError;
+      }
+
+      // Auto-generate platform API key for this chatbot
+      const apiKeyResult = await createPlatformApiKey(
+        user.id,
+        newChatbot.id,
+        chatbotName
+      );
+
+      if (apiKeyResult.success) {
+        console.log('Platform API key auto-generated for chatbot:', newChatbot.id);
+      } else {
+        console.warn('Failed to auto-generate platform API key:', apiKeyResult.error);
+        // Non-critical error, continue with chatbot creation
       }
 
       toast({
@@ -192,6 +243,54 @@ export function ChatbotCreationWizardModern({ onComplete }: ChatbotCreationWizar
 
       {/* Form */}
       <div className="space-y-8">
+        {/* Chatbot Type Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-4">
+            <Bot className="h-5 w-5 text-blue-600" />
+            <h2 className="text-xl font-semibold">Chatbot Type</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Select the type of chatbot based on your business needs. This helps our team set up the right workflow for you.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {CHATBOT_TYPES.map((type) => {
+              const isSelected = chatbotType === type.id;
+              return (
+                <Card
+                  key={type.id}
+                  className={cn(
+                    "cursor-pointer transition-all hover:shadow-md relative overflow-hidden",
+                    isSelected
+                      ? "ring-2 ring-primary border-primary"
+                      : "hover:border-primary/50"
+                  )}
+                  onClick={() => setChatbotType(type.id)}
+                >
+                  {isSelected && (
+                    <div className="absolute top-2 right-2">
+                      <CheckCircle2 className="w-5 h-5 text-primary" />
+                    </div>
+                  )}
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                        `bg-gradient-to-br ${type.color}`
+                      )}>
+                        <type.icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{type.title}</h3>
+                        <p className="text-xs text-muted-foreground">{type.description}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Template Selection */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 mb-4">
