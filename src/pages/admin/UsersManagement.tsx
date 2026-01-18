@@ -107,6 +107,7 @@ export const UsersManagement = () => {
     setLoading(true);
     try {
       // Get all profiles with their subscription tiers
+      // Note: api_key_requested may not exist if migration not applied yet
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select(`
@@ -117,7 +118,6 @@ export const UsersManagement = () => {
           created_at,
           last_login,
           subscription_tier_id,
-          api_key_requested,
           subscription_tiers (
             id,
             display_name
@@ -126,6 +126,24 @@ export const UsersManagement = () => {
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
+
+      // Try to fetch api_key_requested separately (column may not exist yet)
+      let apiKeyRequestMap: Record<string, boolean> = {};
+      try {
+        const { data: apiKeyData } = await supabase
+          .from('profiles')
+          .select('id, api_key_requested')
+          .in('id', profiles?.map(p => p.id) || []);
+
+        if (apiKeyData) {
+          apiKeyRequestMap = apiKeyData.reduce((acc, p) => {
+            acc[p.id] = p.api_key_requested || false;
+            return acc;
+          }, {} as Record<string, boolean>);
+        }
+      } catch {
+        // Column doesn't exist yet, ignore
+      }
 
       // Get chatbot counts and activation status for each user
       const userIds = profiles?.map(p => p.id) || [];
@@ -163,7 +181,7 @@ export const UsersManagement = () => {
         } : null,
         chatbots_count: chatbotMap[profile.id]?.count || 0,
         activation_status: chatbotMap[profile.id]?.activation_status as any,
-        api_key_requested: profile.api_key_requested || false
+        api_key_requested: apiKeyRequestMap[profile.id] || false
       }));
 
       setUsers(formattedUsers);
