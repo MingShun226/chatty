@@ -84,14 +84,22 @@ export const FineTuningManagement = () => {
 
   const fetchApiKey = async () => {
     try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return;
+
+      // Fetch from admin_assigned_api_keys table
       const { data } = await supabase
-        .from('platform_settings')
-        .select('setting_value')
-        .eq('setting_key', 'openai_api_key')
+        .from('admin_assigned_api_keys')
+        .select('api_key_encrypted')
+        .eq('user_id', session.session.user.id)
+        .eq('service', 'openai')
+        .eq('is_active', true)
         .maybeSingle();
 
-      if (data?.setting_value?.api_key) {
-        setOpenaiApiKey(data.setting_value.api_key);
+      if (data?.api_key_encrypted) {
+        // Decode the base64 encoded key
+        const decodedKey = atob(data.api_key_encrypted);
+        setOpenaiApiKey(decodedKey);
         setHasApiKey(true);
       }
     } catch (error) {
