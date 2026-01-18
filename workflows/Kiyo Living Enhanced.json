@@ -1,0 +1,858 @@
+{
+  "name": "Kiyo Living Enhanced",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kiyoliving",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1744,
+        -16
+      ],
+      "id": "985881ec-8c98-490c-a7d3-fe9edccdb6c3",
+      "name": "Webhook",
+      "webhookId": "YOUR_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.message_type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Document"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Video"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1968,
+        -64
+      ],
+      "id": "a789d76a-7c29-476e-8559-6032fd9cb7b2",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "imageUrls": "={{ $json.body.media.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2448,
+        -416
+      ],
+      "id": "e57a0a6e-ce08-404e-a8d3-85c5f4e3d894",
+      "name": "Analyze image",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.media.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2304,
+        -160
+      ],
+      "id": "ee9f1b6a-ac8b-468c-9d41-5af4975376a9",
+      "name": "Get Audio"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2512,
+        -160
+      ],
+      "id": "8457fde3-0b3f-4821-b1e6-70858f97fc87",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "documentUrls": "={{ $json.body.media.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2448,
+        128
+      ],
+      "id": "d383f14b-6480-4973-9e06-a7a1059e21eb",
+      "name": "Analyze document",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "videoUrls": "={{ $('Webhook').item.json.body.media.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2448,
+        368
+      ],
+      "id": "eabdf348-51a3-4333-b770-77d61b5eb31d",
+      "name": "Analyze video",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combined: Merge Analysis + Prepare for AI Agent\nconsole.log('=== Processing WhatsApp Message ===');\n\nconst allInputs = $input.all();\nconsole.log('Total inputs received:', allInputs.length);\n\nfunction extractAnalysisText(data) {\n  if (Array.isArray(data)) data = data[0];\n  if (!data) return null;\n  \n  if (data.content && Array.isArray(data.content)) {\n    const textParts = data.content.filter(item => item.text && item.text.length > 10);\n    if (textParts.length > 0) return textParts.map(item => item.text).join('\\n\\n');\n  }\n  \n  if (data.annotations && Array.isArray(data.annotations)) {\n    const textAnnotations = data.annotations.filter(a => a.text && a.text.length > 10);\n    if (textAnnotations.length > 0) return textAnnotations.map(a => a.text).join('\\n\\n');\n  }\n  \n  if (data.content?.parts?.[0]?.text) return data.content.parts[0].text;\n  if (data.candidates?.[0]?.content?.parts?.[0]?.text) return data.candidates[0].content.parts[0].text;\n  if (data.text && typeof data.text === 'string' && data.text.length > 10) return data.text;\n  if (data.message && typeof data.message === 'string' && data.message.length > 10) return data.message;\n  if (typeof data === 'string' && data.length > 10) return data;\n  \n  return null;\n}\n\nlet analysisText = null;\nfor (const item of allInputs) {\n  const extracted = extractAnalysisText(item.json);\n  if (extracted) {\n    analysisText = extracted;\n    break;\n  }\n}\n\nlet webhookData = null;\ntry {\n  webhookData = $('Webhook').first().json;\n} catch (e) {\n  for (const item of allInputs) {\n    const json = Array.isArray(item.json) ? item.json[0] : item.json;\n    if (json?.body?.from_number) {\n      webhookData = json;\n      break;\n    }\n  }\n}\n\nif (!webhookData?.body) {\n  throw new Error('No webhook data found');\n}\n\nconst body = webhookData.body;\nconst mediaType = body.media?.type || 'text';\nconst chatbot = body.chatbot || {};\nconst api = body.api || {};\n\nlet message = body.message || '';\nlet wasAnalyzed = false;\n\nif (analysisText) {\n  message = analysisText;\n  wasAnalyzed = true;\n} else if (mediaType !== 'text') {\n  message = body.message || '[Media received]';\n}\n\nlet chatInput = message;\nif (wasAnalyzed && mediaType !== 'text') {\n  const labels = { image: 'Image', audio: 'Audio', video: 'Video', document: 'Document' };\n  chatInput = `[${labels[mediaType] || 'Media'} Analysis]\\n${message}`;\n  \n  if (body.message && body.message !== '[Media file]') {\n    chatInput += `\\n\\n[User's caption: ${body.message}]`;\n  }\n}\n\nconst fromNumber = body.from_number || 'unknown';\nconst contactName = body.contact_name || fromNumber;\nconst contact = {\n  id: fromNumber.replace(/[^0-9]/g, ''),\n  phone: fromNumber,\n  name: contactName\n};\n\nconsole.log('Message:', chatInput.substring(0, 100));\nconsole.log('From:', fromNumber, '| Name:', contactName);\nconsole.log('Chatbot:', chatbot.name, '| ID:', chatbot.id);\n\nreturn {\n  json: {\n    chatInput: chatInput,\n    contact: contact,\n    phone: fromNumber,\n    contactName: contactName,\n    chatbotConfig: {\n      id: chatbot.id,\n      name: chatbot.name || 'Assistant',\n      company: chatbot.company_name || '',\n      industry: chatbot.industry || '',\n      systemPrompt: chatbot.system_prompt || 'You are a helpful AI assistant.',\n      businessContext: chatbot.business_context || '',\n      complianceRules: chatbot.compliance_rules || [],\n      responseGuidelines: chatbot.response_guidelines || [],\n      promptVersion: chatbot.prompt_version || null,\n      priceVisible: chatbot.price_visible !== false\n    },\n    apiConfig: {\n      baseUrl: api.base_url || 'https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1',\n      chatbotId: chatbot.id\n    },\n    timestamp: new Date().toISOString(),\n    messageType: mediaType,\n    wasMediaAnalyzed: wasAnalyzed,\n    sessionId: `whatsapp_${contact.id}_${Date.now()}`\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2832,
+        -16
+      ],
+      "id": "6656cc28-f6fa-444a-8ac4-9d34de2932e4",
+      "name": "Extract WhatsApp Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatInput",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "systemPrompt",
+              "name": "systemPrompt",
+              "value": "={{ $json.chatbotConfig.systemPrompt }}",
+              "type": "string"
+            },
+            {
+              "id": "businessContext",
+              "name": "businessContext",
+              "value": "={{ $json.chatbotConfig.businessContext }}",
+              "type": "string"
+            },
+            {
+              "id": "chatbotId",
+              "name": "chatbotId",
+              "value": "={{ $json.chatbotConfig.id }}",
+              "type": "string"
+            },
+            {
+              "id": "platformApiKey",
+              "name": "platformApiKey",
+              "value": "YOUR_PLATFORM_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "priceVisible",
+              "name": "priceVisible",
+              "value": "={{ $json.chatbotConfig.priceVisible }}",
+              "type": "boolean"
+            },
+            {
+              "id": "customerPhone",
+              "name": "customerPhone",
+              "value": "={{ $json.contact.phone }}",
+              "type": "string"
+            },
+            {
+              "id": "customerName",
+              "name": "customerName",
+              "value": "={{ $json.contactName }}",
+              "type": "string"
+            },
+            {
+              "id": "googleSheetId",
+              "name": "googleSheetId",
+              "value": "YOUR_GOOGLE_SHEET_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "87a250d3-b66f-43ee-a95b-7980689bc758",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3120,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Current date and time: {{ $now.toISO() }}\n\n{{ $json.systemPrompt }}\n\nBUSINESS CONTEXT:\n{{ $json.businessContext }}\n\n{{ $json.chatbotConfig?.complianceRules?.length > 0 ? 'COMPLIANCE RULES (MUST FOLLOW):\\n' + $json.chatbotConfig.complianceRules.map(r => '- ' + r).join('\\n') + '\\n\\n' : '' }}{{ $json.chatbotConfig?.responseGuidelines?.length > 0 ? 'RESPONSE GUIDELINES (MUST FOLLOW):\\n' + $json.chatbotConfig.responseGuidelines.map(g => '- ' + g).join('\\n') + '\\n\\n' : '' }}{{ $json.priceVisible === false ? 'PRICING VISIBILITY: HIDDEN\\n- NEVER reveal product prices to customers\\n- When customer asks about prices, respond with: \"Let me connect you to our sales team for the best pricing!\"\\n- Focus on product features and benefits instead of prices\\n\\n' : '' }}CONVERSATION CONTEXT:\nPrevious messages are tracked automatically via memory. Do not repeat answering same questions.\nCustomer Phone: {{ $json.customerPhone }}\nCustomer Name: {{ $json.customerName }}\n\nYOU ARE A PROFESSIONAL E-COMMERCE SALES ASSISTANT\n\nYour role is to:\n1. Help customers browse and find products\n2. Answer product questions professionally\n3. Guide customers through the ordering process\n4. Collect order details accurately\n5. Confirm orders before recording\n\nCOMMUNICATION STYLE:\n- Be professional, friendly, and helpful\n- Use clear and concise language\n- Be proactive in suggesting products\n- Always confirm details before proceeding\n- Thank customers for their interest and orders\n\nAPI TOOLS - WHEN TO USE EACH TOOL\n\nbrowse_catalog - Get FULL product catalog\n  USE WHEN: Customer asks about products, what you sell, categories, prices, stock\n  RETURNS: products_by_category, all_products, categories, total_products\n  Each product has: name, description, original_price, sale_price, has_discount, discount_display, image_url\n\nget_promotions - Get active promotions\n  USE WHEN: Customer asks about discounts, offers, sales\n  RETURNS: List of active promotions with discount details\n\nget_knowledge - Get knowledge base content\n  USE WHEN: Customer asks about company, policies, procedures, address, contact info\n  RETURNS: Files with content chunks\n\nread_webpage - Read content from a URL\n  USE WHEN: Customer sends a link/URL\n\nrecord_order - Record customer order to Google Sheets\n  USE WHEN: Customer CONFIRMS they want to place an order AND you have ALL required details\n  REQUIRED BEFORE CALLING:\n    - customer_name (ask if not known)\n    - phone (use their WhatsApp number: {{ $json.customerPhone }})\n    - address (delivery address - MUST ask customer)\n    - items (array of products with name and quantity - MUST exist in catalog)\n    - total_amount (calculated total)\n  RETURNS: Confirmation with order ID\n\nORDER TAKING PROCESS (VERY IMPORTANT)\n\nWhen customer shows purchase intent (\"I want to buy\", \"I'll take it\", \"how to order\"):\n\nSTEP 1 - Confirm Product Selection:\n\"Great choice! Just to confirm, you'd like to order:\\n- [Product Name] x [Quantity]\\nIs that correct?\"\n\nSTEP 2 - Collect Customer Details:\nAsk for these details ONE AT A TIME:\n1. \"May I have your full name for the order?\"\n2. \"What's the delivery address?\"\n\nSTEP 3 - Summarize and Confirm:\n\"Perfect! Let me confirm your order:\\n\\nCustomer: [Name]\\nPhone: [Their WhatsApp number]\\nAddress: [Delivery Address]\\n\\nOrder Items:\\n- [Product 1] x [Qty] - RM [Price]\\n\\nTotal: RM [Total]\\n\\nPlease reply 'CONFIRM' to place this order.\"\n\nSTEP 4 - Record Order:\nONLY after customer confirms (says \"confirm\", \"yes\", \"ok\"), use the record_order tool.\n\nSTEP 5 - Confirmation Message:\n\"Thank you! Your order has been recorded successfully.\\n\\nOrder ID: [From tool response]\\nWe will contact you shortly for payment and delivery arrangements.\"\n\nORDER VALIDATION RULES:\n- Products MUST exist in the catalog - use browse_catalog to verify\n- If customer asks for a product not in catalog, politely inform them\n- Always confirm the exact product name and quantity\n- Use customer's WhatsApp number ({{ $json.customerPhone }}) as their phone\n\nPRODUCT LISTING FORMAT\n\nWhen showing products, use this clean format (NO URLs in text):\n\n\"Here are our [category] options:\\n\\n1. [Product Name]\\n   - [Key Feature 1]\\n   - [Key Feature 2]\\n   - Price: RM [Price]\\n\\n2. [Product Name]\\n   - [Key Feature 1]\\n   - Price: RM [Price]\\n\\nWhich one interests you?\"\n\nIMAGE HANDLING:\n- NEVER write URLs in the reply text\n- NEVER write [View Image](url)\n- Put image URLs in the separate \"images\" array only\n\nRESPONSE FORMAT (STRICT JSON ONLY)\n\n{\n  \"reply\": \"Your text response (NO URLs, plain text only)\",\n  \"images\": [\n    {\n      \"url\": \"image_url_here\",\n      \"caption\": \"Product Name - Price\"\n    }\n  ],\n  \"documents\": []\n}\n\nWHAT NOT TO DO:\n- Never include URLs in reply text\n- Never use markdown formatting (*bold*, [links], etc.)\n- Never record an order without customer confirmation\n- Never guess product details - always verify from catalog\n- Never skip collecting required order information\n\nWHAT TO DO:\n- Be professional and courteous\n- Verify products exist before confirming orders\n- Collect all required details before recording\n- Summarize and get confirmation before finalizing\n- Thank customers and provide clear next steps\n\nNow respond to the customer's message in the correct JSON format."
+        }
+      },
+      "id": "2b74bb4c-0c96-4d60-916e-817e8d6eb084",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        3392,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "bbaddf5c-7bfc-4f3d-9bed-feb8102b6c36",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3168,
+        208
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Workflow Configuration').item.json.chatbotConfig.id }}_{{ $('Workflow Configuration').item.json.contact.id }}",
+        "tableName": "n8n_chat_history",
+        "contextWindowLength": 50
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        3216,
+        432
+      ],
+      "id": "e3651539-bb7f-4be9-8348-c41134d80acd",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get the COMPLETE product catalog with ALL items. USE THIS FIRST when customer asks about products, what you sell, categories, prices, or wants to browse. Returns: products_by_category, all_products, categories, total_products.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "catalog"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3408,
+        352
+      ],
+      "id": "567c236a-2f49-43ef-8c65-d63dd3fa26df",
+      "name": "browse_catalog"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get all active promotions and discounts. Use when customer asks about offers, discounts, sales, or promotions.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "promotions"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3568,
+        272
+      ],
+      "id": "6ff720f1-7479-4de4-91f1-af02bdc500ab",
+      "name": "get_promotions"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get knowledge base files and content. Use when customer asks about company policies, procedures, address, contact info, working hours.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "knowledge"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3792,
+        272
+      ],
+      "id": "5eae5b0b-58cb-4e40-89af-4e7e6dc73ee1",
+      "name": "get_knowledge"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Read content from a URL when customer sends a link.",
+        "url": "=https://r.jina.ai/{{ $fromAI('url', 'The URL to read', 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/plain"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        4032,
+        256
+      ],
+      "id": "ed65b09e-a438-4daf-8482-2f186c6d81e4",
+      "name": "read_webpage"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Record a customer order to Google Sheets. ONLY use this AFTER customer has confirmed and you have collected: customer_name, phone, address, and items (product_name, quantity). Products must exist in catalog.",
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/YOUR_GOOGLE_SCRIPT_ID/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"addOrder\",\n  \"data\": {\n    \"timestamp\": \"{{ $now.toISO() }}\",\n    \"customer_name\": \"{{ $fromAI('customer_name', 'Full name of the customer', 'string') }}\",\n    \"phone\": \"{{ $fromAI('phone', 'Customer phone number (use their WhatsApp number)', 'string') }}\",\n    \"address\": \"{{ $fromAI('address', 'Delivery address', 'string') }}\",\n    \"items\": {{ $fromAI('items', 'JSON array of items, each with product_name and quantity', 'json') }},\n    \"total_amount\": {{ $fromAI('total_amount', 'Total order amount in RM', 'number') }},\n    \"notes\": \"{{ $fromAI('notes', 'Any special instructions (optional)', 'string') }}\",\n    \"chatbot_id\": \"{{ $('Workflow Configuration').item.json.chatbotId }}\",\n    \"source\": \"whatsapp\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        4032,
+        432
+      ],
+      "id": "record-order-tool-001",
+      "name": "record_order"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format AI Agent output for WhatsApp webhook response\nconst inputData = $input.first().json;\n\nconsole.log('=== Formatting AI Response ===');\nconsole.log('Input keys:', Object.keys(inputData));\n\nlet aiResponse = '';\n\nif (inputData.output) {\n  aiResponse = inputData.output;\n} else if (inputData.text) {\n  aiResponse = inputData.text;\n} else if (inputData.response) {\n  aiResponse = inputData.response;\n} else if (inputData.content) {\n  aiResponse = inputData.content;\n} else if (typeof inputData === 'string') {\n  aiResponse = inputData;\n} else {\n  aiResponse = 'I\\'m sorry, I\\'m having trouble generating a response right now. Please try again.';\n  console.log('Warning: Could not extract AI response from:', inputData);\n}\n\naiResponse = String(aiResponse).trim();\n\nconsole.log('Raw AI Response:', aiResponse.substring(0, 200) + '...');\n\nlet reply = aiResponse;\nlet images = [];\nlet documents = [];\n\nif (aiResponse.startsWith('{') || aiResponse.startsWith('[')) {\n  try {\n    const parsed = JSON.parse(aiResponse);\n    console.log('Successfully parsed AI response as JSON');\n\n    reply = parsed.reply || parsed.response || parsed.message || parsed.text || aiResponse;\n    images = parsed.images || [];\n    documents = parsed.documents || [];\n\n    console.log('Extracted reply:', reply.substring(0, 100));\n    console.log('Extracted images:', images.length, 'image(s)');\n    console.log('Extracted documents:', documents.length, 'document(s)');\n  } catch (e) {\n    console.log('AI response is not valid JSON, using as-is');\n  }\n}\n\nreturn {\n  json: {\n    reply: reply,\n    images: images,\n    documents: documents\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3728,
+        -16
+      ],
+      "id": "5f0a43e5-eec6-47d2-a8ac-f173c023fbfd",
+      "name": "Format for WhatsApp"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Format for WhatsApp').first().json }}",
+        "options": {}
+      },
+      "id": "c666c221-9d8e-4352-a1c8-3e1b394adde4",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        -16
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze document": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze video": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract WhatsApp Data": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format for WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "browse_catalog": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_promotions": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_knowledge": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_webpage": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "record_order": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "enhanced-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "enhanced-workflow"
+  },
+  "id": "enhanced-workflow-001",
+  "tags": []
+}
