@@ -1925,11 +1925,7 @@ app.post('/api/followups/process-auto', async (req, res) => {
     // Get all contacts due for follow-up
     const { data: dueContacts, error: fetchError } = await supabase
       .from('contact_profiles')
-      .select(`
-        *,
-        followup_settings:followup_settings!contact_profiles_chatbot_id_fkey(*)
-      `)
-      .eq('auto_followup_enabled', true)
+      .select('*')
       .not('followup_due_at', 'is', null)
       .lte('followup_due_at', new Date().toISOString())
 
