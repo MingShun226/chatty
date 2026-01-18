@@ -165,11 +165,12 @@ const SetupStatusCard = ({
       case 'active':
         return {
           color: 'bg-green-50 border-green-300 dark:bg-green-950 dark:border-green-700',
-          icon: CheckCircle,
+          icon: Rocket,
           iconColor: 'text-green-500',
-          title: 'Active',
-          description: 'Your chatbot is live and ready to handle messages!',
+          title: 'Your Chatbot is Live!',
+          description: 'Congratulations! Your chatbot is now active and ready to handle customer messages.',
           showRequestButton: false,
+          showTestingGuide: true,
         };
       case 'suspended':
         return {
@@ -195,9 +196,56 @@ const SetupStatusCard = ({
   const config = getStatusConfig();
   const StatusIcon = config.icon;
 
-  // Don't show setup card if already active
+  // Show active status with testing guide
   if (activationStatus === 'active') {
-    return null;
+    return (
+      <Card className={`${config.color} border-2 mb-6`}>
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-4">
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-full bg-white dark:bg-background shadow-sm">
+                <StatusIcon className={`h-6 w-6 ${config.iconColor}`} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-lg">{config.title}</h3>
+                  <Badge className="bg-green-500 text-white text-xs">Live</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{config.description}</p>
+              </div>
+            </div>
+
+            {/* Testing Guide */}
+            <div className="bg-white dark:bg-background rounded-lg p-4 border">
+              <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                <Phone className="h-4 w-4 text-green-600" />
+                How to Test Your Chatbot
+              </h4>
+              <ol className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="font-medium text-foreground bg-muted rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">1</span>
+                  <span>Open WhatsApp on your phone (or use WhatsApp Web)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-medium text-foreground bg-muted rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">2</span>
+                  <span>Send a message to the connected WhatsApp number{stats.whatsappPhone && <span className="font-medium text-foreground"> (+{stats.whatsappPhone})</span>}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-medium text-foreground bg-muted rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">3</span>
+                  <span>Try asking about your products or services - the AI will respond automatically!</span>
+                </li>
+              </ol>
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <strong>Tip:</strong> Test with questions like "What products do you have?" or "Do you have any promotions?" to see your chatbot in action.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

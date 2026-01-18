@@ -80,6 +80,9 @@ serve(async (req: Request) => {
     // Otherwise use the caller's key
     const targetUserId = (isAdmin && requestBody.forUserId) ? requestBody.forUserId : user.id
 
+    // Remove forUserId from request body before sending to OpenAI (it's our custom field)
+    const { forUserId, ...openaiRequestBody } = requestBody
+
     // First check for admin-assigned API key (platform-managed)
     let apiKey: string | null = null
     let keySource: 'admin' | 'user' | 'platform' = 'admin'
@@ -187,7 +190,7 @@ serve(async (req: Request) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(openaiRequestBody)
     })
 
     if (!openaiResponse.ok) {

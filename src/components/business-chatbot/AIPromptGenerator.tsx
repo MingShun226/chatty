@@ -188,56 +188,28 @@ export function AIPromptGenerator({ chatbotId, userId, onPromptGenerated, compac
     }
   };
 
-  // Compact mode - just a button on the right side
+  // Compact mode - just a button inline
   if (compact) {
     return (
       <>
-        <Card className="w-auto">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex gap-2">
-              <Button
-                onClick={handleUseBasicTemplate}
-                disabled={loadingBasic || generating}
-                size="lg"
-                variant="outline"
-                className="whitespace-nowrap"
-              >
-                {loadingBasic ? (
-                  <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="h-5 w-5 mr-2" />
-                    Use Basic Template
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={handleGeneratePrompt}
-                disabled={generating || loadingBasic}
-                size="lg"
-                className="whitespace-nowrap"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    AI Generate (GPT-4o)
-                  </>
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Basic: Clean template | AI: Malaysian salesman style
-            </p>
-          </CardContent>
-        </Card>
+        <Button
+          onClick={handleGeneratePrompt}
+          disabled={generating}
+          size="sm"
+          variant="outline"
+        >
+          {generating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-1" />
+              AI Generate
+            </>
+          )}
+        </Button>
 
         {/* Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

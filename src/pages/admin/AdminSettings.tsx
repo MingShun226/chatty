@@ -18,6 +18,11 @@ import {
   Upload,
   X,
   FileText,
+  Key,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -85,6 +90,14 @@ export const AdminSettings = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
 
+  // API Key state
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [hasExistingKey, setHasExistingKey] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [validatingApiKey, setValidatingApiKey] = useState(false);
+  const [apiKeyValidated, setApiKeyValidated] = useState(false);
+
   useEffect(() => {
     fetchSettings();
   }, [adminUser]);
@@ -123,10 +136,141 @@ export const AdminSettings = () => {
       if (termsData?.setting_value) {
         setTermsSettings({ ...defaultTermsSettings, ...termsData.setting_value });
       }
+
+      // Fetch admin's OpenAI API key
+      if (adminUser) {
+        const { data: session } = await supabase.auth.getSession();
+        if (session?.session?.user) {
+          const { data: adminKey } = await supabase
+            .from('admin_assigned_api_keys')
+            .select('api_key_encrypted')
+            .eq('user_id', session.session.user.id)
+            .eq('service', 'openai')
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (adminKey?.api_key_encrypted) {
+            setHasExistingKey(true);
+            // Don't show the actual key, just indicate it exists
+            setOpenaiApiKey('');
+          }
+        }
+      }
     } catch (error) {
       console.error('Error fetching settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Validate OpenAI API key
+  const validateOpenaiApiKey = async (key: string): Promise<boolean> => {
+    if (!key.trim() || !key.startsWith('sk-')) {
+      toast.error('Invalid API key format. OpenAI keys start with "sk-"');
+      return false;
+    }
+
+    setValidatingApiKey(true);
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+        },
+      });
+
+      if (response.ok) {
+        setApiKeyValidated(true);
+        return true;
+      } else {
+        const data = await response.json();
+        toast.error(data.error?.message || 'Invalid API key');
+        return false;
+      }
+    } catch (err) {
+      toast.error('Failed to validate API key. Please check your connection.');
+      return false;
+    } finally {
+      setValidatingApiKey(false);
+    }
+  };
+
+  // Save OpenAI API key
+  const handleSaveApiKey = async () => {
+    if (!openaiApiKey.trim()) {
+      toast.error('Please enter an API key');
+      return;
+    }
+
+    // Validate first
+    const isValid = await validateOpenaiApiKey(openaiApiKey);
+    if (!isValid) return;
+
+    setSavingApiKey(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      // Encode the API key (base64)
+      const encodedKey = btoa(openaiApiKey);
+
+      // Upsert the API key
+      const { error } = await supabase
+        .from('admin_assigned_api_keys')
+        .upsert({
+          user_id: session.session.user.id,
+          service: 'openai',
+          api_key_encrypted: encodedKey,
+          is_active: true,
+          assigned_by: session.session.user.id,
+        }, {
+          onConflict: 'user_id,service'
+        });
+
+      if (error) throw error;
+
+      toast.success('OpenAI API key saved successfully!');
+      setHasExistingKey(true);
+      setOpenaiApiKey(''); // Clear the input for security
+      setApiKeyValidated(false);
+    } catch (error: any) {
+      console.error('Error saving API key:', error);
+      toast.error(error.message || 'Failed to save API key');
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
+
+  // Remove OpenAI API key
+  const handleRemoveApiKey = async () => {
+    setSavingApiKey(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('admin_assigned_api_keys')
+        .delete()
+        .eq('user_id', session.session.user.id)
+        .eq('service', 'openai');
+
+      if (error) throw error;
+
+      toast.success('OpenAI API key removed');
+      setHasExistingKey(false);
+      setOpenaiApiKey('');
+      setApiKeyValidated(false);
+    } catch (error: any) {
+      console.error('Error removing API key:', error);
+      toast.error(error.message || 'Failed to remove API key');
+    } finally {
+      setSavingApiKey(false);
     }
   };
 
@@ -260,6 +404,10 @@ export const AdminSettings = () => {
           <TabsTrigger value="platform" className="gap-2">
             <Building2 className="h-4 w-4" />
             Platform
+          </TabsTrigger>
+          <TabsTrigger value="apikeys" className="gap-2">
+            <Key className="h-4 w-4" />
+            API Keys
           </TabsTrigger>
           {isSuperAdmin() && (
             <TabsTrigger value="payment" className="gap-2">
@@ -462,6 +610,165 @@ export const AdminSettings = () => {
                   )}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* API Keys Tab */}
+        <TabsContent value="apikeys" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                OpenAI API Key
+              </CardTitle>
+              <CardDescription>
+                Configure your OpenAI API key for platform AI operations (prompt generation, embeddings, etc.)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {hasExistingKey ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <div>
+                      <p className="font-medium text-green-800 dark:text-green-200">API Key Configured</p>
+                      <p className="text-sm text-green-600 dark:text-green-400">
+                        Your OpenAI API key is set up and ready to use.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Update API Key</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enter a new API key to replace the existing one.
+                    </p>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={openaiApiKey}
+                          onChange={(e) => {
+                            setOpenaiApiKey(e.target.value);
+                            setApiKeyValidated(false);
+                          }}
+                          placeholder="sk-..."
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <Button
+                        onClick={handleSaveApiKey}
+                        disabled={!openaiApiKey.trim() || savingApiKey || validatingApiKey}
+                      >
+                        {savingApiKey || validatingApiKey ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Update'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label className="text-destructive">Remove API Key</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Remove your API key. AI features requiring OpenAI will stop working.
+                    </p>
+                    <Button
+                      variant="destructive"
+                      onClick={handleRemoveApiKey}
+                      disabled={savingApiKey}
+                    >
+                      {savingApiKey ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      Remove API Key
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
+                    <AlertCircle className="h-5 w-5 text-amber-600" />
+                    <div>
+                      <p className="font-medium text-amber-800 dark:text-amber-200">No API Key Configured</p>
+                      <p className="text-sm text-amber-600 dark:text-amber-400">
+                        AI features like prompt generation won't work until you add an API key.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="openai_api_key">OpenAI API Key</Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          id="openai_api_key"
+                          type={showApiKey ? 'text' : 'password'}
+                          value={openaiApiKey}
+                          onChange={(e) => {
+                            setOpenaiApiKey(e.target.value);
+                            setApiKeyValidated(false);
+                          }}
+                          placeholder="sk-..."
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <Button
+                        onClick={handleSaveApiKey}
+                        disabled={!openaiApiKey.trim() || savingApiKey || validatingApiKey}
+                      >
+                        {savingApiKey || validatingApiKey ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            {validatingApiKey ? 'Validating...' : 'Saving...'}
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4 mr-2" />
+                            Save API Key
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from{' '}
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        OpenAI Dashboard
+                      </a>
+                    </p>
+                  </div>
+
+                  {apiKeyValidated && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm">API key validated successfully!</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

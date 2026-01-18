@@ -58,11 +58,14 @@ import {
   Upload,
   Download,
   FileJson,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import type { SubscriptionTier } from '@/types/admin';
 import { AIPromptGenerator } from '@/components/business-chatbot/AIPromptGenerator';
+import { createPlatformApiKey } from '@/services/platformApiKeyService';
 
 interface UserProfile {
   id: string;
@@ -120,6 +123,16 @@ interface AdminApiKey {
   created_at: string;
 }
 
+interface PlatformApiKey {
+  id: string;
+  key_name: string;
+  api_key_prefix: string;
+  avatar_id: string | null;
+  status: string;
+  created_at: string;
+  avatar_name?: string;
+}
+
 const CHATBOT_TYPE_INFO = {
   ecommerce: { label: 'E-commerce', icon: Package, description: 'Product inquiries & sales' },
   appointment: { label: 'Appointment', icon: Calendar, description: 'Booking & scheduling' },
@@ -169,6 +182,12 @@ export const UserDetails = () => {
   const workflowFileInputRef = React.useRef<HTMLInputElement>(null);
   const [exportingProducts, setExportingProducts] = useState(false);
 
+  // Platform API Key State
+  const [platformApiKeys, setPlatformApiKeys] = useState<PlatformApiKey[]>([]);
+  const [platformApiKeyFull, setPlatformApiKeyFull] = useState<string | null>(null);
+  const [generatingPlatformKey, setGeneratingPlatformKey] = useState(false);
+  const [deletingPlatformKey, setDeletingPlatformKey] = useState<string | null>(null);
+
   useEffect(() => {
     if (userId) {
       fetchUserData();
@@ -191,7 +210,8 @@ export const UserDetails = () => {
 
       await Promise.all([
         fetchUserApiKeys(userId),
-        fetchUserChatbots(userId)
+        fetchUserChatbots(userId),
+        fetchPlatformApiKeys(userId)
       ]);
     } catch (error: any) {
       console.error('Error fetching user:', error);
@@ -283,6 +303,92 @@ export const UserDetails = () => {
     setAdminNotes(chatbot.admin_notes || '');
     setActivationStatus(chatbot.activation_status || 'pending');
     await fetchChatbotContent(chatbot.id);
+  };
+
+  const fetchPlatformApiKeys = async (uid: string) => {
+    try {
+      // Fetch all platform API keys for this user with chatbot names
+      const { data: keys, error } = await supabase
+        .from('platform_api_keys')
+        .select(`
+          id, key_name, api_key_prefix, avatar_id, status, created_at,
+          avatars:avatar_id (name)
+        `)
+        .eq('user_id', uid)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedKeys: PlatformApiKey[] = (keys || []).map(k => ({
+        id: k.id,
+        key_name: k.key_name,
+        api_key_prefix: k.api_key_prefix,
+        avatar_id: k.avatar_id,
+        status: k.status,
+        created_at: k.created_at,
+        avatar_name: (k.avatars as any)?.name || null
+      }));
+
+      setPlatformApiKeys(formattedKeys);
+    } catch (error) {
+      console.error('Error fetching platform API keys:', error);
+      setPlatformApiKeys([]);
+    }
+  };
+
+  const handleGeneratePlatformKey = async (chatbotId?: string, chatbotName?: string) => {
+    if (!userId) return;
+    setGeneratingPlatformKey(true);
+    try {
+      const result = await createPlatformApiKey(
+        userId,
+        chatbotId || 'general',
+        chatbotName || `API Key ${platformApiKeys.length + 1}`
+      );
+
+      if (result.success && result.apiKey) {
+        setPlatformApiKeyFull(result.apiKey);
+        await fetchPlatformApiKeys(userId);
+        toast({
+          title: 'Key Generated',
+          description: 'Copy the API key now - it will not be shown again!'
+        });
+      } else {
+        throw new Error(result.error || 'Failed to generate key');
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setGeneratingPlatformKey(false);
+    }
+  };
+
+  const handleDeletePlatformKey = async (keyId: string) => {
+    if (!userId) return;
+    setDeletingPlatformKey(keyId);
+    try {
+      const { error } = await supabase
+        .from('platform_api_keys')
+        .update({ status: 'revoked' })
+        .eq('id', keyId);
+
+      if (error) throw error;
+
+      await fetchPlatformApiKeys(userId);
+      toast({ title: 'Deleted', description: 'API key has been revoked' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setDeletingPlatformKey(null);
+    }
+  };
+
+  const handleCopyPlatformKey = (key?: string) => {
+    const keyToCopy = key || platformApiKeyFull;
+    if (!keyToCopy) return;
+    navigator.clipboard.writeText(keyToCopy);
+    toast({ title: 'Copied', description: 'API key copied to clipboard' });
   };
 
   const fetchChatbotContent = async (chatbotId: string) => {
@@ -749,7 +855,7 @@ export const UserDetails = () => {
                         AI Prompt Generation
                       </h4>
                       <div className="p-4 border rounded-lg bg-muted/30">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium">
                               {chatbotContent?.has_active_prompt ? (
@@ -764,15 +870,15 @@ export const UserDetails = () => {
                               Generate an AI prompt based on user's content and business type
                             </p>
                           </div>
+                          {userId && (
+                            <AIPromptGenerator
+                              chatbotId={selectedChatbot.id}
+                              userId={userId}
+                              onPromptGenerated={() => fetchChatbotContent(selectedChatbot.id)}
+                              compact={true}
+                            />
+                          )}
                         </div>
-                        {userId && (
-                          <AIPromptGenerator
-                            chatbotId={selectedChatbot.id}
-                            userId={userId}
-                            onPromptGenerated={() => fetchChatbotContent(selectedChatbot.id)}
-                            compact={true}
-                          />
-                        )}
 
                         {/* Display Active Prompt Content */}
                         {chatbotContent?.active_prompt_content && (
@@ -1114,6 +1220,104 @@ export const UserDetails = () => {
                 </div>
                 <p className="text-xs text-muted-foreground">Used for image/video generation</p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Platform API Keys for n8n */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Key className="h-4 w-4" />
+                    Platform API Keys (for n8n)
+                  </CardTitle>
+                  <CardDescription>
+                    API keys for n8n workflow to fetch chatbot data
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => handleGeneratePlatformKey()}
+                  disabled={generatingPlatformKey}
+                  size="sm"
+                >
+                  {generatingPlatformKey ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-1" />
+                  )}
+                  New Key
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Show newly generated key */}
+              {platformApiKeyFull && (
+                <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-green-700 dark:text-green-400">
+                      Copy this key now - it won't be shown again!
+                    </p>
+                    <Button variant="ghost" size="sm" onClick={() => handleCopyPlatformKey()}>
+                      <Copy className="h-4 w-4 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                  <code className="block p-2 bg-white dark:bg-black/20 rounded text-xs font-mono break-all select-all">
+                    {platformApiKeyFull}
+                  </code>
+                </div>
+              )}
+
+              {/* List of existing keys */}
+              {platformApiKeys.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Key className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No platform API keys yet</p>
+                  <p className="text-xs">Click "New Key" to generate one for n8n integration</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {platformApiKeys.map(key => (
+                    <div key={key.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                            {key.api_key_prefix}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => handleCopyPlatformKey(key.api_key_prefix)}
+                            title="Copy prefix"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {key.key_name}
+                          {key.avatar_name && <span className="ml-1">• {key.avatar_name}</span>}
+                          <span className="ml-1">• Created {formatDistanceToNow(new Date(key.created_at), { addSuffix: true })}</span>
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeletePlatformKey(key.id)}
+                        disabled={deletingPlatformKey === key.id}
+                      >
+                        {deletingPlatformKey === key.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

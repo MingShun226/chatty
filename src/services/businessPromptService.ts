@@ -37,7 +37,7 @@ export class BusinessPromptService {
         throw new Error('Chatbot not found');
       }
 
-      // 2. Get product catalog summary
+      // 2. Get product catalog with full details
       const products = await ProductService.getProducts(chatbotId);
       const productSummary = this.generateProductSummary(products);
 
@@ -51,7 +51,16 @@ export class BusinessPromptService {
 
       const knowledgeSummary = this.generateKnowledgeSummary(knowledgeFiles || []);
 
-      // 4. Build context object
+      // 4. Get active promotions
+      const { data: promotions } = await supabase
+        .from('chatbot_promotions')
+        .select('*')
+        .eq('chatbot_id', chatbotId)
+        .eq('is_active', true);
+
+      const promotionsSummary = this.generatePromotionsSummary(promotions || []);
+
+      // 5. Build context object
       const context: BusinessChatbotContext = {
         chatbot_id: chatbotId,
         chatbot_name: chatbot.name,
@@ -66,11 +75,13 @@ export class BusinessPromptService {
         default_language: chatbot.default_language || 'en',
       };
 
-      // 5. Use AI to generate optimized system prompt
+      // 6. Use AI to generate content-focused system prompt
       const generatedPrompt = await this.callAIToGeneratePrompt(
         context,
         productSummary,
         knowledgeSummary,
+        promotionsSummary,
+        products,
         userId
       );
 
@@ -132,74 +143,119 @@ Note: Full product catalog with ${products.length} items is available for querie
     }).join('\n');
 
     return `
-KNOWLEDGE BASE:
+KNOWLEDGE BASE DOCUMENTS:
 ${fileSummary}
 
 Total Documents: ${files.length}
-Note: Use RAG (Retrieval Augmented Generation) to find relevant information from these documents based on user queries.
+These documents contain important business information that can be searched when answering customer questions.
+`;
+  }
+
+  /**
+   * Generate promotions summary for AI context
+   */
+  private static generatePromotionsSummary(promotions: any[]): string {
+    if (promotions.length === 0) {
+      return 'No active promotions currently.';
+    }
+
+    const promoList = promotions.map(p => {
+      let promoText = `- ${p.title}`;
+      if (p.discount_type === 'percentage') {
+        promoText += `: ${p.discount_value}% off`;
+      } else if (p.discount_type === 'fixed') {
+        promoText += `: RM${p.discount_value} off`;
+      }
+      if (p.promo_code) {
+        promoText += ` (Code: ${p.promo_code})`;
+      }
+      if (p.end_date) {
+        promoText += ` - Valid until ${new Date(p.end_date).toLocaleDateString()}`;
+      }
+      return promoText;
+    }).join('\n');
+
+    return `
+ACTIVE PROMOTIONS:
+${promoList}
+
+Total Active Promotions: ${promotions.length}
 `;
   }
 
   /**
    * Call AI to generate optimized system prompt
-   * NOTE: This prompt focuses on BUSINESS PERSONALITY only.
-   * Tools and function calls are handled by the n8n workflow template.
+   * NOTE: This prompt focuses on USER CONTENT (products, knowledge, promotions).
+   * Guidelines/personality are handled by the n8n workflow template.
    */
   private static async callAIToGeneratePrompt(
     context: BusinessChatbotContext,
     productSummary: string,
     knowledgeSummary: string,
+    promotionsSummary: string,
+    products: any[],
     userId: string
   ): Promise<string> {
     try {
-      // Build AI generation prompt - Focus on CONTENT and PERSONALITY only
-      // NO tools info - that's handled by n8n workflow
-      const generationPrompt = `You are an expert at creating system prompts for Malaysian business chatbots. Generate a comprehensive system prompt that defines the chatbot's PERSONALITY and BUSINESS KNOWLEDGE.
+      // Get unique categories with product counts
+      const categoryMap = new Map<string, number>();
+      products.forEach(p => {
+        const cat = p.category || 'Uncategorized';
+        categoryMap.set(cat, (categoryMap.get(cat) || 0) + 1);
+      });
+      const categoriesWithCounts = Array.from(categoryMap.entries())
+        .map(([cat, count]) => `- ${cat}: ${count} products`)
+        .join('\n');
 
-**IMPORTANT:** This prompt should ONLY define:
-1. Chatbot personality and tone
-2. Business context and knowledge
-3. Product categories and how to describe them
-4. Response style and language handling
-5. Compliance and guidelines
+      // Get sample products per category (max 3 per category)
+      const samplesByCategory = new Map<string, any[]>();
+      products.forEach(p => {
+        const cat = p.category || 'Uncategorized';
+        if (!samplesByCategory.has(cat)) {
+          samplesByCategory.set(cat, []);
+        }
+        if (samplesByCategory.get(cat)!.length < 3) {
+          samplesByCategory.get(cat)!.push(p);
+        }
+      });
 
-**DO NOT INCLUDE:**
-- Tool/function usage instructions (handled separately by workflow)
-- Database query instructions
-- Technical implementation details
+      const productExamples = Array.from(samplesByCategory.entries())
+        .map(([cat, prods]) => {
+          const prodList = prods.map(p =>
+            `  • ${p.product_name} - RM${p.price} ${p.in_stock ? '(In Stock)' : '(Out of Stock)'}`
+          ).join('\n');
+          return `**${cat}:**\n${prodList}`;
+        })
+        .join('\n\n');
 
----
+      // Build AI generation prompt - Focus on USER CONTENT only
+      const generationPrompt = `Generate a CONTENT-FOCUSED system prompt for a Malaysian business chatbot. This prompt should focus on WHAT the business sells and knows, NOT how to respond (that's handled separately).
 
-## CHATBOT IDENTITY
+## BUSINESS IDENTITY
 
-- **Name:** ${context.chatbot_name}
+- **Chatbot Name:** ${context.chatbot_name}
 - **Company:** ${context.company_name || 'Not specified'}
 - **Industry:** ${context.industry || 'General Business'}
-- **Type:** ${context.chatbot_id ? 'E-commerce/Sales Assistant' : 'Customer Service'}
+
+## BUSINESS DESCRIPTION
+
+${context.business_context || 'A Malaysian business.'}
 
 ---
 
-## BUSINESS CONTEXT
-
-${context.business_context || 'A Malaysian business helping customers with their inquiries.'}
-
----
-
-## LANGUAGE HANDLING
-
-**Critical Rule:** Match the customer's language exactly.
-- Customer writes English → Reply in English
-- Customer writes 中文 → Reply in 中文
-- Customer writes BM → Reply in BM
-
-**Malaysian-Style Tone (when appropriate):**
-- Friendly callouts: 老板, bro, sis, boss
-- Casual particles: lah, lor, ah, 咯, 哦
-- But always match customer's formality level
-
----
+## PRODUCT CATALOG
 
 ${productSummary}
+
+### Categories & Products:
+${categoriesWithCounts || 'No categories yet'}
+
+### Sample Products by Category:
+${productExamples || 'No products uploaded yet'}
+
+---
+
+${promotionsSummary}
 
 ---
 
@@ -207,48 +263,58 @@ ${knowledgeSummary}
 
 ---
 
-## COMPLIANCE RULES (MUST FOLLOW)
+## SUPPORTED LANGUAGES
 
-${context.compliance_rules && context.compliance_rules.length > 0
-  ? context.compliance_rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')
-  : `1. Never share customer personal information
-2. Direct complex issues to human support if needed
-3. Be honest about product availability
-4. Do not make promises about delivery times unless confirmed`}
+The chatbot should be able to respond in: ${context.supported_languages?.join(', ') || 'English'}
+Default language: ${context.default_language || 'English'}
 
 ---
 
-## RESPONSE GUIDELINES
+## YOUR TASK
 
-${context.response_guidelines && context.response_guidelines.length > 0
-  ? context.response_guidelines.map((guideline, i) => `${i + 1}. ${guideline}`).join('\n')
-  : `1. Keep responses concise and helpful
-2. Use WhatsApp-friendly formatting (|| for line breaks)
-3. Ask follow-up questions to understand customer needs
-4. Be warm and friendly, not corporate`}
+Create a system prompt that teaches the chatbot about THIS SPECIFIC BUSINESS and its content. The prompt should:
 
----
+1. **Define the business identity** - Who is ${context.chatbot_name}? What does ${context.company_name || 'this business'} sell/do?
 
-## INSTRUCTIONS FOR PROMPT GENERATION
+2. **Describe product categories in detail** - For each category above, explain:
+   - What types of products are in this category
+   - Price range
+   - Key features customers ask about
+   - How to recommend products from this category
 
-Create a system prompt for ${context.chatbot_name} that:
+3. **Include product knowledge** - Based on the sample products above:
+   - Popular items to recommend
+   - How to describe products naturally
+   - What to say about pricing
 
-1. **Defines the personality** - Warm, helpful Malaysian shop assistant
-2. **Sets the tone** - Friendly but professional, matching customer's language
-3. **Describes the business** - What products/services are offered
-4. **Lists product categories** - Based on the catalog summary above
-5. **Explains response style** - WhatsApp-friendly, concise, engaging
-6. **Includes compliance rules** - As natural behavior guidelines
-7. **Handles common scenarios** - Greetings, product inquiries, pricing questions, out of stock
+4. **Promotions awareness** - Based on the promotions listed:
+   - How to mention active deals
+   - When to suggest promo codes
 
-**Format Requirements:**
-- 600-900 words
-- Use clear sections with headers
-- Include example responses for each language
-- Focus on personality and knowledge, NOT technical implementation
+5. **Knowledge base topics** - Based on the uploaded documents:
+   - What topics the chatbot can answer about
+   - Types of questions it can handle
 
-Generate ONLY the system prompt text. Start with:
-"You are ${context.chatbot_name}, the friendly assistant of ${context.company_name || 'this business'}..."`;
+6. **Business-specific responses** - Example responses for:
+   - "What do you sell?"
+   - "What's your best product in [category]?"
+   - "Do you have any deals?"
+   - Common questions for this ${context.industry || 'business'} type
+
+**IMPORTANT - DO NOT INCLUDE:**
+- Response formatting guidelines (handled by workflow)
+- Message splitting instructions (handled by workflow)
+- Personality/tone guidelines (handled by workflow)
+- Technical tool usage (handled by workflow)
+
+**FORMAT:**
+- 500-800 words
+- Focus on CONTENT and BUSINESS KNOWLEDGE
+- Include specific product names and prices from the data above
+- Make it feel like training a new shop assistant about what you sell
+
+Generate ONLY the content-focused prompt. Start with:
+"You are ${context.chatbot_name}, the assistant for ${context.company_name || 'this business'}. Here's what you need to know about our products and services..."`;
 
       // Get Supabase session for edge function
       const { data: { session } } = await supabase.auth.getSession();
@@ -262,7 +328,6 @@ Generate ONLY the system prompt text. Start with:
       }
 
       // Call OpenAI via edge function
-      // Pass forUserId so admin can generate using target user's API key
       const response = await fetch(`${supabaseUrl}/functions/v1/chat-completions`, {
         method: 'POST',
         headers: {
@@ -271,11 +336,11 @@ Generate ONLY the system prompt text. Start with:
         },
         body: JSON.stringify({
           model: 'gpt-4o',
-          forUserId: userId, // Allow admin to use target user's API key
+          forUserId: userId,
           messages: [
             {
               role: 'system',
-              content: 'You are an expert system prompt engineer. Create prompts that focus on personality and business knowledge, NOT technical implementation.'
+              content: 'You are an expert at creating business knowledge prompts for chatbots. Focus on teaching the chatbot about the specific products, categories, promotions, and business information. Do NOT include response formatting, personality guidelines, or technical instructions - only business content knowledge.'
             },
             {
               role: 'user',
@@ -299,137 +364,109 @@ Generate ONLY the system prompt text. Start with:
     } catch (error: any) {
       console.error('Error calling AI to generate prompt:', error);
       // Fallback to template-based generation
-      return this.generateTemplatePrompt(context, productSummary, knowledgeSummary);
+      return this.generateContentTemplate(context, products, productSummary, knowledgeSummary, promotionsSummary);
     }
   }
 
   /**
-   * Fallback: Generate system prompt using template
+   * Fallback: Generate content-focused template
    */
-  private static generateTemplatePrompt(
+  private static generateContentTemplate(
     context: BusinessChatbotContext,
+    products: any[],
     productSummary: string,
-    knowledgeSummary: string
+    knowledgeSummary: string,
+    promotionsSummary: string
   ): string {
-    return this.generateBasicTemplate(context);
+    const chatbotName = context.chatbot_name || 'Assistant';
+    const companyName = context.company_name || 'our store';
+
+    // Get categories
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+
+    return `You are ${chatbotName}, the assistant for ${companyName}. Here's what you need to know about our products and services:
+
+---
+
+## ABOUT US
+
+${context.business_context || `We are ${companyName}, a ${context.industry || 'business'} helping customers find what they need.`}
+
+---
+
+## OUR PRODUCTS
+
+${productSummary}
+
+### Product Categories:
+${categories.length > 0
+  ? categories.map(cat => {
+      const catProducts = products.filter(p => p.category === cat);
+      const priceRange = catProducts.length > 0
+        ? `RM${Math.min(...catProducts.map(p => p.price)).toFixed(0)} - RM${Math.max(...catProducts.map(p => p.price)).toFixed(0)}`
+        : 'Various prices';
+      return `- **${cat}**: ${catProducts.length} products (${priceRange})`;
+    }).join('\n')
+  : 'Products available - ask about our catalog!'}
+
+### Popular Products:
+${products.slice(0, 5).map(p => `- ${p.product_name}: RM${p.price} ${p.in_stock ? '✓' : '(Out of stock)'}`).join('\n') || 'Check our latest products!'}
+
+---
+
+${promotionsSummary}
+
+---
+
+${knowledgeSummary}
+
+---
+
+## COMMON QUESTIONS
+
+**"What do you sell?"**
+We sell ${categories.length > 0 ? categories.join(', ') : 'various products'}. Total ${products.length} items in our catalog.
+
+**"What's popular?"**
+${products.filter(p => p.in_stock).slice(0, 3).map(p => p.product_name).join(', ') || 'Check our latest arrivals!'}
+
+**"Do you have promotions?"**
+${promotionsSummary.includes('No active') ? 'Check back soon for deals!' : 'Yes! We have active promotions running now.'}
+
+---
+
+## SUPPORTED LANGUAGES
+
+Respond in: ${context.supported_languages?.join(', ') || 'English, 中文, Bahasa Malaysia'}
+Match the customer's language exactly.`;
   }
 
   /**
-   * Generate a clean, basic template that users can use immediately
-   * Key principle: Reply in the SAME language the customer uses (no mixing!)
+   * Generate a basic content-focused template (used when no AI generation available)
+   * This is a simpler version that just describes the business
+   * Note: Guidelines/personality are handled by n8n workflow template
    */
   static generateBasicTemplate(context: BusinessChatbotContext): string {
     const chatbotName = context.chatbot_name || 'Assistant';
     const companyName = context.company_name || 'our store';
 
-    return `You are ${chatbotName}, the friendly assistant of ${companyName}. Your role is to help customers with their inquiries in a warm, polite, and professional manner.
+    return `You are ${chatbotName}, the assistant for ${companyName}.
 
----
+## ABOUT US
 
-## CRITICAL LANGUAGE RULE
+${context.business_context || `We are ${companyName}, a ${context.industry || 'business'} helping customers find what they need.`}
 
-**Reply in the SAME language the customer uses. Do NOT mix languages.**
+Industry: ${context.industry || 'General Business'}
 
-- If customer writes in English → Reply fully in English
-- If customer writes in Chinese (中文) → Reply fully in Chinese
-- If customer writes in Malay (BM) → Reply fully in Malay
-- Match their tone and formality level
+## SUPPORTED LANGUAGES
 
-**Examples of CORRECT responses:**
-- Customer: "Do you have any promotions?" → "Yes! We have a 10% discount promotion going on right now. Would you like to know more?"
-- Customer: "有没有优惠？" → "有的！我们现在有10%折扣优惠。您想了解更多吗？"
-- Customer: "Ada promosi tak?" → "Ada! Kami ada promosi diskaun 10% sekarang. Nak tahu lebih lanjut?"
+Respond in: ${context.supported_languages?.join(', ') || 'English, 中文, Bahasa Malaysia'}
+Always match the customer's language exactly.
 
-**Examples of WRONG responses (mixed language - NEVER do this):**
-- ❌ "老板, we have a promotion for you!"
-- ❌ "Boss, 我们现在有promo哦!"
-- ❌ "Yes ada, 10% off咯!"
+## NOTE
 
----
-
-## YOUR ROLE
-
-1. **Be helpful and polite** - Always assist customers with a friendly tone
-2. **Never reveal you're AI** - Act as a real shop assistant
-3. **Use available tools** - You have access to products, promotions, and knowledge base
-
----
-
-## AVAILABLE TOOLS
-
-You have access to these database tools to help customers:
-
-1. **search_products(query)** - Search for products by name, category, or description
-2. **get_products_by_category(category)** - Get all products in a specific category
-3. **get_active_promotions()** - Get current promotions, discounts, and special offers
-4. **validate_promo_code(code)** - Check if a promo code is valid
-
-**IMPORTANT:** When customers ask about products, promotions, or discounts, ALWAYS use the appropriate tool first. Do not make up information.
-
----
-
-## WHEN TO USE EACH TOOL
-
-| Customer asks about... | Use this tool |
-|------------------------|---------------|
-| Products, prices, items, stock | search_products or get_products_by_category |
-| Promotions, discounts, offers, sales | get_active_promotions |
-| A specific promo code | validate_promo_code |
-
----
-
-## SHOWING IMAGES
-
-When products or promotions have images, include them in your response using this format:
-\`[IMAGE:url:caption]\`
-
-Example: "Here's our latest promotion! [IMAGE:https://example.com/promo.jpg:CNY Sale] Get 10% off with code CNY123!"
-
----
-
-## RESPONSE STYLE
-
-1. **Keep it conversational** - Like chatting with a friend, not a robot
-2. **Be concise** - Don't write essays, keep responses short and clear
-3. **Ask follow-up questions** - To better understand customer needs
-4. **Be honest** - If something is out of stock or unavailable, say so politely
-
-**Good response patterns:**
-
-English:
-- "Sure, let me check that for you!"
-- "Great choice! This one is very popular."
-- "Is there anything else I can help you with?"
-
-Chinese:
-- "好的，让我帮您查一下！"
-- "这个选择很好！很多客户都喜欢。"
-- "还有什么我可以帮您的吗？"
-
-Malay:
-- "Baik, saya check untuk anda!"
-- "Pilihan yang bagus! Ramai pelanggan suka yang ini."
-- "Ada apa-apa lagi saya boleh bantu?"
-
----
-
-## COMPLIANCE RULES
-
-${context.compliance_rules && context.compliance_rules.length > 0
-  ? context.compliance_rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')
-  : '1. Always be polite and professional\n2. Never share customer personal information\n3. Direct complex issues to human support if needed'}
-
----
-
-## BUSINESS CONTEXT
-
-${context.business_context || 'A friendly store helping customers with their needs.'}
-
-${context.industry ? `Industry: ${context.industry}` : ''}
-
----
-
-Remember: You are ${chatbotName}, here to help customers in a friendly, professional manner. Always reply in the customer's language without mixing!`;
+Product catalog and promotions will be fetched dynamically when customers ask.
+Knowledge base documents can be searched for relevant information.`;
   }
 
   /**

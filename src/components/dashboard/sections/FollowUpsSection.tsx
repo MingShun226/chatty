@@ -832,7 +832,11 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                           )}
                         </TableCell>
                         <TableCell>
-                          {tag.auto_followup ? `${tag.followup_delay_hours}h` : '-'}
+                          {tag.auto_followup ? (
+                            tag.followup_delay_hours < 1
+                              ? `${Math.round(tag.followup_delay_hours * 60)}m`
+                              : `${tag.followup_delay_hours}h`
+                          ) : '-'}
                         </TableCell>
                         <TableCell>{contactCount}</TableCell>
                         <TableCell>
@@ -1109,11 +1113,15 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                   <Label>Delay (hours)</Label>
                   <Input
                     type="number"
+                    step="0.1"
                     value={tagForm.followup_delay_hours}
-                    onChange={(e) => setTagForm({ ...tagForm, followup_delay_hours: parseInt(e.target.value) || 24 })}
-                    min={1}
+                    onChange={(e) => setTagForm({ ...tagForm, followup_delay_hours: parseFloat(e.target.value) || 24 })}
+                    min={0.1}
                     max={168}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    For testing: 0.1 = 6 min, 0.25 = 15 min, 0.5 = 30 min, 1 = 1 hour
+                  </p>
                 </div>
 
                 <div className="space-y-2">

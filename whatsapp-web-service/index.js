@@ -1860,9 +1860,15 @@ Context:
 Recent conversation:
 ${conversationContext}
 
-Generate a short, natural follow-up message (1-2 sentences) in the same language as the conversation.
+Generate a follow-up message (2-4 sentences) in the same language as the conversation.
 The message should be helpful, not pushy. Don't use emojis excessively.
-Respond with ONLY the message text, no quotes or explanation.`
+
+IMPORTANT: Use "||" (double pipe) to split your message into multiple chat bubbles for a more natural conversation flow.
+Example: "Hi! Just checking in. ||How's your experience with our products so far? ||Let me know if you need any help!"
+
+This creates 3 separate messages that feel more conversational.
+
+Respond with ONLY the message text (with || separators if multiple parts), no quotes or explanation.`
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -1996,7 +2002,7 @@ app.post('/api/followups/process-auto', async (req, res) => {
         const phoneJid = contact.phone_number.includes('@')
           ? contact.phone_number
           : `${contact.phone_number}@s.whatsapp.net`
-        await sendWhatsAppMessage(socketData.sock, phoneJid, followupMessage)
+        await sendWhatsAppMessage(socketData.sock, phoneJid, followupMessage, '||')
 
         // Log to follow-up history
         await supabase.from('followup_history').insert({
@@ -2105,7 +2111,7 @@ app.post('/api/followups/send-by-tag', async (req, res) => {
         const phoneJid = contact.phone_number.includes('@')
           ? contact.phone_number
           : `${contact.phone_number}@s.whatsapp.net`
-        await sendWhatsAppMessage(socketData.sock, phoneJid, message)
+        await sendWhatsAppMessage(socketData.sock, phoneJid, message, '||')
 
         // Log to history
         await supabase.from('followup_history').insert({
@@ -2405,11 +2411,11 @@ app.post('/api/chat-history', async (req, res) => {
   }
 })
 
-// Scheduled follow-up processor (runs every hour)
+// Scheduled follow-up processor (runs every 5 minutes for responsive follow-ups)
 let followupProcessorInterval = null
 
 function startFollowupProcessor() {
-  // Process follow-ups every hour
+  // Process follow-ups every 5 minutes for testing with short delays
   followupProcessorInterval = setInterval(async () => {
     console.log('Running scheduled follow-up processor...')
     try {
@@ -2423,9 +2429,9 @@ function startFollowupProcessor() {
     } catch (err) {
       console.error('Error in scheduled follow-up processor:', err)
     }
-  }, 60 * 60 * 1000) // Every hour
+  }, 5 * 60 * 1000) // Every 5 minutes
 
-  console.log('Follow-up processor scheduled (runs every hour)')
+  console.log('Follow-up processor scheduled (runs every 5 minutes)')
 }
 
 // ====================================================
