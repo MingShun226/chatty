@@ -60,6 +60,8 @@ import {
   FileJson,
   Trash2,
   Plus,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -178,6 +180,9 @@ export const UserDetails = () => {
 
   // Prompt & Workflow State
   const [showPromptContent, setShowPromptContent] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [editedPromptContent, setEditedPromptContent] = useState('');
+  const [savingPrompt, setSavingPrompt] = useState(false);
   const [uploadingWorkflow, setUploadingWorkflow] = useState(false);
   const workflowFileInputRef = React.useRef<HTMLInputElement>(null);
   const [exportingProducts, setExportingProducts] = useState(false);
@@ -593,6 +598,71 @@ export const UserDetails = () => {
     toast({ title: 'Copied', description: 'Prompt copied to clipboard' });
   };
 
+  const handleEditPrompt = () => {
+    setEditedPromptContent(chatbotContent?.active_prompt_content || '');
+    setEditingPrompt(true);
+    setShowPromptContent(true);
+  };
+
+  const handleCancelEditPrompt = () => {
+    setEditingPrompt(false);
+    setEditedPromptContent('');
+  };
+
+  const handleSavePrompt = async () => {
+    if (!selectedChatbot || !editedPromptContent.trim()) return;
+    setSavingPrompt(true);
+
+    try {
+      // Check if there's an active prompt version
+      const { data: existingPrompt } = await supabase
+        .from('avatar_prompt_versions')
+        .select('id')
+        .eq('avatar_id', selectedChatbot.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingPrompt) {
+        // Update existing prompt
+        const { error } = await supabase
+          .from('avatar_prompt_versions')
+          .update({
+            system_prompt: editedPromptContent,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingPrompt.id);
+
+        if (error) throw error;
+      } else {
+        // Create new prompt version
+        const { error } = await supabase
+          .from('avatar_prompt_versions')
+          .insert({
+            avatar_id: selectedChatbot.id,
+            version_name: 'v1',
+            system_prompt: editedPromptContent,
+            is_active: true
+          });
+
+        if (error) throw error;
+      }
+
+      // Update local state
+      setChatbotContent(prev => prev ? {
+        ...prev,
+        has_active_prompt: true,
+        active_prompt_content: editedPromptContent
+      } : null);
+
+      setEditingPrompt(false);
+      toast({ title: 'Saved', description: 'Prompt content updated successfully' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
+
   const handleExportProducts = async () => {
     if (!selectedChatbot) return;
     setExportingProducts(true);
@@ -881,7 +951,7 @@ export const UserDetails = () => {
                         </div>
 
                         {/* Display Active Prompt Content */}
-                        {chatbotContent?.active_prompt_content && (
+                        {(chatbotContent?.active_prompt_content || editingPrompt) && (
                           <div className="mt-4 pt-4 border-t">
                             <div className="flex items-center justify-between mb-2">
                               <button
@@ -891,18 +961,58 @@ export const UserDetails = () => {
                                 {showPromptContent ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                 {showPromptContent ? 'Hide Prompt Content' : 'View Prompt Content'}
                               </button>
-                              <Button variant="ghost" size="sm" onClick={handleCopyPrompt}>
-                                <Copy className="h-4 w-4 mr-1" />
-                                Copy
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                {!editingPrompt ? (
+                                  <>
+                                    <Button variant="ghost" size="sm" onClick={handleEditPrompt}>
+                                      <Pencil className="h-4 w-4 mr-1" />
+                                      Edit
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={handleCopyPrompt}>
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Copy
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button variant="ghost" size="sm" onClick={handleCancelEditPrompt}>
+                                      <X className="h-4 w-4 mr-1" />
+                                      Cancel
+                                    </Button>
+                                    <Button size="sm" onClick={handleSavePrompt} disabled={savingPrompt}>
+                                      {savingPrompt ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                                      Save
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             {showPromptContent && (
-                              <div className="bg-muted/50 rounded-lg p-3 max-h-80 overflow-y-auto">
-                                <pre className="text-xs whitespace-pre-wrap font-mono">
-                                  {chatbotContent.active_prompt_content}
-                                </pre>
-                              </div>
+                              editingPrompt ? (
+                                <Textarea
+                                  value={editedPromptContent}
+                                  onChange={(e) => setEditedPromptContent(e.target.value)}
+                                  className="min-h-[300px] font-mono text-xs"
+                                  placeholder="Enter system prompt content..."
+                                />
+                              ) : (
+                                <div className="bg-muted/50 rounded-lg p-3 max-h-80 overflow-y-auto">
+                                  <pre className="text-xs whitespace-pre-wrap font-mono">
+                                    {chatbotContent?.active_prompt_content}
+                                  </pre>
+                                </div>
+                              )
                             )}
+                          </div>
+                        )}
+
+                        {/* Add prompt if none exists */}
+                        {!chatbotContent?.active_prompt_content && !editingPrompt && (
+                          <div className="mt-4 pt-4 border-t">
+                            <Button variant="outline" size="sm" onClick={handleEditPrompt}>
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Prompt Manually
+                            </Button>
                           </div>
                         )}
                       </div>
