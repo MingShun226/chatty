@@ -348,7 +348,7 @@ export const UserDetails = () => {
     try {
       const result = await createPlatformApiKey(
         userId,
-        chatbotId || 'general',
+        chatbotId || null,
         chatbotName || `API Key ${platformApiKeys.length + 1}`
       );
 

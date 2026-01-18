@@ -1,0 +1,952 @@
+{
+  "name": "Kiyo Living",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kiyoliving",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1744,
+        -16
+      ],
+      "id": "985881ec-8c98-490c-a7d3-fe9edccdb6c3",
+      "name": "Webhook",
+      "webhookId": "YOUR_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.message_type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Document"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media.type }}",
+                    "rightValue": "video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Video"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1968,
+        -64
+      ],
+      "id": "a789d76a-7c29-476e-8559-6032fd9cb7b2",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "imageUrls": "={{ $json.body.media.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2448,
+        -416
+      ],
+      "id": "e57a0a6e-ce08-404e-a8d3-85c5f4e3d894",
+      "name": "Analyze image",
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.media.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2304,
+        -160
+      ],
+      "id": "ee9f1b6a-ac8b-468c-9d41-5af4975376a9",
+      "name": "Get Audio"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2512,
+        -160
+      ],
+      "id": "8457fde3-0b3f-4821-b1e6-70858f97fc87",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "documentUrls": "={{ $json.body.media.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2448,
+        128
+      ],
+      "id": "d383f14b-6480-4973-9e06-a7a1059e21eb",
+      "name": "Analyze document",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "OEh8Jh97ikKYtxpn",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "videoUrls": "={{ $('Webhook').item.json.body.media.url }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2448,
+        368
+      ],
+      "id": "eabdf348-51a3-4333-b770-77d61b5eb31d",
+      "name": "Analyze video",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "OEh8Jh97ikKYtxpn",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combined: Merge Analysis + Prepare for AI Agent\n// This single node replaces both \"Code in JavaScript\" and \"Extract WhatsApp Data\"\n\nconsole.log('=== Processing WhatsApp Message ===');\n\n// Get ALL inputs (from media analysis nodes)\nconst allInputs = $input.all();\nconsole.log('Total inputs received:', allInputs.length);\n\n// Helper function to extract analysis text from various formats\nfunction extractAnalysisText(data) {\n  if (Array.isArray(data)) data = data[0];\n  if (!data) return null;\n  \n  // OpenAI format: { content: [{ text: \"...\" }] }\n  if (data.content && Array.isArray(data.content)) {\n    const textParts = data.content.filter(item => item.text && item.text.length > 10);\n    if (textParts.length > 0) return textParts.map(item => item.text).join('\\n\\n');\n  }\n  \n  // OpenAI annotations: { annotations: [{ text: \"...\" }] }\n  if (data.annotations && Array.isArray(data.annotations)) {\n    const textAnnotations = data.annotations.filter(a => a.text && a.text.length > 10);\n    if (textAnnotations.length > 0) return textAnnotations.map(a => a.text).join('\\n\\n');\n  }\n  \n  // Gemini format: { content: { parts: [{ text: \"...\" }] } }\n  if (data.content?.parts?.[0]?.text) return data.content.parts[0].text;\n  \n  // Gemini candidates: { candidates: [{ content: { parts: [...] } }] }\n  if (data.candidates?.[0]?.content?.parts?.[0]?.text) {\n    return data.candidates[0].content.parts[0].text;\n  }\n  \n  // Whisper/Transcription: { text: \"...\" }\n  if (data.text && typeof data.text === 'string' && data.text.length > 10) return data.text;\n  \n  // Message field\n  if (data.message && typeof data.message === 'string' && data.message.length > 10) return data.message;\n  \n  // Direct string\n  if (typeof data === 'string' && data.length > 10) return data;\n  \n  return null;\n}\n\n// Step 1: Find analysis result from inputs\nlet analysisText = null;\nfor (const item of allInputs) {\n  const extracted = extractAnalysisText(item.json);\n  if (extracted) {\n    analysisText = extracted;\n    console.log('Analysis found, length:', analysisText.length);\n    break;\n  }\n}\n\n// Step 2: Get original webhook data\nlet webhookData = null;\ntry {\n  webhookData = $('Webhook').first().json;\n} catch (e) {\n  // Fallback: find webhook in inputs\n  for (const item of allInputs) {\n    const json = Array.isArray(item.json) ? item.json[0] : item.json;\n    if (json?.body?.from_number) {\n      webhookData = json;\n      break;\n    }\n  }\n}\n\nif (!webhookData?.body) {\n  throw new Error('No webhook data found');\n}\n\nconst body = webhookData.body;\nconst mediaType = body.media?.type || 'text';\nconst chatbot = body.chatbot || {};\nconst api = body.api || {};\n\n// Step 3: Determine final message\nlet message = body.message || '';\nlet wasAnalyzed = false;\n\nif (analysisText) {\n  message = analysisText;\n  wasAnalyzed = true;\n} else if (mediaType !== 'text') {\n  message = body.message || '[Media received]';\n}\n\n// Step 4: Enhance message with media context\nlet chatInput = message;\nif (wasAnalyzed && mediaType !== 'text') {\n  const labels = { image: 'Image', audio: 'Audio', video: 'Video', document: 'Document' };\n  chatInput = `[${labels[mediaType] || 'Media'} Analysis]\\n${message}`;\n  \n  if (body.message && body.message !== '[Media file]') {\n    chatInput += `\\n\\n[User's caption: ${body.message}]`;\n  }\n}\n\n// Step 5: Create contact for session management\nconst fromNumber = body.from_number || 'unknown';\nconst contact = {\n  id: fromNumber.replace(/[^0-9]/g, ''),\n  phone: fromNumber,\n  name: fromNumber\n};\n\nconsole.log('Message:', chatInput.substring(0, 100));\nconsole.log('From:', fromNumber);\nconsole.log('Chatbot:', chatbot.name, '| ID:', chatbot.id);\nconsole.log('Media:', mediaType, '| Analyzed:', wasAnalyzed);\n\n// Return formatted data for AI Agent\nreturn {\n  json: {\n    // AI Agent input\n    chatInput: chatInput,\n    \n    // Contact for memory session\n    contact: contact,\n    phone: fromNumber,\n    \n    // Chatbot config\n    chatbotConfig: {\n      id: chatbot.id,\n      name: chatbot.name || 'Assistant',\n      company: chatbot.company_name || '',\n      industry: chatbot.industry || '',\n      systemPrompt: chatbot.system_prompt || 'You are a helpful AI assistant.',\n      businessContext: chatbot.business_context || '',\n      complianceRules: chatbot.compliance_rules || [],\n      responseGuidelines: chatbot.response_guidelines || [],\n      promptVersion: chatbot.prompt_version || null,\n      priceVisible: chatbot.price_visible !== false // Default to true if not set\n    },\n    \n    // API config for tools\n    apiConfig: {\n      baseUrl: api.base_url || 'https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1',\n      chatbotId: chatbot.id\n    },\n    \n    // Metadata\n    timestamp: new Date().toISOString(),\n    messageType: mediaType,\n    wasMediaAnalyzed: wasAnalyzed,\n    sessionId: `whatsapp_${contact.id}_${Date.now()}`\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2832,
+        -16
+      ],
+      "id": "6656cc28-f6fa-444a-8ac4-9d34de2932e4",
+      "name": "Extract WhatsApp Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatInput",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "systemPrompt",
+              "name": "systemPrompt",
+              "value": "={{ $json.chatbotConfig.systemPrompt }}",
+              "type": "string"
+            },
+            {
+              "id": "businessContext",
+              "name": "businessContext",
+              "value": "={{ $json.chatbotConfig.businessContext }}",
+              "type": "string"
+            },
+            {
+              "id": "chatbotId",
+              "name": "chatbotId",
+              "value": "={{ $json.chatbotConfig.id }}",
+              "type": "string"
+            },
+            {
+              "id": "platformApiKey",
+              "name": "platformApiKey",
+              "value": "pk_live_7ad27c6756f06ff3552d76010105315ad9869d08c69b7c893d150e17171fa0ff",
+              "type": "string"
+            },
+            {
+              "id": "priceVisible",
+              "name": "priceVisible",
+              "value": "={{ $json.chatbotConfig.priceVisible }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "87a250d3-b66f-43ee-a95b-7980689bc758",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3120,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Current date and time: {{ $now.toISO() }}\n\n{{ $json.systemPrompt }}\n\nBUSINESS CONTEXT:\n{{ $json.businessContext }}\n\n{{ $json.chatbotConfig?.complianceRules?.length > 0 ? 'COMPLIANCE RULES (MUST FOLLOW):\\n' + $json.chatbotConfig.complianceRules.map(r => '- ' + r).join('\\n') + '\\n\\n' : '' }}{{ $json.chatbotConfig?.responseGuidelines?.length > 0 ? 'RESPONSE GUIDELINES (MUST FOLLOW):\\n' + $json.chatbotConfig.responseGuidelines.map(g => '- ' + g).join('\\n') + '\\n\\n' : '' }}{{ $json.priceVisible === false ? 'PRICING VISIBILITY: HIDDEN\\n- NEVER reveal product prices to customers\\n- When customer asks about prices, respond with: \"Wait ah, let me connect you to our salesperson who can give you the best price!\" or similar\\n- You can still describe products and their features, just DO NOT mention any prices\\n- An admin notification will be sent automatically when customer asks about pricing\\n- Focus on product features, benefits, and availability instead of prices\\n\\n' : '' }}CONVERSATION CONTEXT:\nPrevious messages are tracked automatically via memory. Do not repeat answering same questions.\n\nAPI TOOLS - WHEN TO USE EACH TOOL\n\nYou have access to these tools. USE THEM when relevant:\n\nbrowse_catalog - Get FULL product catalog (RECOMMENDED)\n  USE WHEN: Customer asks about products, what you sell, categories, prices, stock, or wants to browse\n  HOW: Just call it - no parameters needed. Returns ALL products grouped by category.\n  RETURNS: products_by_category (grouped), all_products (list), categories, total_products\n  Each product has: name, description, original_price, sale_price (if promotion), has_discount, discount_display, image_url\n  IMPORTANT: Use YOUR intelligence to match user requests to products!\n\nget_promotions - Get active promotions\n  USE WHEN: Customer asks about discounts, offers, sales\n  HOW: Just call it - no parameters needed\n  RETURNS: List of active promotions with discount details\n\nget_knowledge - Get knowledge base files and content\n  USE WHEN: Customer asks questions about company, policies, procedures, address, contact info, working hours, terms and conditions\n  HOW: Just call it - returns all files with download URLs and content chunks\n  RETURNS: Files with download_url, shareable flag, and all text chunks grouped by file\n  IMPORTANT: Check the \"shareable\" field for each file!\n\nread_webpage - Read content from a URL\n  USE WHEN: Customer sends a link/URL\n  HOW: Pass the URL to read\n  RETURNS: Webpage content as text\n\nPRODUCT DESCRIPTION GUIDELINES (IMPORTANT)\n\nWhen describing products to customers:\n1. DO NOT dump the entire product description from the database\n2. Summarize key features in simple, easy-to-understand language\n3. Highlight what matters to the customer based on their question\n4. Use conversational tone, not marketing copy\n\nExample - If product description is:\n\"The Samsung Galaxy S24 Ultra features a groundbreaking 200MP camera sensor with advanced AI processing, a stunning 6.8-inch Dynamic AMOLED 2X display with 120Hz refresh rate, Snapdragon 8 Gen 3 processor, 12GB RAM, and S Pen support for productivity.\"\n\nGOOD response:\n\"This Samsung S24 Ultra has a really powerful 200MP camera - great for photos! Big 6.8 inch screen, super smooth display. It also comes with the S Pen if you like taking notes.\"\n\nBAD response (don't do this):\n\"The Samsung Galaxy S24 Ultra features a groundbreaking 200MP camera sensor with advanced AI processing...\" (copying the whole description)\n\nKNOWLEDGE BASE & DOCUMENT SHARING RULES (CRITICAL)\n\nWhen using get_knowledge tool:\n1. Each file has a \"shareable\" field (true/false)\n2. If shareable = TRUE: You CAN send the PDF/document to the customer\n3. If shareable = FALSE: You can ONLY use the content to answer questions, but NEVER send the actual document\n\nFor SHAREABLE documents (shareable: true):\n- You can add the file to the documents array to send it\n- Example: \"Here's our company brochure for you!\"\n\nFor PRIVATE documents (shareable: false):\n- Use the content chunks to answer questions\n- NEVER send the document file itself\n- Example: \"Our office is at Jalan ABC, open 9am-6pm Monday to Friday.\"\n\nKnowledge base typically contains:\n- Terms and conditions\n- Company address and contact info\n- Working hours\n- Policies (return, warranty, etc.)\n- FAQs\n\nWHATSAPP MESSAGE FORMATTING RULES (CRITICAL)\n\n1. You are chatting via WhatsApp - keep responses concise and mobile-friendly\n2. NEVER use bold text (no asterisks like *text*) - WhatsApp renders this as bold which looks unnatural\n3. NEVER use markdown formatting of any kind (no **, no *, no __, no #, no ``)\n4. NEVER use || (double pipe) for product listings - only use || for conversational sentence breaks\n5. NEVER use \\n\\n or double line breaks\n6. NEVER include image URLs in your reply text - images go in the separate \"images\" array ONLY\n7. NEVER write [View Image](url) or any markdown image links in reply text\n8. NEVER write any URL or link in the reply text - NO EXCEPTIONS\n9. Use emojis sparingly and only when appropriate\n10. If discussing products, USE the browse_catalog tool first!\n11. If customer asks about company info, policies, hours, address, USE the get_knowledge tool first!\n\nPRODUCT LISTING FORMAT (IMPORTANT)\n\nWhen showing multiple products, format them as a CLEAN LIST without any URLs or image links:\n\nCORRECT FORMAT:\n\"Here are our travel luggage options:\n\n1. 【KIYO】 Premium Series 2 Luggage\n   - Size: 20\" / 24\" / 28\"\n   - Features: 360° wheels, TSA lock, USB port, cup holder\n   - Price: RM 396 (now RM 316.8 - 20% OFF!)\n\n2. 【KIYO】 PC+ABS Luggage\n   - Size: 20\" / 24\" / 28\"\n   - Features: Aluminium frame, TSA lock, USB port, cup holder\n   - Price: RM 190 (now RM 152 - 20% OFF!)\n\n3. 【KIYO】 Travel Organizer 6-in-1\n   - Features: Waterproof packing cubes for clothes and shoes\n   - Price: RM 25 (now RM 20 - 20% OFF!)\n\nLet me know if you're interested in any particular item!\"\n\nWRONG FORMAT (NEVER DO THIS):\n\"1. 【KIYO】 Premium Series 2 Luggage\n   - [View Image](https://...url...)\n   - Price: RM 396\"\n\nWhen to use || separator:\n- ONLY for conversational breaks: \"Got it! || Let me check for you.\"\n- NEVER for product listings or item lists\n\nIMAGE HANDLING RULES (VERY IMPORTANT - READ CAREFULLY)\n\nWhen products have images:\n1. DO NOT write \"[View Image](url)\" in the reply text - NEVER\n2. DO NOT write any URL in the reply text - NEVER\n3. DO NOT use markdown image syntax - NEVER\n4. ONLY put image URLs in the separate \"images\" array\n5. The images will be sent as separate media messages automatically\n6. Just describe the product in plain text - the image sends separately\n\nThe reply text should be CLEAN with NO URLs. Images are handled by the images array.\n\nRESPONSE FORMAT (STRICT JSON ONLY)\n\nYou MUST respond in this EXACT JSON format:\n\n{\n  \"reply\": \"Your text response (NO URLs, NO [View Image], NO links - plain text only)\",\n  \"images\": [\n    {\n      \"url\": \"image_url_here\",\n      \"caption\": \"Product Name - Price\"\n    }\n  ],\n  \"documents\": []\n}\n\nWHAT NOT TO DO IN REPLY (STRICT - FOLLOW EXACTLY):\n- NEVER write [View Image](url) or any image link in reply text\n- NEVER write ANY URL in the reply text (no http://, no https://, no links)\n- NEVER use markdown links like [text](url) in reply text\n- Don't use \\n\\n or double line breaks\n- Don't use *bold* or **bold** text - keep everything plain text\n- Don't use || to separate product listings\n- Don't copy entire product descriptions - summarize them\n- Don't send documents that have shareable: false\n\nWHAT TO DO IN REPLY:\n- Use single \\n for line breaks within lists\n- Keep reply as clean plain text only - NO URLs\n- Put image URLs in the separate \"images\" array - NOT in reply text\n- Use natural sentence flow\n- Summarize product features in simple language\n\nHOW TO USE PRODUCT IMAGES\n\nWhen browse_catalog returns products with image_url:\n1. Describe the product briefly in simple words in the reply (NO URL in reply)\n2. Add the image_url to the images array separately\n\nExample response (CORRECT - notice NO URLs in reply text):\n{\n  \"reply\": \"Sure! Here's what I found:\\n\\n1. Samsung Galaxy S24 Ultra\\n   - Amazing 200MP camera\\n   - Big 6.8 inch screen\\n   - Comes with S Pen\\n   - RM 4,769 (was RM 5,299 - 10% OFF!)\\n\\nWant me to share more details?\",\n  \"images\": [\n    {\n      \"url\": \"https://storage.supabase.co/.../samsung.jpg\",\n      \"caption\": \"Samsung Galaxy S24 Ultra - RM 4769\"\n    }\n  ],\n  \"documents\": []\n}\n\nWRONG example (NEVER do this - has URL in reply):\n{\n  \"reply\": \"Here's the product:\\n- [View Image](https://storage.supabase.co/.../samsung.jpg)\\n- Price: RM 4,769\",\n  \"images\": [],\n  \"documents\": []\n}\n\nIMPORTANT - HANDLING PRICES WITH PROMOTIONS:\n- Products may have active promotions automatically applied\n- If has_discount = true, use sale_price (not original_price)\n- Always mention the discount naturally: \"RM 4,769 (was RM 5,299 - 10% OFF!)\"\n- If customer asks about promotions, show the discounted prices\n\nHOW TO SEND DOCUMENTS\n\nWhen get_knowledge returns files:\n1. Check the \"shareable\" field for each file\n2. Only send documents where shareable = true\n3. For private files, use the content to answer but don't send the file\n\nExample response for SHAREABLE document:\n{\n  \"reply\": \"Our return policy allows returns within 14 days. Here's the full policy document for you.\",\n  \"images\": [],\n  \"documents\": [\n    {\n      \"url\": \"https://storage.supabase.co/.../Return_Policy.pdf\",\n      \"fileName\": \"Return Policy.pdf\",\n      \"caption\": \"Return Policy Document\"\n    }\n  ]\n}\n\nExample response for PRIVATE document (shareable: false):\n{\n  \"reply\": \"Our office is located at 123 Jalan ABC, Kuala Lumpur. We're open Monday to Friday, 9am to 6pm. You can reach us at 03-12345678.\",\n  \"images\": [],\n  \"documents\": []\n}\n\nINTENT DETECTION & NOTIFICATIONS\n\nYour responses will be analyzed to detect customer intents. Be aware of these triggers:\n\n1. PURCHASE INTENT - When customer shows buying signals:\n   - \"I want to buy\", \"how to order\", \"ready to purchase\", \"take my order\"\n   - \"checkout\", \"I'll buy it\", \"I want to order\", \"how do I pay\"\n   -> Assist them clearly with next steps\n\n2. HUMAN AGENT REQUEST - When customer wants human support:\n   - \"speak to human\", \"talk to agent\", \"real person\", \"customer service\"\n   - \"live support\", \"speak to someone\", \"talk to real\", \"human please\"\n   -> Acknowledge their request, let them know someone will help\n\n3. PRICE INQUIRY - When customer asks about pricing:\n   - \"how much\", \"what's the price\", \"berapa harga\", \"cost\", \"fee\"\n   - \"rate\", \"pricing\", \"budget\", \"quotation\", \"quote\"\n   -> Always provide clear pricing from the catalog (unless {{ $json.chatbotConfig.priceVisible }} is false, then just reply, I will let my boss to handle the pricing details, please wait for a moment ya)\n\n4. UNCERTAIN SITUATIONS - If you cannot confidently answer:\n   - Unusual/off-topic questions\n   - Complex technical queries outside your knowledge\n   - When you need to deflect or say \"I don't know\"\n   -> Be honest, acknowledge limitations, suggest human help\n\nWhen these intents are detected, an admin will be notified automatically.\n\nFINAL REMINDER: Your reply text must be CLEAN - no URLs, no [View Image], no links. Images go in the images array only.\n\nNow respond to the customer's message in the correct JSON format.\n"
+        }
+      },
+      "id": "2b74bb4c-0c96-4d60-916e-817e8d6eb084",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        3392,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "bbaddf5c-7bfc-4f3d-9bed-feb8102b6c36",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3168,
+        208
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HLXljL3CNZANdI4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Workflow Configuration').item.json.chatbotConfig.id }}_{{ $('Workflow Configuration').item.json.contact.id }}",
+        "tableName": "n8n_chat_history",
+        "contextWindowLength": 50
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        3216,
+        432
+      ],
+      "id": "e3651539-bb7f-4be9-8348-c41134d80acd",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "xNOp8yGL6Gc6SCWC",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "RECOMMENDED: Get the COMPLETE product catalog with ALL items grouped by category. USE THIS FIRST when customer asks about products, what you sell, categories, or wants to browse. Returns: products_by_category (grouped), all_products (flat list), categories, total_products. Each product has: name, original_price, sale_price (if promotion), has_discount, discount_display, image_url. Use YOUR intelligence to match user requests to relevant products. Example: 'phones' -> look for iPhone, Samsung, etc.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "catalog"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3408,
+        352
+      ],
+      "id": "567c236a-2f49-43ef-8c65-d63dd3fa26df",
+      "name": "browse_catalog"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get all active promotions and discounts. Use when customer asks about offers, discounts, sales, or promotions. No parameters needed.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "promotions"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3568,
+        272
+      ],
+      "id": "6ff720f1-7479-4de4-91f1-af02bdc500ab",
+      "name": "get_promotions"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Validate a promo code. Use when customer provides a promo code to check if it's valid. Returns whether the code is valid and the discount details.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "validate_promo"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            },
+            {
+              "name": "promo_code",
+              "value": "={{ $fromAI('promo_code', 'The promo code to validate (e.g., SAVE20, DISCOUNT10)', 'string') }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3680,
+        432
+      ],
+      "id": "9837825f-e502-4ace-bc81-89a4c16e7015",
+      "name": "validate_promo"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get knowledge base files and content. Use when customer asks about company policies, procedures, documentation, or general questions that need reference material. Returns all PDF files with download URLs and all text chunks grouped by file. Share the download_url with customers when they need the actual document.",
+        "url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1/chatbot-data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "knowledge"
+            },
+            {
+              "name": "chatbot_id",
+              "value": "={{ $('Workflow Configuration').item.json.chatbotId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhdHJ0cWRnZ2hhbndkdWp5aGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NjE1MzEsImV4cCI6MjA3NDUzNzUzMX0.sniz2dGyadAa3BvZJ2Omi6thtVWuqMjTFFdM1H_zWAA"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').item.json.platformApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        3792,
+        272
+      ],
+      "id": "5eae5b0b-58cb-4e40-89af-4e7e6dc73ee1",
+      "name": "get_knowledge"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Read content from a URL when customer sends a link. Use when customer shares any URL/link.",
+        "url": "=https://r.jina.ai/{{ $fromAI('url', 'The URL to read', 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "text/plain"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        4032,
+        256
+      ],
+      "id": "ed65b09e-a438-4daf-8482-2f186c6d81e4",
+      "name": "read_webpage"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format AI Agent output for WhatsApp webhook response\nconst inputData = $input.first().json;\n\nconsole.log('=== Formatting AI Response ===');\nconsole.log('Input keys:', Object.keys(inputData));\n\n// Extract AI response - try multiple possible fields\nlet aiResponse = '';\n\nif (inputData.output) {\n  aiResponse = inputData.output;\n} else if (inputData.text) {\n  aiResponse = inputData.text;\n} else if (inputData.response) {\n  aiResponse = inputData.response;\n} else if (inputData.content) {\n  aiResponse = inputData.content;\n} else if (typeof inputData === 'string') {\n  aiResponse = inputData;\n} else {\n  // Fallback: stringify the whole object\n  aiResponse = 'I\\'m sorry, I\\'m having trouble generating a response right now. Please try again.';\n  console.log('Warning: Could not extract AI response from:', inputData);\n}\n\n// Clean up response\naiResponse = String(aiResponse).trim();\n\nconsole.log('Raw AI Response:', aiResponse.substring(0, 200) + '...');\n\n// Try to parse as JSON if it looks like JSON\nlet reply = aiResponse;\nlet images = [];\nlet documents = [];\n\nif (aiResponse.startsWith('{') || aiResponse.startsWith('[')) {\n  try {\n    const parsed = JSON.parse(aiResponse);\n    console.log('Successfully parsed AI response as JSON');\n\n    // Extract reply, images, and documents from parsed JSON\n    reply = parsed.reply || parsed.response || parsed.message || parsed.text || aiResponse;\n    images = parsed.images || [];\n    documents = parsed.documents || [];\n\n    console.log('Extracted reply:', reply.substring(0, 100));\n    console.log('Extracted images:', images.length, 'image(s)');\n    console.log('Extracted documents:', documents.length, 'document(s)');\n  } catch (e) {\n    console.log('AI response is not valid JSON, using as-is');\n    // Not JSON, use the raw response\n  }\n}\n\n// Return in the format expected by WhatsApp service\nreturn {\n  json: {\n    reply: reply,\n    images: images,\n    documents: documents\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3728,
+        -16
+      ],
+      "id": "5f0a43e5-eec6-47d2-a8ac-f173c023fbfd",
+      "name": "Format for WhatsApp"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Format for WhatsApp').first().json }}",
+        "options": {}
+      },
+      "id": "c666c221-9d8e-4352-a1c8-3e1b394adde4",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        -16
+      ]
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "creatiqai.app.n8n.cloud",
+            "user-agent": "node",
+            "content-length": "6851",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "*",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "162.220.232.24",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "9bfe01d0b0941758-SJC",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "162.220.232.24, 172.69.134.43",
+            "x-forwarded-host": "creatiqai.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-90-644db48b77-2mdvg",
+            "x-is-trusted": "yes",
+            "x-real-ip": "162.220.232.24"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "message": "travel luggage got wat",
+            "message_type": "text",
+            "from_number": "60165230268@s.whatsapp.net",
+            "contact_name": "MS",
+            "media": null,
+            "chatbot": {
+              "id": "d4e135d0-d7be-4351-b6b2-c2ec1a60069f",
+              "name": "Janice",
+              "company_name": "Kiyo Living",
+              "industry": "travel",
+              "system_prompt": "You are Janice, the assistant for Kiyo Living. Here's what you need to know about our products and services to effectively assist customers:\n\n### Business Identity\n\nKiyo Living is a specialist in the travel industry, offering a curated selection of travel gear, luggage, and accessories designed to make journeys more enjoyable, organized, and stylish. Our focus is on providing durable, functional, and trendy products that cater to the needs of travelers.\n\n### Product Categories\n\n#### Travel Luggage & Suitcases\n- **Types of Products:** Hard shell luggage bags made from ABS/PC materials with options for aluminium frames. Available sizes include 26″ and 31″.\n- **Price Range:** RM190 to RM396\n- **Key Features:** \n  - Durability and sleek design\n  - 360° wheels for easy navigation\n  - TSA locks for security\n  - Additional features like USB ports and cup holders\n- **Product Recommendations:** \n  - 【KIYO】 Premium Series 2 Luggage is highly recommended for its comprehensive features like the TSA lock and USB port, priced at RM396.\n\n#### Cosmetic & Mini Travel Bags\n- **Types of Products:** Compact bags ideal for organizing toiletries, makeup, and small personal items.\n- **Key Features:** \n  - Space-saving design\n  - Transparent material for easy identification of contents\n- **Product Recommendations:** \n  - 【KIYO】Travel Cosmetic Set 7-dalam-1, which is versatile for skincare and travel, priced at RM13.4.\n\n#### Backpacks & Carry-ons\n- This category includes multi-functional travel and laptop backpacks with large capacity designs. Although not listed in the current sample, the focus is on providing practical solutions for carrying essentials easily.\n\n#### Travel Accessories\n- **Types of Products:** Items that enhance travel efficiency like organizers and packing accessories.\n- **Price Range:** RM13.40 to RM27.8\n- **Key Features:** \n  - Waterproof and durable materials\n  - Compact and easy to pack\n- **Product Recommendations:**\n  - 【KIYO】Travel Organizer 6-in-1, offering waterproof packing cubes for clothes and shoes, priced at RM25.\n  - 【KIYO】Penimbang Luggage Digital 50kg, a digital luggage scale with LED display, priced at RM27.8.\n\n### Product Knowledge\n\n- **Popular Items to Recommend:** The Premium Series 2 Luggage for its advanced features and the Travel Organizer 6-in-1 for its practicality and affordability.\n- **Describing Products:** Highlight the practicality, innovative features, and the convenience each product offers for travelers. Emphasize durability, style, and functionality.\n- **Pricing Information:** Provide clear pricing details and emphasize the value for money offered by each product.\n\n### Promotions Awareness\n\n- **Active Promotions:** There is a current promotion offering 20% off with the code CNY2026, valid until 28th February 2026.\n- **Suggesting Promo Codes:** Mention the CNY Offer when discussing pricing or when a customer inquires about discounts.\n\n### Knowledge Base Topics\n\n- **Topics Covered:** Information about company details, product specifications, and usage tips. \n- **Types of Questions:** Can handle queries related to product features, benefits, company policies, and ongoing promotions.\n\n### Business-Specific Responses\n- **Greetings**: \"Hihi, this is Janice from Kiyo Living~ || Finding any luggage for travelling?\"\n- **\"What do you sell?\"**: \"At Kiyo Living we got a range of travel luggage, including stylish luggage, practical travel bags, and travel accessories.\"\n- **\"What's your best product in [category]?\"**: \"Our Premium Series 2 Luggage is highly recommended for its durability and features like a TSA lock and USB port || wanna have a look on it?\"\n- **\"Do you have any deals?\"**: \"Yes, we currently have a 20% discount available with the promo code CNY2026, valid until the end of February 2026.\"\n- **Common Travel Questions:** Be prepared to discuss how our products can help organize travel, ensure safety, and add convenience to journeys.\n\nThis detailed knowledge will equip you to assist customers effectively and provide them with a seamless shopping experience at Kiyo Living.",
+              "business_context": "At Kiyo Living, we specialise in travel gear, luggage, and travel accessories designed to make every journey easier, more organized, and stylish. Our product range includes:\n\n✔ Travel Luggage & Suitcases\n\nHard shell luggage bags with durable materials (ABS/PC/aluminium frames) in various sizes (e.g., 26″, 31″).\n\n✔ Cosmetic & Mini Travel Bags\n\nCompact travel bags ideal for toiletries, makeup and small personal items.\n\n✔ Backpacks & Carry-ons\n\nMulti-functional travel and laptop backpacks with large capacity designs.\n\n✔ Travel Accessories\n\nItems that help you travel smarter (e.g., organisers, packing accessories — typically available through marketplace listings).",
+              "compliance_rules": [
+                "Never ask for sensitive data such as passwords, credit card numbers, or SSN",
+                "Comply with data privacy regulations (PDPA, GDPR)",
+                "No discriminatory language or bias",
+                "No political opinions or controversial statements",
+                "No medical diagnoses or legal advice",
+                "No financial investment recommendations"
+              ],
+              "response_guidelines": [
+                "Maximum response length: 500 words unless customer requests more detail",
+                "If unable to help after 3 attempts, suggest human support",
+                "Never argue with customers",
+                "Only state facts that are in your knowledge base",
+                "Use phrases like \"Based on my information...\" when providing details",
+                "Be empathetic when customers express frustration"
+              ],
+              "personality_traits": [
+                "friendly"
+              ],
+              "behavior_rules": [],
+              "prompt_version": "v1",
+              "price_visible": true
+            },
+            "api": {
+              "base_url": "https://xatrtqdgghanwdujyhkq.supabase.co/functions/v1",
+              "chatbot_id": "d4e135d0-d7be-4351-b6b2-c2ec1a60069f",
+              "endpoints": {
+                "products": "/chatbot-data?type=products&chatbot_id=d4e135d0-d7be-4351-b6b2-c2ec1a60069f&query={search_term}&limit=20",
+                "categories": "/chatbot-data?type=categories&chatbot_id=d4e135d0-d7be-4351-b6b2-c2ec1a60069f",
+                "promotions": "/chatbot-data?type=promotions&chatbot_id=d4e135d0-d7be-4351-b6b2-c2ec1a60069f",
+                "validate_promo": "/chatbot-data?type=validate_promo&chatbot_id=d4e135d0-d7be-4351-b6b2-c2ec1a60069f&promo_code={code}",
+                "knowledge": "/chatbot-data?type=knowledge&chatbot_id=d4e135d0-d7be-4351-b6b2-c2ec1a60069f&query={search_term}",
+                "conversations": "/avatar-conversations?avatar_id=d4e135d0-d7be-4351-b6b2-c2ec1a60069f&phone_number=60165230268%40s.whatsapp.net"
+              },
+              "headers_required": [
+                "Authorization: Bearer {supabase_anon_key}",
+                "x-api-key: {your_platform_api_key}"
+              ]
+            }
+          },
+          "webhookUrl": "https://creatiqai.app.n8n.cloud/webhook/kiyoliving",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze document": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze video": {
+      "main": [
+        [
+          {
+            "node": "Extract WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract WhatsApp Data": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format for WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "browse_catalog": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_promotions": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validate_promo": {
+      "ai_tool": [
+        []
+      ]
+    },
+    "get_knowledge": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_webpage": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "77ef99a3-83de-4a4f-ad70-c9be82823d0d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2634913f2f63564c82ce4655d9f40e1dc9c1a1fed88b38602578fc73f31e2a9f"
+  },
+  "id": "b8r1Iwbji1Gn7_pVarP_V",
+  "tags": []
+}

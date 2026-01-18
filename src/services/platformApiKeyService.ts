@@ -39,7 +39,7 @@ const hashApiKey = async (apiKey: string): Promise<string> => {
  */
 export const createPlatformApiKey = async (
   userId: string,
-  chatbotId: string,
+  chatbotId: string | null,
   chatbotName: string
 ): Promise<PlatformApiKeyResult> => {
   try {
@@ -56,12 +56,14 @@ export const createPlatformApiKey = async (
       .from('platform_api_keys')
       .insert({
         user_id: userId,
-        key_name: `Auto: ${chatbotName}`,
+        key_name: chatbotId ? `Auto: ${chatbotName}` : chatbotName,
         api_key_hash: apiKeyHash,
         api_key_prefix: apiKeyPrefix,
         scopes: defaultScopes,
-        avatar_id: chatbotId,
-        description: `Auto-generated API key for ${chatbotName}. Use this key for n8n integrations.`,
+        avatar_id: chatbotId, // Can be null for general keys
+        description: chatbotId
+          ? `Auto-generated API key for ${chatbotName}. Use this key for n8n integrations.`
+          : `General API key: ${chatbotName}`,
         status: 'active'
       })
       .select('id')
