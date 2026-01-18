@@ -50,6 +50,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Key,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -69,6 +70,7 @@ interface UserRow {
   } | null;
   chatbots_count: number;
   activation_status?: 'pending' | 'active' | 'suspended' | null;
+  api_key_requested?: boolean;
 }
 
 export const UsersManagement = () => {
@@ -115,6 +117,7 @@ export const UsersManagement = () => {
           created_at,
           last_login,
           subscription_tier_id,
+          api_key_requested,
           subscription_tiers (
             id,
             display_name
@@ -159,7 +162,8 @@ export const UsersManagement = () => {
           display_name: profile.subscription_tiers.display_name
         } : null,
         chatbots_count: chatbotMap[profile.id]?.count || 0,
-        activation_status: chatbotMap[profile.id]?.activation_status as any
+        activation_status: chatbotMap[profile.id]?.activation_status as any,
+        api_key_requested: profile.api_key_requested || false
       }));
 
       setUsers(formattedUsers);
@@ -278,6 +282,7 @@ export const UsersManagement = () => {
     if (statusFilter === 'active') return matchesSearch && user.activation_status === 'active';
     if (statusFilter === 'suspended') return matchesSearch && user.account_status === 'suspended';
     if (statusFilter === 'no-chatbot') return matchesSearch && user.chatbots_count === 0;
+    if (statusFilter === 'api-key-requested') return matchesSearch && user.api_key_requested;
 
     return matchesSearch;
   });
@@ -286,6 +291,7 @@ export const UsersManagement = () => {
   const pendingActivation = users.filter(u => u.activation_status === 'pending').length;
   const activeUsers = users.filter(u => u.activation_status === 'active').length;
   const totalChatbots = users.reduce((sum, u) => sum + u.chatbots_count, 0);
+  const apiKeyRequests = users.filter(u => u.api_key_requested).length;
 
   return (
     <TooltipProvider>
@@ -306,7 +312,7 @@ export const UsersManagement = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -326,6 +332,17 @@ export const UsersManagement = () => {
                   <p className="text-3xl font-bold">{pendingActivation}</p>
                 </div>
                 <Clock className="h-10 w-10 text-amber-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800 cursor-pointer hover:shadow-md" onClick={() => setStatusFilter('api-key-requested')}>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">API Key Requests</p>
+                  <p className="text-3xl font-bold">{apiKeyRequests}</p>
+                </div>
+                <Key className="h-10 w-10 text-orange-500 opacity-50" />
               </div>
             </CardContent>
           </Card>
@@ -369,6 +386,7 @@ export const UsersManagement = () => {
                   <SelectContent>
                     <SelectItem value="all">All Users</SelectItem>
                     <SelectItem value="pending">Pending Activation</SelectItem>
+                    <SelectItem value="api-key-requested">API Key Requested</SelectItem>
                     <SelectItem value="active">Active Chatbots</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
                     <SelectItem value="no-chatbot">No Chatbot</SelectItem>
@@ -421,7 +439,21 @@ export const UsersManagement = () => {
                             {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                           </div>
                           <div>
-                            <p className="font-medium">{user.name || 'Unnamed'}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{user.name || 'Unnamed'}</p>
+                              {user.api_key_requested && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Badge variant="outline" className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 text-xs">
+                                      <Key className="h-3 w-3 mr-1" /> API Key
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    User requested API key from admin
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
                             <p className="text-sm text-muted-foreground">{user.email}</p>
                           </div>
                         </div>

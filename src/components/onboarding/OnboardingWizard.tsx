@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Progress } from '@/components/ui/progress';
 import { WelcomeStep } from './steps/WelcomeStep';
+import { ApiKeyStep } from './steps/ApiKeyStep';
 import { BusinessInfoStep } from './steps/BusinessInfoStep';
 import { ChatbotPersonalityStep } from './steps/ChatbotPersonalityStep';
 import { CompletionStep } from './steps/CompletionStep';
@@ -43,6 +44,7 @@ export interface OnboardingData {
   // API Key
   openaiApiKey: string;
   apiKeyValidated: boolean;
+  apiKeyRequested: boolean;
 
   // Business Info
   businessName: string;
@@ -78,6 +80,7 @@ export interface OnboardingData {
 const INITIAL_DATA: OnboardingData = {
   openaiApiKey: '',
   apiKeyValidated: false,
+  apiKeyRequested: false,
   businessName: '',
   businessDescription: '',
   industry: '',
@@ -98,6 +101,7 @@ const INITIAL_DATA: OnboardingData = {
 
 const STEPS = [
   { id: 'welcome', label: 'Welcome', component: WelcomeStep },
+  { id: 'api-key', label: 'API Key', component: ApiKeyStep },
   { id: 'business-info', label: 'Business Info', component: BusinessInfoStep },
   { id: 'personality', label: 'Personality', component: ChatbotPersonalityStep },
   { id: 'complete', label: 'Complete', component: CompletionStep },
