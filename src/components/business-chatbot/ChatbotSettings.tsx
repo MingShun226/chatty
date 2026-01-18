@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   Settings,
   Building2,
@@ -15,10 +17,13 @@ import {
   X,
   Edit,
   Plus,
-  Trash2
+  Trash2,
+  DollarSign,
+  Bell
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getSettings, upsertSettings, FollowupSettings } from '@/services/followupService';
 
 interface ChatbotSettingsProps {
   chatbot: any;
@@ -42,6 +47,16 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
     default_language: 'en',
   });
 
+  // Price visibility state
+  const [priceVisible, setPriceVisible] = useState(true);
+  const [savingPrice, setSavingPrice] = useState(false);
+
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState<FollowupSettings | null>(null);
+  const [notificationPhone, setNotificationPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [savingNotification, setSavingNotification] = useState(false);
+
   // Initialize form with chatbot data
   useEffect(() => {
     if (chatbot) {
@@ -55,8 +70,25 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
         supported_languages: Array.isArray(chatbot.supported_languages) ? chatbot.supported_languages : ['en'],
         default_language: chatbot.default_language || 'en',
       });
+      // Initialize price visibility
+      setPriceVisible(chatbot.price_visible ?? true);
     }
   }, [chatbot]);
+
+  // Fetch notification settings
+  const fetchNotificationSettings = useCallback(async () => {
+    if (!chatbot?.id) return;
+
+    const settings = await getSettings(chatbot.id);
+    if (settings) {
+      setNotificationSettings(settings);
+      setNotificationPhone(settings.notification_phone_number || '');
+    }
+  }, [chatbot?.id]);
+
+  useEffect(() => {
+    fetchNotificationSettings();
+  }, [fetchNotificationSettings]);
 
   const handleSave = async () => {
     try {
@@ -150,6 +182,85 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
     const updated = [...formData.response_guidelines];
     updated[index] = value;
     setFormData({ ...formData, response_guidelines: updated });
+  };
+
+  // Handle price visibility toggle
+  const handlePriceVisibilityChange = async (checked: boolean) => {
+    try {
+      setSavingPrice(true);
+      const { error } = await supabase
+        .from('avatars')
+        .update({ price_visible: checked })
+        .eq('id', chatbot.id);
+
+      if (error) throw error;
+
+      setPriceVisible(checked);
+      toast({
+        title: "Success",
+        description: checked ? "Product prices are now visible to customers" : "Product prices are now hidden from customers",
+      });
+      onUpdate();
+    } catch (error: any) {
+      console.error('Error updating price visibility:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update price visibility",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingPrice(false);
+    }
+  };
+
+  // Validate Malaysia phone number
+  const validatePhoneNumber = (phone: string): boolean => {
+    if (!phone) return true; // Empty is OK
+    // Malaysia phone format: 60 followed by 9-10 digits
+    const malaysiaPhoneRegex = /^60\d{9,10}$/;
+    return malaysiaPhoneRegex.test(phone);
+  };
+
+  // Handle phone number blur
+  const handlePhoneBlur = async () => {
+    if (notificationPhone && !validatePhoneNumber(notificationPhone)) {
+      setPhoneError('Enter valid Malaysia phone (e.g. 60123456789)');
+      return;
+    }
+    setPhoneError('');
+
+    // Auto-save when valid
+    if (notificationSettings && validatePhoneNumber(notificationPhone)) {
+      await handleNotificationSettingChange('notification_phone_number', notificationPhone || null);
+    }
+  };
+
+  // Handle notification settings change
+  const handleNotificationSettingChange = async (field: keyof FollowupSettings, value: any) => {
+    if (!chatbot?.id || !chatbot?.user_id) return;
+
+    try {
+      setSavingNotification(true);
+      const updatedSettings = await upsertSettings(chatbot.id, chatbot.user_id, {
+        [field]: value
+      });
+
+      if (updatedSettings) {
+        setNotificationSettings(updatedSettings);
+        if (field === 'notification_phone_number') {
+          setNotificationPhone(value || '');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating notification settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update notification settings",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingNotification(false);
+    }
   };
 
   return (
@@ -407,6 +518,173 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
               {chatbot.default_language === 'zh' && '中文 (Chinese)'}
             </Badge>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Price Visibility Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Product Pricing
+          </CardTitle>
+          <CardDescription>
+            Control whether customers can see product prices in chat
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Show prices to customers</Label>
+              <p className="text-sm text-muted-foreground">
+                {priceVisible
+                  ? "Customers can see product prices in chat responses"
+                  : "Prices are hidden - customers will be told to contact you for pricing"}
+              </p>
+            </div>
+            <Switch
+              checked={priceVisible}
+              onCheckedChange={handlePriceVisibilityChange}
+              disabled={savingPrice}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Admin Notification Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Admin Notifications
+          </CardTitle>
+          <CardDescription>
+            Get WhatsApp alerts when customers need attention
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Enable Notifications Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Enable WhatsApp Notifications</Label>
+              <p className="text-sm text-muted-foreground">
+                Receive WhatsApp alerts when customers need attention
+              </p>
+            </div>
+            <Switch
+              checked={notificationSettings?.notification_enabled ?? false}
+              onCheckedChange={(checked) => handleNotificationSettingChange('notification_enabled', checked)}
+              disabled={savingNotification}
+            />
+          </div>
+
+          {/* Phone Number Input - Only show if notifications enabled */}
+          {notificationSettings?.notification_enabled && (
+            <>
+              <div className="space-y-2">
+                <Label>Admin Phone Number</Label>
+                <Input
+                  placeholder="e.g. 60123456789"
+                  value={notificationPhone}
+                  onChange={(e) => {
+                    setNotificationPhone(e.target.value);
+                    setPhoneError('');
+                  }}
+                  onBlur={handlePhoneBlur}
+                  className={phoneError ? 'border-red-500' : ''}
+                />
+                {phoneError ? (
+                  <p className="text-xs text-red-500">{phoneError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Enter Malaysia phone number starting with 60 (e.g. 60123456789)
+                  </p>
+                )}
+              </div>
+
+              {/* Notification Triggers */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Notify me when:</Label>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm">Customer wants to buy</span>
+                    <p className="text-xs text-muted-foreground">
+                      "I want to buy", "how to order", "ready to purchase"
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notificationSettings?.notify_on_purchase_intent ?? true}
+                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_purchase_intent', checked)}
+                    disabled={savingNotification}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm">Customer wants human agent</span>
+                    <p className="text-xs text-muted-foreground">
+                      "speak to human", "talk to agent", "real person"
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notificationSettings?.notify_on_wants_human ?? true}
+                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_wants_human', checked)}
+                    disabled={savingNotification}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm">Customer asks about price</span>
+                    <p className="text-xs text-muted-foreground">
+                      When prices are hidden and customer inquires about pricing
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notificationSettings?.notify_on_price_inquiry ?? true}
+                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_price_inquiry', checked)}
+                    disabled={savingNotification}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm">AI is unsure how to respond</span>
+                    <p className="text-xs text-muted-foreground">
+                      When chatbot encounters questions it cannot answer confidently
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notificationSettings?.notify_on_ai_unsure ?? true}
+                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_ai_unsure', checked)}
+                    disabled={savingNotification}
+                  />
+                </div>
+              </div>
+
+              {/* Auto-pause AI on Notification */}
+              <div className="space-y-3 pt-4 border-t">
+                <Label className="text-sm font-medium">When notification is triggered:</Label>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm">Auto-pause AI for this contact</span>
+                    <p className="text-xs text-muted-foreground">
+                      {notificationSettings?.auto_pause_on_notification
+                        ? "AI will stop responding, admin takes over until manually resumed"
+                        : "AI continues responding while you're notified"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notificationSettings?.auto_pause_on_notification ?? false}
+                    onCheckedChange={(checked) => handleNotificationSettingChange('auto_pause_on_notification', checked)}
+                    disabled={savingNotification}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
