@@ -28,10 +28,7 @@ import {
   CheckCircle2,
   X,
   LayoutGrid,
-  List,
-  Eye,
-  EyeOff,
-  Bell
+  List
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -54,7 +51,6 @@ interface ProductGalleryFullProps {
   chatbotId: string;
   chatbotName: string;
   priceVisible?: boolean;
-  onPriceVisibleChange?: (visible: boolean) => void;
 }
 
 // Memoized Product Card Component for better performance (Grid View)
@@ -368,7 +364,7 @@ const applyPromotionsToProducts = (products: Product[], promotions: Promotion[])
   });
 };
 
-export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initialPriceVisible = true, onPriceVisibleChange }: ProductGalleryFullProps) {
+export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initialPriceVisible = true }: ProductGalleryFullProps) {
   const [products, setProducts] = useState<ProductWithPromo[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -387,9 +383,8 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Global price visibility state
-  const [priceVisible, setPriceVisible] = useState(initialPriceVisible);
-  const [updatingPriceVisible, setUpdatingPriceVisible] = useState(false);
+  // Price visibility comes from parent (controlled in Chatbot Settings)
+  const priceVisible = initialPriceVisible;
 
   // View mode state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -467,44 +462,6 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
-
-  // Sync price visible with prop changes
-  useEffect(() => {
-    setPriceVisible(initialPriceVisible);
-  }, [initialPriceVisible]);
-
-  // Handle price visibility toggle
-  const handlePriceVisibleToggle = async (checked: boolean) => {
-    try {
-      setUpdatingPriceVisible(true);
-
-      // Update in database
-      const { error } = await supabase
-        .from('avatars')
-        .update({ price_visible: checked })
-        .eq('id', chatbotId);
-
-      if (error) throw error;
-
-      setPriceVisible(checked);
-      onPriceVisibleChange?.(checked);
-
-      toast({
-        title: checked ? "Prices Visible" : "Prices Hidden",
-        description: checked
-          ? "Customers can now see product prices"
-          : "Customers will be notified to contact you for pricing",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update price visibility",
-        variant: "destructive"
-      });
-    } finally {
-      setUpdatingPriceVisible(false);
-    }
-  };
 
   // Reset display count when search query changes
   useEffect(() => {
@@ -953,41 +910,6 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Price Visibility Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
-            <div className="flex items-center gap-3">
-              {priceVisible ? (
-                <Eye className="h-5 w-5 text-green-600" />
-              ) : (
-                <EyeOff className="h-5 w-5 text-amber-600" />
-              )}
-              <div>
-                <Label htmlFor="price-visible-toggle" className="font-medium cursor-pointer">
-                  Show prices to customers
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {priceVisible
-                    ? "Customers can see product prices in chat"
-                    : "Prices are hidden. You'll be notified when customers ask about pricing"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!priceVisible && (
-                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                  <Bell className="h-3 w-3 mr-1" />
-                  Notify on inquiry
-                </Badge>
-              )}
-              <Switch
-                id="price-visible-toggle"
-                checked={priceVisible}
-                onCheckedChange={handlePriceVisibleToggle}
-                disabled={updatingPriceVisible}
-              />
-            </div>
-          </div>
-
           {/* Search Bar and View Toggle */}
           <div className="flex gap-2">
             <div className="relative flex-1">

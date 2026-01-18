@@ -49,7 +49,6 @@ import {
   Filter,
   Search,
   X,
-  Bell,
   PauseCircle,
   PlayCircle,
   UserCog
@@ -136,10 +135,6 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
   const [isSavingTags, setIsSavingTags] = useState(false);
   const [isTogglingAiPause, setIsTogglingAiPause] = useState(false);
 
-  // Notification phone number state (local state to avoid saving on every keystroke)
-  const [notificationPhone, setNotificationPhone] = useState('');
-  const [phoneError, setPhoneError] = useState('');
-
   // Tag form state
   const [tagForm, setTagForm] = useState({
     tag_name: '',
@@ -156,45 +151,6 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
       loadData();
     }
   }, [chatbot?.id, user]);
-
-  // Sync notification phone state when settings load
-  useEffect(() => {
-    if (settings?.notification_phone_number !== undefined) {
-      setNotificationPhone(settings.notification_phone_number || '');
-      setPhoneError('');
-    }
-  }, [settings?.notification_phone_number]);
-
-  // Validate and save notification phone number
-  const handlePhoneBlur = async () => {
-    // Clear error first
-    setPhoneError('');
-
-    // If empty, just save empty
-    if (!notificationPhone.trim()) {
-      if (settings?.notification_phone_number) {
-        await handleSettingsChange('notification_phone_number', '');
-      }
-      return;
-    }
-
-    // Remove any non-digit characters for validation
-    const cleanPhone = notificationPhone.replace(/[^0-9]/g, '');
-
-    // Validate: must start with 60 and be 10-12 digits
-    if (!cleanPhone.startsWith('60')) {
-      setPhoneError('Phone number must start with 60 (Malaysia)');
-      return;
-    }
-
-    if (cleanPhone.length < 10 || cleanPhone.length > 12) {
-      setPhoneError('Phone number must be 10-12 digits');
-      return;
-    }
-
-    // Save the cleaned phone number
-    await handleSettingsChange('notification_phone_number', cleanPhone);
-  };
 
   const loadData = async () => {
     if (!chatbot?.id) return;
@@ -1083,132 +1039,9 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                 </Select>
               </div>
 
-              {/* Admin Notifications Section */}
-              <div className="border-t pt-6 mt-6">
-                <h4 className="font-medium mb-4 flex items-center gap-2">
-                  <Bell className="w-4 h-4" />
-                  Admin Notifications
-                </h4>
-
-                <div className="space-y-4">
-                  {/* Enable Notifications Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Enable WhatsApp Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receive WhatsApp alerts when customers need attention
-                      </p>
-                    </div>
-                    <Switch
-                      checked={settings?.notification_enabled ?? false}
-                      onCheckedChange={(checked) => handleSettingsChange('notification_enabled', checked)}
-                    />
-                  </div>
-
-                  {/* Phone Number Input - Only show if notifications enabled */}
-                  {settings?.notification_enabled && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Admin Phone Number</Label>
-                        <Input
-                          placeholder="e.g. 60123456789"
-                          value={notificationPhone}
-                          onChange={(e) => {
-                            setNotificationPhone(e.target.value);
-                            setPhoneError(''); // Clear error while typing
-                          }}
-                          onBlur={handlePhoneBlur}
-                          className={phoneError ? 'border-red-500' : ''}
-                        />
-                        {phoneError ? (
-                          <p className="text-xs text-red-500">{phoneError}</p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            Enter Malaysia phone number starting with 60 (e.g. 60123456789)
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Notification Triggers */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-medium">Notify me when:</Label>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-sm">Customer wants to buy</span>
-                            <p className="text-xs text-muted-foreground">
-                              "I want to buy", "how to order", "ready to purchase"
-                            </p>
-                          </div>
-                          <Switch
-                            checked={settings?.notify_on_purchase_intent ?? true}
-                            onCheckedChange={(checked) => handleSettingsChange('notify_on_purchase_intent', checked)}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-sm">Customer wants human agent</span>
-                            <p className="text-xs text-muted-foreground">
-                              "speak to human", "talk to agent", "real person"
-                            </p>
-                          </div>
-                          <Switch
-                            checked={settings?.notify_on_wants_human ?? true}
-                            onCheckedChange={(checked) => handleSettingsChange('notify_on_wants_human', checked)}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-sm">Customer asks about price</span>
-                            <p className="text-xs text-muted-foreground">
-                              When prices are hidden and customer inquires about pricing
-                            </p>
-                          </div>
-                          <Switch
-                            checked={settings?.notify_on_price_inquiry ?? true}
-                            onCheckedChange={(checked) => handleSettingsChange('notify_on_price_inquiry', checked)}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-sm">AI is unsure how to respond</span>
-                            <p className="text-xs text-muted-foreground">
-                              When chatbot encounters questions it cannot answer confidently
-                            </p>
-                          </div>
-                          <Switch
-                            checked={settings?.notify_on_ai_unsure ?? true}
-                            onCheckedChange={(checked) => handleSettingsChange('notify_on_ai_unsure', checked)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Auto-pause AI on Notification */}
-                      <div className="space-y-3 pt-4 border-t">
-                        <Label className="text-sm font-medium">When notification is triggered:</Label>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-sm">Auto-pause AI for this contact</span>
-                            <p className="text-xs text-muted-foreground">
-                              {settings?.auto_pause_on_notification
-                                ? "AI will stop responding, admin takes over until manually resumed"
-                                : "AI continues responding while you're notified"}
-                            </p>
-                          </div>
-                          <Switch
-                            checked={settings?.auto_pause_on_notification ?? false}
-                            onCheckedChange={(checked) => handleSettingsChange('auto_pause_on_notification', checked)}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+              <p className="text-sm text-muted-foreground pt-4 border-t">
+                Admin notification settings have been moved to Chatbot Settings page.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

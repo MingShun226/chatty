@@ -87,8 +87,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
           table: 'avatar_knowledge_files',
           filter: `avatar_id=eq.${avatarId}`
         },
-        (payload) => {
-          console.log('Knowledge files updated via realtime:', payload);
+        () => {
           // Reload files when there are changes
           loadKnowledgeFiles();
         }
@@ -200,8 +199,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
   const loadKnowledgeFiles = async () => {
     setIsLoading(true);
     try {
-      console.log('Loading knowledge files for avatar:', avatarId);
-
       // Load uploaded knowledge files from database
       const { data: uploadedFiles, error: uploadedError } = await supabase
         .from('avatar_knowledge_files')
@@ -232,7 +229,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         }));
       }
 
-      console.log('Loaded knowledge files:', allFiles);
       setKnowledgeFiles(allFiles);
     } catch (error) {
       console.error('Error loading knowledge files:', error);
@@ -281,8 +277,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
       const uploadPromises = pdfFiles.map(async (file) => {
         // Upload to Supabase storage
         const fileName = `${user?.id}/${avatarId}/${Date.now()}-${file.name}`;
-        
-        console.log('Uploading file to storage:', fileName);
+
         const { data: storageData, error: storageError } = await supabase.storage
           .from('knowledge-base')
           .upload(fileName, file);
@@ -291,8 +286,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
           console.error('Storage upload error:', storageError);
           throw new Error(`Failed to upload ${file.name}: ${storageError.message}`);
         }
-
-        console.log('File uploaded to storage successfully:', storageData);
 
         // Save file metadata to database
         const insertData = {
@@ -307,8 +300,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
           processing_status: 'pending'
         };
 
-        console.log('Inserting file metadata:', insertData);
-
         const { data: dbData, error: dbError } = await supabase
           .from('avatar_knowledge_files')
           .insert(insertData)
@@ -322,7 +313,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
           throw new Error(`Failed to save ${file.name} metadata: ${dbError.message}`);
         }
 
-        console.log('File metadata saved successfully:', dbData);
         return dbData;
       });
 
