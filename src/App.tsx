@@ -46,6 +46,7 @@ import { WorkflowTemplates } from '@/pages/admin/WorkflowTemplates';
 import { FineTuningManagement } from '@/pages/admin/FineTuningManagement';
 
 import { useAuth } from '@/hooks/useAuth';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { ContactsCacheProvider } from '@/contexts/ContactsCacheContext';
 import { PlatformSettingsProvider } from '@/contexts/PlatformSettingsContext';
@@ -64,9 +65,10 @@ const queryClient = new QueryClient({
 
 function App() {
   const { user, loading, accountStatus, onboardingCompleted, refetchProfile } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdminAuth();
 
   // Show loading screen while checking auth state
-  if (loading) {
+  if (loading || (user && adminLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -100,10 +102,12 @@ function App() {
   // Helper to get the correct element for protected routes
   const isSuspended = user && accountStatus === 'suspended';
 
-  // Protected route element - redirects suspended users to /suspended
+  // Protected route element - redirects suspended users to /suspended, admins to /admin
   const protectedRoute = (element: React.ReactNode) => {
     if (!user) return <Navigate to="/auth" />;
     if (isSuspended) return <Navigate to="/suspended" />;
+    // Redirect admins to admin dashboard instead of user pages
+    if (isAdmin) return <Navigate to="/admin" replace />;
     return element;
   };
 
@@ -114,19 +118,23 @@ function App() {
       <ContactsCacheProvider>
         <Router>
         <Routes>
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
-              <Index 
-                isAuthenticated={!!user} 
-                onLogin={handleLogin} 
-                onLogout={handleLogout} 
-              />
-            } 
+              user && isAdmin ? (
+                <Navigate to="/admin" replace />
+              ) : (
+                <Index
+                  isAuthenticated={!!user}
+                  onLogin={handleLogin}
+                  onLogout={handleLogout}
+                />
+              )
+            }
           />
           <Route
             path="/auth"
-            element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to="/" />}
+            element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to={isAdmin ? "/admin" : "/"} replace />}
           />
           <Route
             path="/terms"
