@@ -107,15 +107,36 @@ serve(async (req) => {
     // Verify chatbot exists and belongs to user
     const { data: chatbot, error: chatbotError } = await supabase
       .from('avatars')
-      .select('id, name')
+      .select('id, name, user_id')
       .eq('id', chatbotId)
-      .eq('user_id', userId)
       .single()
 
     if (chatbotError || !chatbot) {
+      console.error('Chatbot lookup failed:', { chatbotId, chatbotError })
       return new Response(
-        JSON.stringify({ error: 'Chatbot not found or access denied' }),
+        JSON.stringify({
+          error: 'Chatbot not found or access denied',
+          details: 'Chatbot does not exist',
+          chatbot_id: chatbotId
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if chatbot belongs to the API key's user
+    if (chatbot.user_id !== userId) {
+      console.error('User mismatch:', {
+        chatbot_owner: chatbot.user_id,
+        api_key_user: userId,
+        chatbot_id: chatbotId
+      })
+      return new Response(
+        JSON.stringify({
+          error: 'Chatbot not found or access denied',
+          details: 'API key user does not own this chatbot. The API key may have been created for a different user.',
+          hint: 'Make sure the API key was created for the user who owns this chatbot'
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
