@@ -610,7 +610,7 @@ export const UserDetails = () => {
   };
 
   const handleSavePrompt = async () => {
-    if (!selectedChatbot || !editedPromptContent.trim()) return;
+    if (!selectedChatbot || !userId || !editedPromptContent.trim()) return;
     setSavingPrompt(true);
 
     try {
@@ -623,24 +623,39 @@ export const UserDetails = () => {
         .maybeSingle();
 
       if (existingPrompt) {
-        // Update existing prompt
+        // Update existing prompt - only update system_prompt field
         const { error } = await supabase
           .from('avatar_prompt_versions')
-          .update({
-            system_prompt: editedPromptContent,
-            updated_at: new Date().toISOString()
-          })
+          .update({ system_prompt: editedPromptContent })
           .eq('id', existingPrompt.id);
 
         if (error) throw error;
       } else {
-        // Create new prompt version
+        // Get current highest version number
+        const { data: versions } = await supabase
+          .from('avatar_prompt_versions')
+          .select('version_number')
+          .eq('avatar_id', selectedChatbot.id)
+          .order('version_number', { ascending: false })
+          .limit(1);
+
+        const nextVersionNumber = (versions && versions.length > 0)
+          ? versions[0].version_number + 1
+          : 1;
+
+        // Create new prompt version with required fields
         const { error } = await supabase
           .from('avatar_prompt_versions')
           .insert({
             avatar_id: selectedChatbot.id,
-            version_name: 'v1',
+            user_id: userId,
+            version_number: nextVersionNumber,
+            version_name: `Manual v${nextVersionNumber}`,
             system_prompt: editedPromptContent,
+            personality_traits: [],
+            behavior_rules: [],
+            compliance_rules: [],
+            response_guidelines: [],
             is_active: true
           });
 
