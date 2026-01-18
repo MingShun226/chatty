@@ -106,9 +106,16 @@ export const UsersManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
+      // Get all admin user IDs to filter them out from the user list
+      const { data: adminUsers } = await supabase
+        .from('admin_users')
+        .select('user_id')
+        .eq('is_active', true);
+      const adminUserIds = new Set(adminUsers?.map(a => a.user_id) || []);
+
       // Get all profiles with their subscription tiers
       // Note: api_key_requested may not exist if migration not applied yet
-      const { data: profiles, error: profilesError } = await supabase
+      const { data: allProfiles, error: profilesError } = await supabase
         .from('profiles')
         .select(`
           id,
@@ -126,6 +133,9 @@ export const UsersManagement = () => {
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
+
+      // Filter out admin users from the list
+      const profiles = allProfiles?.filter(p => !adminUserIds.has(p.id)) || [];
 
       // Try to fetch api_key_requested separately (column may not exist yet)
       let apiKeyRequestMap: Record<string, boolean> = {};

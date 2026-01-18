@@ -309,6 +309,229 @@ Aim for quality over quantity.`
       .insert(examplesData);
   }
 
+  /**
+   * Prepare training data from ALL avatars (platform-wide model)
+   */
+  static async preparePlatformFineTuningData(
+    config: FineTuneConfig = {}
+  ): Promise<{
+    training: FineTuneExample[];
+    validation: FineTuneExample[];
+    systemPrompt: string;
+    examplesCount: number;
+    avatarsUsed: number;
+  }> {
+    // Get training examples from ALL avatars
+    const { data: allExamples, error: examplesError } = await supabase
+      .from('avatar_training_examples')
+      .select('*')
+      .gte('quality_score', 0.5)
+      .order('quality_score', { ascending: false });
+
+    if (examplesError) throw examplesError;
+
+    if (!allExamples || allExamples.length === 0) {
+      throw new Error('No training examples found across all chatbots.');
+    }
+
+    // Count unique avatars
+    const uniqueAvatars = new Set(allExamples.map(ex => ex.avatar_id));
+
+    // Use a generic platform system prompt
+    const systemPrompt = 'You are a helpful and professional AI assistant for business communications. Respond naturally and helpfully to customer inquiries.';
+
+    // Format as OpenAI training examples
+    const formattedExamples: FineTuneExample[] = allExamples.map(ex => ({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: ex.user_message },
+        { role: 'assistant', content: ex.assistant_message }
+      ]
+    }));
+
+    // Shuffle for better training
+    const shuffled = this.shuffleArray(formattedExamples);
+
+    // Split into training and validation sets
+    const validationSplit = config.validationSplit || 0.1;
+    const splitIndex = Math.floor(shuffled.length * (1 - validationSplit));
+
+    return {
+      training: shuffled.slice(0, splitIndex),
+      validation: shuffled.slice(splitIndex),
+      systemPrompt,
+      examplesCount: allExamples.length,
+      avatarsUsed: uniqueAvatars.size
+    };
+  }
+
+  /**
+   * Create a platform-wide fine-tuning job (uses examples from all chatbots)
+   */
+  static async createPlatformFineTuneJob(
+    adminUserId: string,
+    config: FineTuneConfig = {},
+    onProgress?: (step: string, percentage: number) => void
+  ): Promise<string> {
+    const apiKey = await this.getOpenAIKey();
+
+    try {
+      // Step 1: Prepare training data from ALL avatars (0-20%)
+      onProgress?.('Aggregating training data from all chatbots...', 10);
+
+      const { training, validation, examplesCount, avatarsUsed } =
+        await this.preparePlatformFineTuningData(config);
+
+      // Validate minimum examples
+      if (training.length < 10) {
+        throw new Error(
+          `At least 10 training examples required. Found ${training.length} across ${avatarsUsed} chatbots.`
+        );
+      }
+
+      onProgress?.(`Found ${examplesCount} examples from ${avatarsUsed} chatbots`, 20);
+
+      // Step 2: Convert to JSONL format (20-30%)
+      onProgress?.('Converting to training format...', 25);
+
+      const trainingJSONL = training.map(ex => JSON.stringify(ex)).join('\n');
+      const validationJSONL = validation.length > 0
+        ? validation.map(ex => JSON.stringify(ex)).join('\n')
+        : null;
+
+      // Step 3: Upload training file to OpenAI (30-50%)
+      onProgress?.('Uploading training data to OpenAI...', 35);
+
+      const formData = new FormData();
+      formData.append('purpose', 'fine-tune');
+      formData.append(
+        'file',
+        new Blob([trainingJSONL], { type: 'application/jsonl' }),
+        'platform-training.jsonl'
+      );
+
+      const trainingFileResponse = await fetch('https://api.openai.com/v1/files', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: formData
+      });
+
+      if (!trainingFileResponse.ok) {
+        const error = await trainingFileResponse.json();
+        throw new Error(`Failed to upload training file: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const trainingFileData = await trainingFileResponse.json();
+      onProgress?.('Training data uploaded', 50);
+
+      // Step 4: Upload validation file if exists (50-60%)
+      let validationFileId = null;
+      if (validationJSONL) {
+        onProgress?.('Uploading validation data...', 55);
+
+        const validationFormData = new FormData();
+        validationFormData.append('purpose', 'fine-tune');
+        validationFormData.append(
+          'file',
+          new Blob([validationJSONL], { type: 'application/jsonl' }),
+          'platform-validation.jsonl'
+        );
+
+        const validationFileResponse = await fetch('https://api.openai.com/v1/files', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: validationFormData
+        });
+
+        if (validationFileResponse.ok) {
+          const validationFileData = await validationFileResponse.json();
+          validationFileId = validationFileData.id;
+        }
+      }
+
+      onProgress?.('Validation data uploaded', 60);
+
+      // Step 5: Create fine-tuning job (60-70%)
+      onProgress?.('Creating fine-tuning job...', 65);
+
+      const baseModel = config.baseModel || 'gpt-4o-mini-2024-07-18';
+      const suffix = config.suffix || 'platform-model';
+
+      const fineTuneBody: any = {
+        training_file: trainingFileData.id,
+        model: baseModel,
+        suffix: suffix,
+        hyperparameters: { n_epochs: 'auto' }
+      };
+
+      if (validationFileId) {
+        fineTuneBody.validation_file = validationFileId;
+      }
+
+      const fineTuneResponse = await fetch('https://api.openai.com/v1/fine_tuning/jobs', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(fineTuneBody)
+      });
+
+      if (!fineTuneResponse.ok) {
+        const error = await fineTuneResponse.json();
+        throw new Error(`Failed to create fine-tuning job: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const fineTuneJob = await fineTuneResponse.json();
+      onProgress?.('Fine-tuning job created', 70);
+
+      // Step 6: Save to database (70-90%)
+      onProgress?.('Saving job details...', 80);
+
+      // For platform model, we use admin's user_id and a special marker
+      // Get the first avatar to use as reference (for DB constraints)
+      const { data: firstAvatar } = await supabase
+        .from('avatars')
+        .select('id')
+        .limit(1)
+        .single();
+
+      const { data: job, error: dbError } = await supabase
+        .from('avatar_fine_tune_jobs')
+        .insert({
+          user_id: adminUserId,
+          avatar_id: firstAvatar?.id || null, // Platform model marker
+          training_data_id: null,
+          openai_job_id: fineTuneJob.id,
+          openai_training_file_id: trainingFileData.id,
+          openai_validation_file_id: validationFileId,
+          base_model: baseModel,
+          model_suffix: suffix,
+          status: fineTuneJob.status,
+          hyperparameters: fineTuneJob.hyperparameters,
+          training_examples_count: training.length,
+          validation_examples_count: validation.length,
+          created_at: new Date(fineTuneJob.created_at * 1000).toISOString()
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      onProgress?.('Platform fine-tuning job created successfully!', 100);
+
+      return job.id;
+
+    } catch (error: any) {
+      console.error('Error creating platform fine-tune job:', error);
+      throw new Error(error.message || 'Failed to create platform fine-tuning job');
+    }
+  }
+
   // --------------------------------------------------------------------------
   // Fine-Tuning Job Management
   // --------------------------------------------------------------------------
