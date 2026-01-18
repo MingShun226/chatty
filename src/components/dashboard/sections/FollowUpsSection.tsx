@@ -1038,10 +1038,6 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
                   </SelectContent>
                 </Select>
               </div>
-
-              <p className="text-sm text-muted-foreground pt-4 border-t">
-                Admin notification settings have been moved to Chatbot Settings page.
-              </p>
             </CardContent>
           </Card>
         </TabsContent>
