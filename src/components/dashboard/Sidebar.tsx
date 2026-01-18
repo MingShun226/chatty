@@ -49,6 +49,7 @@ const navigationItems = [
       { id: 'chatbot-content', label: 'Content', icon: ShoppingBag, path: '/chatbot/content' },
       { id: 'chatbot-whatsapp', label: 'WhatsApp', icon: MessageCircle, path: '/chatbot/whatsapp' },
       { id: 'chatbot-contacts', label: 'Contacts', icon: UserPlus, path: '/chatbot/contacts' },
+      { id: 'chatbot-settings', label: 'Settings', icon: SettingsIcon, path: '/chatbot/settings' },
     ]
   },
   {

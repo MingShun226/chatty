@@ -22,11 +22,12 @@ import TestChatbotSetup from '@/pages/TestChatbotSetup';
 import { ChatbotCreationWizard } from '@/components/chatbot-creation/ChatbotCreationWizard';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
-// Chatbot sub-pages (consolidated 4-page structure - AI Studio removed, now admin-only)
+// Chatbot sub-pages (consolidated 5-page structure - AI Studio removed, now admin-only)
 import ChatbotOverview from '@/pages/chatbot/ChatbotOverview';
 import ChatbotContent from '@/pages/chatbot/ChatbotContent';
 import WhatsAppIntegration from '@/pages/chatbot/WhatsAppIntegration';
 import ChatbotContacts from '@/pages/chatbot/ChatbotContacts';
+import ChatbotSettingsPage from '@/pages/chatbot/ChatbotSettingsPage';
 
 // Note: Legacy chatbot pages are no longer imported as they redirect to consolidated pages
 
@@ -180,12 +181,12 @@ function App() {
             path="/chatbot/contacts"
             element={protectedRoute(<ChatbotContacts />)}
           />
-
-          {/* Legacy Chatbot Routes (redirect to new consolidated pages) */}
           <Route
             path="/chatbot/settings"
-            element={protectedRoute(<Navigate to="/chatbot/overview" replace />)}
+            element={protectedRoute(<ChatbotSettingsPage />)}
           />
+
+          {/* Legacy Chatbot Routes (redirect to new consolidated pages) */}
           <Route
             path="/chatbot/products"
             element={protectedRoute(<Navigate to="/chatbot/content" replace />)}

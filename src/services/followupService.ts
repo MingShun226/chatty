@@ -205,18 +205,24 @@ export async function updateContact(
  * Get all tags for a chatbot
  */
 export async function getTags(chatbotId: string): Promise<FollowupTag[]> {
-  const { data, error } = await supabase
-    .from('followup_tags')
-    .select('*')
-    .eq('chatbot_id', chatbotId)
-    .order('tag_name', { ascending: true })
+  try {
+    const { data, error } = await supabase
+      .from('followup_tags')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .order('tag_name', { ascending: true })
 
-  if (error) {
-    console.error('Error fetching tags:', error)
-    throw new Error('Failed to fetch tags')
+    if (error) {
+      // Log warning but don't throw - table might not exist yet
+      console.warn('Followup tags not available:', error.message)
+      return []
+    }
+
+    return data || []
+  } catch (err) {
+    console.warn('Error fetching followup tags:', err)
+    return []
   }
-
-  return data || []
 }
 
 /**
@@ -320,17 +326,29 @@ export async function initializeDefaultTags(
  * Get follow-up settings for a chatbot
  */
 export async function getSettings(chatbotId: string): Promise<FollowupSettings | null> {
-  const { data, error } = await supabase
-    .from('followup_settings')
-    .select('*')
-    .eq('chatbot_id', chatbotId)
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('followup_settings')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .single()
 
-  if (error && error.code !== 'PGRST116') {
-    console.error('Error fetching settings:', error)
+    // PGRST116 = no rows returned (expected if no settings exist)
+    // 406 = table might not exist yet (migration not applied)
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        // Only log non-expected errors, but don't break the app
+        console.warn('Followup settings not available:', error.message)
+      }
+      return null
+    }
+
+    return data
+  } catch (err) {
+    // Gracefully handle any unexpected errors
+    console.warn('Error fetching followup settings:', err)
+    return null
   }
-
-  return data
 }
 
 /**
@@ -340,23 +358,29 @@ export async function upsertSettings(
   chatbotId: string,
   userId: string,
   settings: Partial<FollowupSettings>
-): Promise<FollowupSettings> {
-  const { data, error } = await supabase
-    .from('followup_settings')
-    .upsert({
-      chatbot_id: chatbotId,
-      user_id: userId,
-      ...settings
-    }, { onConflict: 'chatbot_id' })
-    .select()
-    .single()
+): Promise<FollowupSettings | null> {
+  try {
+    const { data, error } = await supabase
+      .from('followup_settings')
+      .upsert({
+        chatbot_id: chatbotId,
+        user_id: userId,
+        ...settings
+      }, { onConflict: 'chatbot_id' })
+      .select()
+      .single()
 
-  if (error) {
-    console.error('Error upserting settings:', error)
-    throw new Error('Failed to save settings')
+    if (error) {
+      console.warn('Error upserting settings:', error.message)
+      // Return null instead of throwing - table might not exist yet
+      return null
+    }
+
+    return data
+  } catch (err) {
+    console.warn('Error saving followup settings:', err)
+    return null
   }
-
-  return data
 }
 
 // =====================================================
@@ -374,35 +398,41 @@ export async function getHistory(
     limit?: number
   }
 ): Promise<FollowupHistoryItem[]> {
-  let query = supabase
-    .from('followup_history')
-    .select(`
-      *,
-      contact:contact_profiles(*)
-    `)
-    .eq('chatbot_id', chatbotId)
-    .order('sent_at', { ascending: false })
+  try {
+    let query = supabase
+      .from('followup_history')
+      .select(`
+        *,
+        contact:contact_profiles(*)
+      `)
+      .eq('chatbot_id', chatbotId)
+      .order('sent_at', { ascending: false })
 
-  if (options?.contactId) {
-    query = query.eq('contact_id', options.contactId)
+    if (options?.contactId) {
+      query = query.eq('contact_id', options.contactId)
+    }
+
+    if (options?.triggerType) {
+      query = query.eq('trigger_type', options.triggerType)
+    }
+
+    if (options?.limit) {
+      query = query.limit(options.limit)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      // Log warning but don't throw - table might not exist yet
+      console.warn('Followup history not available:', error.message)
+      return []
+    }
+
+    return data || []
+  } catch (err) {
+    console.warn('Error fetching followup history:', err)
+    return []
   }
-
-  if (options?.triggerType) {
-    query = query.eq('trigger_type', options.triggerType)
-  }
-
-  if (options?.limit) {
-    query = query.limit(options.limit)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error('Error fetching history:', error)
-    throw new Error('Failed to fetch history')
-  }
-
-  return data || []
 }
 
 // =====================================================
