@@ -1367,18 +1367,18 @@ export const UserDetails = () => {
                 </div>
                 {/* Chatbot selector and generate button */}
                 <div className="flex items-center gap-2">
-                  <select
-                    value={selectedChatbotForApiKey}
-                    onChange={(e) => setSelectedChatbotForApiKey(e.target.value)}
-                    className="flex-1 h-9 px-3 text-sm border rounded-md bg-background"
-                  >
-                    <option value="">Select a chatbot...</option>
-                    {chatbots.map(chatbot => (
-                      <option key={chatbot.id} value={chatbot.id}>
-                        {chatbot.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={selectedChatbotForApiKey} onValueChange={setSelectedChatbotForApiKey}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select a chatbot..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chatbots.map(chatbot => (
+                        <SelectItem key={chatbot.id} value={chatbot.id}>
+                          {chatbot.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     onClick={() => {
                       const chatbot = chatbots.find(c => c.id === selectedChatbotForApiKey);
