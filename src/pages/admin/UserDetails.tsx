@@ -224,8 +224,24 @@ export const UserDetails = () => {
       setAdminApiKeys(data || []);
       const openai = data?.find(k => k.service === 'openai');
       const kieai = data?.find(k => k.service === 'kie-ai');
-      setOpenaiKey(openai?.api_key_encrypted || '');
-      setKieaiKey(kieai?.api_key_encrypted || '');
+
+      // Decode base64 encoded keys for display (handle both old unencoded and new encoded keys)
+      const decodeKey = (encoded: string | undefined): string => {
+        if (!encoded) return '';
+        try {
+          const decoded = atob(encoded);
+          // Check if it looks like a valid API key after decoding
+          if (decoded.startsWith('sk-')) return decoded;
+          // If not, it might be stored unencoded (old format)
+          return encoded;
+        } catch {
+          // Not valid base64, return as-is
+          return encoded;
+        }
+      };
+
+      setOpenaiKey(decodeKey(openai?.api_key_encrypted));
+      setKieaiKey(decodeKey(kieai?.api_key_encrypted));
     } catch (error) {
       console.error('Error fetching API keys:', error);
     }
@@ -304,15 +320,18 @@ export const UserDetails = () => {
 
     try {
       const existing = adminApiKeys.find(k => k.service === service);
+      // Encode the API key with base64 before storing (edge functions expect this encoding)
+      const encodedKey = btoa(apiKey);
+
       if (existing) {
         await supabase
           .from('admin_assigned_api_keys')
-          .update({ api_key_encrypted: apiKey, is_active: true })
+          .update({ api_key_encrypted: encodedKey, is_active: true })
           .eq('id', existing.id);
       } else {
         await supabase
           .from('admin_assigned_api_keys')
-          .insert({ user_id: userId, service, api_key_encrypted: apiKey, is_active: true });
+          .insert({ user_id: userId, service, api_key_encrypted: encodedKey, is_active: true });
       }
 
       toast({ title: 'Saved', description: `${service === 'openai' ? 'OpenAI' : 'KIE-AI'} key saved` });
