@@ -43,6 +43,7 @@ import { AdminStatistics } from '@/pages/admin/AdminStatistics';
 import { AdminAuditLogs } from '@/pages/admin/AdminAuditLogs';
 import { AdminManagement } from '@/pages/admin/AdminManagement';
 import { WorkflowTemplates } from '@/pages/admin/WorkflowTemplates';
+import { FineTuningManagement } from '@/pages/admin/FineTuningManagement';
 
 import { useAuth } from '@/hooks/useAuth';
 import { SidebarProvider } from '@/contexts/SidebarContext';
@@ -262,6 +263,7 @@ function App() {
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="admins" element={<AdminManagement />} />
             <Route path="workflows" element={<WorkflowTemplates />} />
+            <Route path="fine-tuning" element={<FineTuningManagement />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

@@ -18,6 +18,7 @@ import {
   Settings,
   UserCog,
   Workflow,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -78,6 +79,12 @@ export const AdminLayout = () => {
       name: 'Workflows',
       href: '/admin/workflows',
       icon: Workflow,
+      permission: 'settings',
+    },
+    {
+      name: 'Fine-Tuning',
+      href: '/admin/fine-tuning',
+      icon: Sparkles,
       permission: 'settings',
     },
     // Super admin only

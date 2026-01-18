@@ -10,32 +10,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   Building2,
   CreditCard,
   Check,
@@ -49,14 +23,6 @@ import {
   EyeOff,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
-  RefreshCw,
-  Trash2,
-  XCircle,
-  Clock,
-  DollarSign,
-  User,
-  Bot,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -112,26 +78,6 @@ const defaultTermsSettings: TermsSettings = {
   last_updated: null,
 };
 
-interface FineTuneJobWithDetails {
-  id: string;
-  user_id: string;
-  avatar_id: string;
-  openai_job_id: string;
-  base_model: string;
-  fine_tuned_model: string | null;
-  status: 'validating_files' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
-  error_message: string | null;
-  training_examples_count: number | null;
-  estimated_cost: number | null;
-  actual_cost: number | null;
-  created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
-  // Joined data
-  user_email?: string;
-  avatar_name?: string;
-}
-
 export const AdminSettings = () => {
   const { adminUser, isSuperAdmin } = useAdminAuth();
   const [loading, setLoading] = useState(true);
@@ -151,15 +97,6 @@ export const AdminSettings = () => {
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [validatingApiKey, setValidatingApiKey] = useState(false);
   const [apiKeyValidated, setApiKeyValidated] = useState(false);
-
-  // Fine-tuning state
-  const [fineTuneJobs, setFineTuneJobs] = useState<FineTuneJobWithDetails[]>([]);
-  const [loadingJobs, setLoadingJobs] = useState(false);
-  const [jobStatusFilter, setJobStatusFilter] = useState<string>('all');
-  const [cancellingJob, setCancellingJob] = useState<string | null>(null);
-  const [deletingModel, setDeletingModel] = useState<string | null>(null);
-  const [jobToCancel, setJobToCancel] = useState<FineTuneJobWithDetails | null>(null);
-  const [modelToDelete, setModelToDelete] = useState<FineTuneJobWithDetails | null>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -447,144 +384,6 @@ export const AdminSettings = () => {
     }
   };
 
-  // Fine-tuning functions
-  const fetchFineTuneJobs = async () => {
-    setLoadingJobs(true);
-    try {
-      // Fetch all fine-tune jobs with user and avatar details
-      const { data: jobs, error } = await supabase
-        .from('avatar_fine_tune_jobs')
-        .select(`
-          *,
-          avatars:avatar_id (name),
-          profiles:user_id (email)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const jobsWithDetails: FineTuneJobWithDetails[] = (jobs || []).map((job: any) => ({
-        ...job,
-        user_email: job.profiles?.email,
-        avatar_name: job.avatars?.name,
-      }));
-
-      setFineTuneJobs(jobsWithDetails);
-    } catch (error) {
-      console.error('Error fetching fine-tune jobs:', error);
-      toast.error('Failed to load fine-tuning jobs');
-    } finally {
-      setLoadingJobs(false);
-    }
-  };
-
-  const handleCancelJob = async (job: FineTuneJobWithDetails) => {
-    setCancellingJob(job.id);
-    try {
-      // Call OpenAI to cancel the job
-      const response = await fetch(`https://api.openai.com/v1/fine_tuning/jobs/${job.openai_job_id}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to cancel job');
-      }
-
-      // Update database
-      await supabase
-        .from('avatar_fine_tune_jobs')
-        .update({ status: 'cancelled' })
-        .eq('id', job.id);
-
-      toast.success('Fine-tuning job cancelled');
-      fetchFineTuneJobs();
-    } catch (error: any) {
-      console.error('Error cancelling job:', error);
-      toast.error(error.message || 'Failed to cancel job');
-    } finally {
-      setCancellingJob(null);
-      setJobToCancel(null);
-    }
-  };
-
-  const handleDeleteModel = async (job: FineTuneJobWithDetails) => {
-    if (!job.fine_tuned_model) return;
-
-    setDeletingModel(job.id);
-    try {
-      // Call OpenAI to delete the model
-      const response = await fetch(`https://api.openai.com/v1/models/${job.fine_tuned_model}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to delete model');
-      }
-
-      // Update database - clear the fine_tuned_model and mark as deleted
-      await supabase
-        .from('avatar_fine_tune_jobs')
-        .update({ fine_tuned_model: null, status: 'cancelled' })
-        .eq('id', job.id);
-
-      // Also deactivate from avatar if it was active
-      await supabase
-        .from('avatars')
-        .update({
-          active_fine_tuned_model: null,
-          use_fine_tuned_model: false
-        })
-        .eq('active_fine_tuned_model', job.fine_tuned_model);
-
-      toast.success('Fine-tuned model deleted from OpenAI');
-      fetchFineTuneJobs();
-    } catch (error: any) {
-      console.error('Error deleting model:', error);
-      toast.error(error.message || 'Failed to delete model');
-    } finally {
-      setDeletingModel(null);
-      setModelToDelete(null);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-      'validating_files': { variant: 'secondary', label: 'Validating' },
-      'queued': { variant: 'secondary', label: 'Queued' },
-      'running': { variant: 'default', label: 'Running' },
-      'succeeded': { variant: 'outline', label: 'Succeeded' },
-      'failed': { variant: 'destructive', label: 'Failed' },
-      'cancelled': { variant: 'secondary', label: 'Cancelled' },
-    };
-    const config = statusConfig[status] || { variant: 'secondary', label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const formatCost = (cost: number | null) => {
-    if (cost === null || cost === undefined) return '-';
-    return `$${cost.toFixed(2)}`;
-  };
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString();
-  };
-
-  const filteredJobs = fineTuneJobs.filter(job => {
-    if (jobStatusFilter === 'all') return true;
-    return job.status === jobStatusFilter;
-  });
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -609,10 +408,6 @@ export const AdminSettings = () => {
           <TabsTrigger value="apikeys" className="gap-2">
             <Key className="h-4 w-4" />
             API Keys
-          </TabsTrigger>
-          <TabsTrigger value="finetuning" className="gap-2" onClick={() => fetchFineTuneJobs()}>
-            <Sparkles className="h-4 w-4" />
-            Fine-Tuning
           </TabsTrigger>
           {isSuperAdmin() && (
             <TabsTrigger value="payment" className="gap-2">
@@ -978,203 +773,6 @@ export const AdminSettings = () => {
           </Card>
         </TabsContent>
 
-        {/* Fine-Tuning Management Tab */}
-        <TabsContent value="finetuning" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5" />
-                    Fine-Tuning Jobs
-                  </CardTitle>
-                  <CardDescription>
-                    Manage all OpenAI fine-tuning jobs across users
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select value={jobStatusFilter} onValueChange={setJobStatusFilter}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="queued">Queued</SelectItem>
-                      <SelectItem value="succeeded">Succeeded</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={fetchFineTuneJobs}
-                    disabled={loadingJobs}
-                  >
-                    {loadingJobs ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {!hasExistingKey && (
-                <div className="flex items-center gap-3 p-4 mb-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
-                  <AlertCircle className="h-5 w-5 text-amber-600" />
-                  <div>
-                    <p className="font-medium text-amber-800 dark:text-amber-200">API Key Required</p>
-                    <p className="text-sm text-amber-600 dark:text-amber-400">
-                      Configure your OpenAI API key in the API Keys tab to manage fine-tuning jobs.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {loadingJobs ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : filteredJobs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  {fineTuneJobs.length === 0 ? (
-                    <p>No fine-tuning jobs found. Users can start fine-tuning from their dashboard.</p>
-                  ) : (
-                    <p>No jobs match the selected filter.</p>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Chatbot</TableHead>
-                        <TableHead>Model</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Examples</TableHead>
-                        <TableHead>Cost</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredJobs.map((job) => (
-                        <TableRow key={job.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm truncate max-w-[150px]" title={job.user_email}>
-                                {job.user_email || 'Unknown'}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Bot className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{job.avatar_name || 'Unknown'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                              {job.base_model.replace('gpt-', '').replace('-2024-08-06', '').replace('-2024-07-18', '')}
-                            </code>
-                          </TableCell>
-                          <TableCell>{getStatusBadge(job.status)}</TableCell>
-                          <TableCell>{job.training_examples_count || '-'}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3 text-muted-foreground" />
-                              <span>{formatCost(job.actual_cost || job.estimated_cost)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              {formatDate(job.created_at)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              {(job.status === 'queued' || job.status === 'running' || job.status === 'validating_files') && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setJobToCancel(job)}
-                                  disabled={cancellingJob === job.id || !hasExistingKey}
-                                  title="Cancel job"
-                                >
-                                  {cancellingJob === job.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <XCircle className="h-4 w-4 text-orange-500" />
-                                  )}
-                                </Button>
-                              )}
-                              {job.status === 'succeeded' && job.fine_tuned_model && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setModelToDelete(job)}
-                                  disabled={deletingModel === job.id || !hasExistingKey}
-                                  title="Delete model"
-                                >
-                                  {deletingModel === job.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-
-              {/* Summary Stats */}
-              {fineTuneJobs.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-muted/50 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold">{fineTuneJobs.length}</div>
-                    <div className="text-xs text-muted-foreground">Total Jobs</div>
-                  </div>
-                  <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {fineTuneJobs.filter(j => j.status === 'succeeded').length}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Succeeded</div>
-                  </div>
-                  <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {fineTuneJobs.filter(j => j.status === 'running' || j.status === 'queued').length}
-                    </div>
-                    <div className="text-xs text-muted-foreground">In Progress</div>
-                  </div>
-                  <div className="bg-red-50 dark:bg-red-950/20 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {fineTuneJobs.filter(j => j.status === 'failed').length}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Failed</div>
-                  </div>
-                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-amber-600">
-                      ${fineTuneJobs.reduce((sum, j) => sum + (j.actual_cost || j.estimated_cost || 0), 0).toFixed(2)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total Cost</div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Payment Gateway Tab - Only for Super Admin */}
         {isSuperAdmin() && (
           <TabsContent value="payment" className="space-y-6">
@@ -1387,57 +985,6 @@ export const AdminSettings = () => {
           </TabsContent>
         )}
       </Tabs>
-
-      {/* Cancel Job Confirmation Dialog */}
-      <AlertDialog open={!!jobToCancel} onOpenChange={() => setJobToCancel(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Fine-Tuning Job?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will cancel the fine-tuning job for{' '}
-              <strong>{jobToCancel?.avatar_name || 'Unknown'}</strong>.
-              The job cannot be resumed after cancellation.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Running</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => jobToCancel && handleCancelJob(jobToCancel)}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              Cancel Job
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Model Confirmation Dialog */}
-      <AlertDialog open={!!modelToDelete} onOpenChange={() => setModelToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Fine-Tuned Model?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the fine-tuned model from OpenAI.
-              <br /><br />
-              <strong>Model:</strong> {modelToDelete?.fine_tuned_model}
-              <br />
-              <strong>Chatbot:</strong> {modelToDelete?.avatar_name}
-              <br /><br />
-              This action cannot be undone. If the chatbot is using this model,
-              it will revert to the base model.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => modelToDelete && handleDeleteModel(modelToDelete)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete Model
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
