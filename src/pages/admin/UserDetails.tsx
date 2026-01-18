@@ -192,6 +192,7 @@ export const UserDetails = () => {
   const [platformApiKeyFull, setPlatformApiKeyFull] = useState<string | null>(null);
   const [generatingPlatformKey, setGeneratingPlatformKey] = useState(false);
   const [deletingPlatformKey, setDeletingPlatformKey] = useState<string | null>(null);
+  const [selectedChatbotForApiKey, setSelectedChatbotForApiKey] = useState<string>('');
 
   useEffect(() => {
     if (userId) {
@@ -1352,28 +1353,55 @@ export const UserDetails = () => {
           {/* Platform API Keys for n8n */}
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Key className="h-4 w-4" />
-                    Platform API Keys (for n8n)
-                  </CardTitle>
-                  <CardDescription>
-                    API keys for n8n workflow to fetch chatbot data
-                  </CardDescription>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Key className="h-4 w-4" />
+                      Platform API Keys (for n8n)
+                    </CardTitle>
+                    <CardDescription>
+                      API keys for n8n workflow to fetch chatbot data
+                    </CardDescription>
+                  </div>
                 </div>
-                <Button
-                  onClick={() => handleGeneratePlatformKey()}
-                  disabled={generatingPlatformKey}
-                  size="sm"
-                >
-                  {generatingPlatformKey ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4 mr-1" />
-                  )}
-                  New Key
-                </Button>
+                {/* Chatbot selector and generate button */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedChatbotForApiKey}
+                    onChange={(e) => setSelectedChatbotForApiKey(e.target.value)}
+                    className="flex-1 h-9 px-3 text-sm border rounded-md bg-background"
+                  >
+                    <option value="">Select a chatbot...</option>
+                    {chatbots.map(chatbot => (
+                      <option key={chatbot.id} value={chatbot.id}>
+                        {chatbot.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    onClick={() => {
+                      const chatbot = chatbots.find(c => c.id === selectedChatbotForApiKey);
+                      if (chatbot) {
+                        handleGeneratePlatformKey(chatbot.id, chatbot.name);
+                      }
+                    }}
+                    disabled={generatingPlatformKey || !selectedChatbotForApiKey}
+                    size="sm"
+                  >
+                    {generatingPlatformKey ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-1" />
+                    )}
+                    Generate Key
+                  </Button>
+                </div>
+                {!selectedChatbotForApiKey && chatbots.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Select a chatbot to generate an API key for n8n integration
+                  </p>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
