@@ -374,6 +374,7 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     show: boolean;
     filename: string;
@@ -523,10 +524,11 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
     if (!file) return;
 
     // Validate file type
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls') && !fileName.endsWith('.csv')) {
       toast({
         title: "Invalid File",
-        description: "Please upload an Excel file (.xlsx or .xls)",
+        description: "Please upload an Excel (.xlsx, .xls) or CSV (.csv) file",
         variant: "destructive"
       });
       return;
@@ -596,6 +598,62 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
       description: "Product template downloaded successfully",
     });
   };
+
+  const handleExportProducts = useCallback(async () => {
+    if (products.length === 0) {
+      toast({
+        title: "No Products",
+        description: "No products to export",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setExporting(true);
+
+      // Create CSV content
+      const headers = ['SKU', 'Product Name', 'Category', 'Description', 'Price', 'Currency', 'In Stock', 'Images', 'Created At'];
+      const csvRows = [
+        headers.join(','),
+        ...products.map(p => [
+          `"${(p.sku || '').replace(/"/g, '""')}"`,
+          `"${(p.product_name || '').replace(/"/g, '""')}"`,
+          `"${(p.category || '').replace(/"/g, '""')}"`,
+          `"${(p.description || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+          p.price || 0,
+          'MYR',
+          p.in_stock ? 'Yes' : 'No',
+          `"${(p.images || []).join(', ')}"`,
+          p.created_at || ''
+        ].join(','))
+      ];
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${chatbotName.replace(/\s+/g, '_')}_products_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Exported",
+        description: `${products.length} products exported to CSV`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export Failed",
+        description: error.message || "Failed to export products",
+        variant: "destructive"
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [products, chatbotName, toast]);
 
   const handleDeleteProduct = useCallback(async (productId: string, productName: string) => {
     if (!confirm(`Are you sure you want to delete "${productName}"?`)) {
@@ -878,12 +936,16 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
               </Button>
               <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="sm" disabled={uploading}>
                 <Upload className="h-4 w-4 mr-2" />
-                {uploading ? 'Uploading...' : 'Excel'}
+                {uploading ? 'Uploading...' : 'Import'}
+              </Button>
+              <Button onClick={handleExportProducts} variant="outline" size="sm" disabled={exporting || products.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                {exporting ? 'Exporting...' : 'Export'}
               </Button>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx,.xls"
+                accept=".xlsx,.xls,.csv"
                 onChange={handleExcelUpload}
                 className="hidden"
               />
@@ -987,11 +1049,11 @@ export function ProductGalleryFull({ chatbotId, chatbotName, priceVisible: initi
                 </Button>
                 <Button onClick={handleDownloadTemplate} variant="outline">
                   <Download className="h-4 w-4 mr-2" />
-                  Excel Template
+                  Template
                 </Button>
                 <Button onClick={() => fileInputRef.current?.click()} variant="outline">
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload Excel
+                  Import CSV/Excel
                 </Button>
               </div>
             )}

@@ -24,16 +24,25 @@ export interface ExcelParseResult {
 
 export class ExcelImportService {
   /**
-   * Parse Excel file and extract products
+   * Parse Excel or CSV file and extract products
    */
   static async parseExcelFile(file: File): Promise<ExcelParseResult> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
+      const isCSV = file.name.toLowerCase().endsWith('.csv');
 
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
+          let workbook;
+
+          if (isCSV) {
+            // For CSV files, read as text and parse
+            workbook = XLSX.read(data, { type: 'string' });
+          } else {
+            // For Excel files, read as binary
+            workbook = XLSX.read(data, { type: 'binary' });
+          }
 
           // Get first sheet
           const sheetName = workbook.SheetNames[0];
@@ -46,7 +55,7 @@ export class ExcelImportService {
           const result = this.parseProducts(jsonData);
           resolve(result);
         } catch (error: any) {
-          reject(new Error(`Failed to parse Excel file: ${error.message}`));
+          reject(new Error(`Failed to parse file: ${error.message}`));
         }
       };
 
@@ -54,7 +63,12 @@ export class ExcelImportService {
         reject(new Error('Failed to read file'));
       };
 
-      reader.readAsBinaryString(file);
+      // Read CSV as text, Excel as binary
+      if (isCSV) {
+        reader.readAsText(file);
+      } else {
+        reader.readAsBinaryString(file);
+      }
     });
   }
 
