@@ -167,6 +167,7 @@ export const UserDetails = () => {
   const [showPromptContent, setShowPromptContent] = useState(false);
   const [uploadingWorkflow, setUploadingWorkflow] = useState(false);
   const workflowFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [exportingProducts, setExportingProducts] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -467,6 +468,59 @@ export const UserDetails = () => {
     toast({ title: 'Copied', description: 'Prompt copied to clipboard' });
   };
 
+  const handleExportProducts = async () => {
+    if (!selectedChatbot) return;
+    setExportingProducts(true);
+    try {
+      const { data: products, error } = await supabase
+        .from('chatbot_products')
+        .select('*')
+        .eq('chatbot_id', selectedChatbot.id)
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (!products || products.length === 0) {
+        toast({ title: 'No Products', description: 'No products to export', variant: 'destructive' });
+        return;
+      }
+
+      // Create CSV content
+      const headers = ['Name', 'Category', 'Description', 'Price', 'Currency', 'Stock Status', 'SKU', 'Tags', 'Created At'];
+      const csvRows = [
+        headers.join(','),
+        ...products.map(p => [
+          `"${(p.name || '').replace(/"/g, '""')}"`,
+          `"${(p.category || '').replace(/"/g, '""')}"`,
+          `"${(p.description || '').replace(/"/g, '""')}"`,
+          p.price || '',
+          p.currency || 'MYR',
+          p.stock_status || 'in_stock',
+          `"${(p.sku || '').replace(/"/g, '""')}"`,
+          `"${(p.tags || []).join(', ')}"`,
+          p.created_at || ''
+        ].join(','))
+      ];
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedChatbot.name.replace(/\s+/g, '_')}_products_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Exported', description: `${products.length} products exported to CSV` });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to export products', variant: 'destructive' });
+    } finally {
+      setExportingProducts(false);
+    }
+  };
+
   const getTierName = (tierId: string | null) => {
     if (!tierId) return 'Free';
     return tiers.find(t => t.id === tierId)?.display_name || 'Unknown';
@@ -611,10 +665,26 @@ export const UserDetails = () => {
                       <div>
                         <h4 className="text-sm font-medium mb-3">User's Content</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="p-3 border rounded-lg text-center">
+                          <div className="p-3 border rounded-lg text-center relative group">
                             <Package className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
                             <p className="text-lg font-semibold">{chatbotContent.products_count}</p>
                             <p className="text-xs text-muted-foreground">Products</p>
+                            {chatbotContent.products_count > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={handleExportProducts}
+                                disabled={exportingProducts}
+                                title="Export to CSV"
+                              >
+                                {exportingProducts ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Download className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
                           </div>
                           <div className="p-3 border rounded-lg text-center">
                             <Tag className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
