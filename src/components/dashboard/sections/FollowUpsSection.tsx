@@ -1110,17 +1110,26 @@ const FollowUpsSection = ({ chatbot }: FollowUpsSectionProps) => {
             {tagForm.auto_followup && (
               <>
                 <div className="space-y-2">
-                  <Label>Delay (hours)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={tagForm.followup_delay_hours}
-                    onChange={(e) => setTagForm({ ...tagForm, followup_delay_hours: parseFloat(e.target.value) || 24 })}
-                    min={0.1}
-                    max={168}
-                  />
+                  <Label>Delay</Label>
+                  <Select
+                    value={String(tagForm.followup_delay_hours)}
+                    onValueChange={(v) => setTagForm({ ...tagForm, followup_delay_hours: parseFloat(v) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select delay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0.0833">5 minutes</SelectItem>
+                      <SelectItem value="0.5">30 minutes</SelectItem>
+                      <SelectItem value="1">1 hour</SelectItem>
+                      <SelectItem value="4">4 hours</SelectItem>
+                      <SelectItem value="12">12 hours</SelectItem>
+                      <SelectItem value="24">24 hours</SelectItem>
+                      <SelectItem value="48">48 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
-                    For testing: 0.1 = 6 min, 0.25 = 15 min, 0.5 = 30 min, 1 = 1 hour
+                    Time after last message before auto follow-up
                   </p>
                 </div>
 
