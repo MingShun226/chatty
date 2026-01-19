@@ -781,23 +781,84 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
                 )}
               </div>
 
-              {/* Notification Rules - Dynamic */}
+              {/* Notification Rules - Dynamic with Fallback */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">Notify me when:</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAddRule(true)}
-                    className="h-7 text-xs"
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Custom Rule
-                  </Button>
+                  {notificationRules.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddRule(true)}
+                      className="h-7 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Custom Rule
+                    </Button>
+                  )}
                 </div>
 
                 {loadingRules ? (
                   <p className="text-sm text-muted-foreground">Loading rules...</p>
+                ) : notificationRules.length === 0 ? (
+                  /* Fallback: Show hardcoded toggles if notification_rules table is empty or not migrated */
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm">Customer wants to buy</span>
+                        <p className="text-xs text-muted-foreground">
+                          "I want to buy", "how to order", "ready to purchase"
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationSettings?.notify_on_purchase_intent ?? true}
+                        onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_purchase_intent', checked)}
+                        disabled={savingNotification}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm">Customer wants human agent</span>
+                        <p className="text-xs text-muted-foreground">
+                          "speak to human", "talk to agent", "real person"
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationSettings?.notify_on_wants_human ?? true}
+                        onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_wants_human', checked)}
+                        disabled={savingNotification}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm">Customer asks about price</span>
+                        <p className="text-xs text-muted-foreground">
+                          When prices are hidden and customer inquires about pricing
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationSettings?.notify_on_price_inquiry ?? true}
+                        onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_price_inquiry', checked)}
+                        disabled={savingNotification}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm">AI is unsure how to respond</span>
+                        <p className="text-xs text-muted-foreground">
+                          When chatbot encounters questions it cannot answer confidently
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationSettings?.notify_on_ai_unsure ?? true}
+                        onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_ai_unsure', checked)}
+                        disabled={savingNotification}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {/* System Rules */}
