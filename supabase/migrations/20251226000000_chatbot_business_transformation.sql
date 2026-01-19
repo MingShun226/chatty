@@ -539,21 +539,18 @@ INSERT INTO chatbot_templates (
     'Acknowledge customer concern with empathy',
     'Provide clear step-by-step solutions',
     'Use simple, easy-to-understand language',
-    'End with "Is there anything else I can help you with?"',
     'Keep responses under 3 paragraphs'
   ],
   ARRAY[
     'Akui masalah pelanggan dengan empati',
     'Beri penyelesaian langkah demi langkah yang jelas',
     'Guna bahasa yang mudah difahami',
-    'Akhiri dengan "Ada lagi yang boleh saya bantu?"',
     'Pastikan respons tidak lebih dari 3 perenggan'
   ],
   ARRAY[
     '以同理心承认客户的担忧',
     '提供清晰的分步解决方案',
     '使用简单易懂的语言',
-    '以"还有什么我可以帮您的吗？"结束',
     '回复保持在3段以内'
   ],
   ARRAY[
