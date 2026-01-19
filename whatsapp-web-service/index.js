@@ -1470,20 +1470,20 @@ async function sendAdminNotification(chatbotId, sessionId, customerPhone, analys
       'aiUnsure': { display_name: 'AI NEEDS HELP', emoji: '❓' }
     }
 
-    // Build alert types from new intents
+    // Build alert types from new intents - ONLY for intents defined in notification rules
     const alertTypes = []
     for (const intentKey of newIntents) {
       const rule = rulesMap[intentKey] || legacyRulesMap[intentKey]
       if (rule) {
         alertTypes.push(`${rule.emoji || '🔔'} ${rule.display_name}`)
-      } else {
-        // For custom rules not in legacy map, format nicely
-        alertTypes.push(`🔔 ${intentKey.replace(/_/g, ' ').toUpperCase()}`)
       }
+      // Ignore intents not defined in notification rules (e.g. 'inquiry', 'product_interest')
+      // These are AI-generated intents but user hasn't configured notifications for them
     }
 
     if (alertTypes.length === 0) {
-      return // No matching triggers
+      console.log(`No matching notification rules for intents: ${newIntents.join(', ')} - skipping notification`)
+      return // No matching triggers in notification rules
     }
 
     const alertType = alertTypes.join('\n')
@@ -1717,6 +1717,10 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId, c
 
     // Call OpenAI for analysis (using the AI model configured in settings)
     const aiModel = settings.ai_model || 'gpt-4o-mini'
+
+    // Build the list of valid intent keys for the prompt
+    const validIntentKeysList = intentKeys.length > 0 ? intentKeys.join(', ') : 'purchase_intent, human_agent, price_inquiry, ai_unsure'
+
     const analysisPrompt = `Analyze this WhatsApp conversation and categorize the contact.
 
 CONVERSATION:
@@ -1733,6 +1737,9 @@ INTENT DETECTION RULES (check the LATEST customer messages carefully):
 ${detectionRulesText}
 - ai_unsure = true if the assistant's last response seemed uncertain, deflected the question, couldn't provide a clear answer, or if the customer's question is unusual/off-topic that the bot might not handle well
 
+IMPORTANT: For "detectedIntents", ONLY include keys from this list: [${validIntentKeysList}]
+Do NOT add other intents like "inquiry", "product_interest", etc. Only use the exact keys listed above.
+
 Analyze and respond ONLY with valid JSON (no markdown, no explanation):
 {
   "tags": ["tag1", "tag2"],
@@ -1742,7 +1749,7 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
   "shouldAutoFollowUp": true/false,
   "suggestedFollowUp": "Natural follow-up message if applicable",
   "confidence": 0.0-1.0,
-  "detectedIntents": ["list", "of", "triggered", "intent_keys"],
+  "detectedIntents": ["only_keys_from_the_list_above"],
 ${intentJsonFields || `  "purchase_intent": true/false,
   "human_agent": true/false,
   "price_inquiry": true/false,
