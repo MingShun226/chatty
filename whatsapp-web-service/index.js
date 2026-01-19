@@ -933,6 +933,20 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
       return
     }
 
+    // Check if chatbot is within monthly message limit
+    const { data: canSend } = await supabase.rpc('can_chatbot_send_message', {
+      p_chatbot_id: chatbotId
+    })
+
+    if (canSend === false) {
+      console.log(`Chatbot ${chatbotId} has exceeded monthly message limit. Skipping AI response.`)
+      // Optionally send a message to the customer that the business is unavailable
+      await sock.sendMessage(fromNumber, {
+        text: 'Sorry, this service is currently unavailable. Please try again later or contact us directly.'
+      })
+      return
+    }
+
     // Clean phone number for database lookup
     const cleanPhoneForLookup = fromNumber.replace(/[^0-9]/g, '')
 
@@ -1269,6 +1283,20 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
     }
 
     console.log(`Reply sent successfully (${sentChunks.length} message${sentChunks.length > 1 ? 's' : ''})`)
+
+    // Increment message count for subscription tracking
+    try {
+      const { data: usageData } = await supabase.rpc('increment_chatbot_message_count', {
+        p_chatbot_id: chatbotId
+      })
+      if (usageData && usageData.length > 0) {
+        const usage = usageData[0]
+        console.log(`Message usage: ${usage.current_count}/${usage.monthly_limit} (${usage.is_over_limit ? 'OVER LIMIT' : 'OK'})`)
+      }
+    } catch (usageErr) {
+      console.error('Error tracking message usage:', usageErr.message)
+      // Don't fail the message send if tracking fails
+    }
 
     // Sync bot reply to n8n chat history (shared table for all chatbots)
     const fullReply = sentChunks.join('\n')

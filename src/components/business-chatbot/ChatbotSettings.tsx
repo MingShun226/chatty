@@ -21,7 +21,9 @@ import {
   DollarSign,
   Bell,
   FileSpreadsheet,
-  ExternalLink
+  ExternalLink,
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -83,6 +85,15 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<{ display_name: string; keywords: string; emoji: string; description: string } | null>(null);
 
+  // Message usage state
+  const [messageUsage, setMessageUsage] = useState<{
+    current_count: number;
+    monthly_limit: number;
+    is_over_limit: boolean;
+    usage_percentage: number;
+    reset_date: string;
+  } | null>(null);
+
   // Initialize form with chatbot data
   useEffect(() => {
     if (chatbot) {
@@ -128,10 +139,26 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
     }
   }, [chatbot?.id]);
 
+  // Fetch message usage
+  const fetchMessageUsage = useCallback(async () => {
+    if (!chatbot?.id) return;
+    try {
+      const { data, error } = await supabase.rpc('get_chatbot_message_usage', {
+        p_chatbot_id: chatbot.id
+      });
+      if (!error && data && data.length > 0) {
+        setMessageUsage(data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching message usage:', error);
+    }
+  }, [chatbot?.id]);
+
   useEffect(() => {
     fetchNotificationSettings();
     fetchNotificationRules();
-  }, [fetchNotificationSettings, fetchNotificationRules]);
+    fetchMessageUsage();
+  }, [fetchNotificationSettings, fetchNotificationRules, fetchMessageUsage]);
 
   const handleSave = async () => {
     try {
@@ -476,6 +503,59 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
           )}
         </div>
       </div>
+
+      {/* Message Usage */}
+      {messageUsage && (
+        <Card className={messageUsage.is_over_limit ? 'border-red-500' : ''}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Monthly Message Usage
+              {messageUsage.is_over_limit && (
+                <Badge variant="destructive" className="ml-2">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Limit Reached
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              AI responses sent this month • Resets on {new Date(messageUsage.reset_date).toLocaleDateString()}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span>{messageUsage.current_count.toLocaleString()} messages used</span>
+                <span className="text-muted-foreground">
+                  {messageUsage.monthly_limit >= 999999999
+                    ? 'Unlimited'
+                    : `${messageUsage.monthly_limit.toLocaleString()} limit`}
+                </span>
+              </div>
+              {messageUsage.monthly_limit < 999999999 && (
+                <>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full transition-all ${
+                        messageUsage.usage_percentage >= 100
+                          ? 'bg-red-500'
+                          : messageUsage.usage_percentage >= 80
+                            ? 'bg-yellow-500'
+                            : 'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(messageUsage.usage_percentage, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {messageUsage.usage_percentage.toFixed(1)}% of monthly limit used
+                    {messageUsage.is_over_limit && ' • Upgrade your plan to continue using AI responses'}
+                  </p>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Basic Information */}
       <Card>
