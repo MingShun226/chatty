@@ -1429,13 +1429,14 @@ app.get('/api/health', (req, res) => {
  * @param {string} sessionId - WhatsApp session ID
  * @param {string} customerPhone - Customer's phone number
  * @param {object} analysis - AI analysis result
+ * @param {string[]} newIntents - Array of newly detected intent keys
  */
-async function sendAdminNotification(chatbotId, sessionId, customerPhone, analysis) {
+async function sendAdminNotification(chatbotId, sessionId, customerPhone, analysis, newIntents = []) {
   try {
     // Get notification settings for this chatbot
     const { data: settings } = await supabase
       .from('followup_settings')
-      .select('notification_enabled, notification_phone_number, notify_on_purchase_intent, notify_on_wants_human, notify_on_price_inquiry, notify_on_ai_unsure, auto_pause_on_notification')
+      .select('notification_enabled, notification_phone_number, auto_pause_on_notification')
       .eq('chatbot_id', chatbotId)
       .single()
 
@@ -1443,15 +1444,49 @@ async function sendAdminNotification(chatbotId, sessionId, customerPhone, analys
       return // Notifications not enabled or no phone configured
     }
 
-    // Check if we should notify for each intent type
-    const shouldNotifyPurchase = settings.notify_on_purchase_intent && analysis.wantsToBuy
-    const shouldNotifyHuman = settings.notify_on_wants_human && analysis.wantsHumanAgent
-    const shouldNotifyPrice = settings.notify_on_price_inquiry && analysis.asksAboutPrice
-    const shouldNotifyUnsure = settings.notify_on_ai_unsure && analysis.aiUnsure
+    // Fetch notification rules to get display names and emojis
+    const { data: notificationRules } = await supabase
+      .from('notification_rules')
+      .select('rule_key, display_name, emoji, is_enabled')
+      .eq('chatbot_id', chatbotId)
+      .eq('is_enabled', true)
 
-    if (!shouldNotifyPurchase && !shouldNotifyHuman && !shouldNotifyPrice && !shouldNotifyUnsure) {
-      return // No matching trigger
+    // Create a map of rule_key to rule details
+    const rulesMap = {}
+    for (const rule of (notificationRules || [])) {
+      rulesMap[rule.rule_key] = rule
     }
+
+    // Legacy mapping for backward compatibility (if rules table is empty)
+    const legacyRulesMap = {
+      'purchase_intent': { display_name: 'wants to BUY', emoji: '🛒' },
+      'human_agent': { display_name: 'wants HUMAN AGENT', emoji: '👤' },
+      'price_inquiry': { display_name: 'asking about PRICE', emoji: '💰' },
+      'ai_unsure': { display_name: 'AI NEEDS HELP', emoji: '❓' },
+      // Also support old field names
+      'wantsToBuy': { display_name: 'wants to BUY', emoji: '🛒' },
+      'wantsHumanAgent': { display_name: 'wants HUMAN AGENT', emoji: '👤' },
+      'asksAboutPrice': { display_name: 'asking about PRICE', emoji: '💰' },
+      'aiUnsure': { display_name: 'AI NEEDS HELP', emoji: '❓' }
+    }
+
+    // Build alert types from new intents
+    const alertTypes = []
+    for (const intentKey of newIntents) {
+      const rule = rulesMap[intentKey] || legacyRulesMap[intentKey]
+      if (rule) {
+        alertTypes.push(`${rule.emoji || '🔔'} ${rule.display_name}`)
+      } else {
+        // For custom rules not in legacy map, format nicely
+        alertTypes.push(`🔔 ${intentKey.replace(/_/g, ' ').toUpperCase()}`)
+      }
+    }
+
+    if (alertTypes.length === 0) {
+      return // No matching triggers
+    }
+
+    const alertType = alertTypes.join('\n')
 
     // Get chatbot name for the notification
     const { data: chatbot } = await supabase
@@ -1461,15 +1496,6 @@ async function sendAdminNotification(chatbotId, sessionId, customerPhone, analys
       .single()
 
     const chatbotName = chatbot?.name || 'Chatbot'
-
-    // Build notification message with all detected intents
-    const alertTypes = []
-    if (shouldNotifyPurchase) alertTypes.push('🛒 wants to BUY')
-    if (shouldNotifyHuman) alertTypes.push('👤 wants HUMAN AGENT')
-    if (shouldNotifyPrice) alertTypes.push('💰 asking about PRICE')
-    if (shouldNotifyUnsure) alertTypes.push('❓ AI NEEDS HELP')
-
-    const alertType = alertTypes.join('\n')
 
     // Check if auto-pause is enabled
     let autoPauseNote = ''
@@ -1515,7 +1541,7 @@ Reply to this customer now!`
     // Send WhatsApp message to admin
     await sock.sendMessage(adminJid, { text: notificationMessage })
 
-    console.log(`Admin notification sent to ${settings.notification_phone_number} for customer ${customerPhone}`)
+    console.log(`Admin notification sent to ${settings.notification_phone_number} for customer ${customerPhone} - Intents: ${newIntents.join(', ')}`)
 
   } catch (err) {
     console.error('Error sending admin notification:', err.message)
@@ -1655,6 +1681,40 @@ async function analyzeAndTagContact(chatbotId, phoneNumber, userId, sessionId, c
       .map(t => `- ${t.tag_name}: ${t.description}`)
       .join('\n')
 
+    // Fetch notification rules for this chatbot (dynamic rules system)
+    const { data: notificationRules } = await supabase
+      .from('notification_rules')
+      .select('rule_key, display_name, keywords, is_enabled')
+      .eq('chatbot_id', chatbotId)
+      .eq('is_enabled', true)
+      .order('priority', { ascending: false })
+
+    // Build dynamic intent detection rules from notification_rules table
+    // This allows users to add custom notification rules without redeploying
+    const dynamicRules = (notificationRules || [])
+      .filter(rule => rule.keywords && rule.keywords.length > 0)
+      .map(rule => `- ${rule.rule_key} = true if customer message contains: "${rule.keywords.join('", "')}"`)
+      .join('\n')
+
+    // Build the list of intent keys for JSON response
+    const intentKeys = (notificationRules || [])
+      .map(rule => rule.rule_key)
+
+    // Add ai_unsure if not already in list (special case - detected by AI behavior, not keywords)
+    if (!intentKeys.includes('ai_unsure')) {
+      intentKeys.push('ai_unsure')
+    }
+
+    // Build dynamic JSON fields for intents
+    const intentJsonFields = intentKeys
+      .map(key => `  "${key}": true/false`)
+      .join(',\n')
+
+    // Fallback to hardcoded rules if no dynamic rules configured
+    const detectionRulesText = dynamicRules || `- purchase_intent = true if customer explicitly wants to purchase NOW: "I want to buy", "how to order", "ready to purchase", "take my order", "checkout", "I'll buy it", "I want to order", "how do I pay"
+- human_agent = true if customer requested human support: "speak to human", "talk to agent", "real person", "customer service", "live support", "speak to someone", "talk to real", "human please", "actual person"
+- price_inquiry = true if customer asks about pricing, cost, or rates: "how much", "what's the price", "berapa harga", "price", "cost", "fee", "rate", "pricing", "budget", "quotation", "quote"`
+
     // Call OpenAI for analysis (using the AI model configured in settings)
     const aiModel = settings.ai_model || 'gpt-4o-mini'
     const analysisPrompt = `Analyze this WhatsApp conversation and categorize the contact.
@@ -1669,11 +1729,9 @@ ${tagDescriptions || `- hot_lead: High interest, likely to convert (asking about
 - needs_help: Has questions or issues to resolve
 - inactive: Conversation went cold, no recent engagement`}
 
-SPECIAL DETECTION RULES (check the LATEST customer messages carefully):
-- wantsToBuy = true if customer explicitly wants to purchase NOW: "I want to buy", "how to order", "ready to purchase", "take my order", "checkout", "I'll buy it", "I want to order", "how do I pay"
-- wantsHumanAgent = true if customer requested human support: "speak to human", "talk to agent", "real person", "customer service", "live support", "speak to someone", "talk to real", "human please", "actual person"
-- asksAboutPrice = true if customer asks about pricing, cost, or rates: "how much", "what's the price", "berapa harga", "price", "cost", "fee", "rate", "pricing", "budget", "quotation", "quote"
-- aiUnsure = true if the assistant's last response seemed uncertain, deflected the question, couldn't provide a clear answer, or if the customer's question is unusual/off-topic that the bot might not handle well
+INTENT DETECTION RULES (check the LATEST customer messages carefully):
+${detectionRulesText}
+- ai_unsure = true if the assistant's last response seemed uncertain, deflected the question, couldn't provide a clear answer, or if the customer's question is unusual/off-topic that the bot might not handle well
 
 Analyze and respond ONLY with valid JSON (no markdown, no explanation):
 {
@@ -1684,10 +1742,11 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
   "shouldAutoFollowUp": true/false,
   "suggestedFollowUp": "Natural follow-up message if applicable",
   "confidence": 0.0-1.0,
-  "wantsToBuy": true/false,
-  "wantsHumanAgent": true/false,
-  "asksAboutPrice": true/false,
-  "aiUnsure": true/false
+  "detectedIntents": ["list", "of", "triggered", "intent_keys"],
+${intentJsonFields || `  "purchase_intent": true/false,
+  "human_agent": true/false,
+  "price_inquiry": true/false,
+  "ai_unsure": true/false`}
 }`
 
     // Use OpenAI API directly (or could use an edge function)
@@ -1787,18 +1846,31 @@ Analyze and respond ONLY with valid JSON (no markdown, no explanation):
     } else {
       console.log(`Contact profile updated with tags: ${analysis.tags?.join(', ')}`)
 
-      // Send admin notification only if this is a NEW high-priority intent
-      // (not already flagged in previous analysis to avoid duplicate notifications)
-      const isNewBuyIntent = analysis.wantsToBuy && !previousAnalysis.wantsToBuy
-      const isNewHumanIntent = analysis.wantsHumanAgent && !previousAnalysis.wantsHumanAgent
-      const isNewPriceIntent = analysis.asksAboutPrice && !previousAnalysis.asksAboutPrice
-      const isNewUnsureIntent = analysis.aiUnsure && !previousAnalysis.aiUnsure
+      // Dynamic intent detection - check for NEW intents using detectedIntents array
+      // This supports both new dynamic rules and legacy hardcoded fields for backward compatibility
+      const currentIntents = analysis.detectedIntents || []
+      const previousIntents = previousAnalysis.detectedIntents || []
 
-      if (isNewBuyIntent || isNewHumanIntent || isNewPriceIntent || isNewUnsureIntent) {
-        console.log(`NEW intent detected - wantsToBuy: ${isNewBuyIntent}, wantsHumanAgent: ${isNewHumanIntent}, asksAboutPrice: ${isNewPriceIntent}, aiUnsure: ${isNewUnsureIntent}`)
-        await sendAdminNotification(chatbotId, sessionId, cleanPhoneNumber, analysis)
-      } else if (analysis.wantsToBuy || analysis.wantsHumanAgent || analysis.asksAboutPrice || analysis.aiUnsure) {
-        console.log(`Intent already notified previously - skipping duplicate notification`)
+      // Also check legacy fields for backward compatibility
+      if (analysis.wantsToBuy && !currentIntents.includes('purchase_intent')) currentIntents.push('purchase_intent')
+      if (analysis.wantsHumanAgent && !currentIntents.includes('human_agent')) currentIntents.push('human_agent')
+      if (analysis.asksAboutPrice && !currentIntents.includes('price_inquiry')) currentIntents.push('price_inquiry')
+      if (analysis.aiUnsure && !currentIntents.includes('ai_unsure')) currentIntents.push('ai_unsure')
+
+      // Also check legacy previous analysis fields
+      if (previousAnalysis.wantsToBuy && !previousIntents.includes('purchase_intent')) previousIntents.push('purchase_intent')
+      if (previousAnalysis.wantsHumanAgent && !previousIntents.includes('human_agent')) previousIntents.push('human_agent')
+      if (previousAnalysis.asksAboutPrice && !previousIntents.includes('price_inquiry')) previousIntents.push('price_inquiry')
+      if (previousAnalysis.aiUnsure && !previousIntents.includes('ai_unsure')) previousIntents.push('ai_unsure')
+
+      // Find NEW intents that weren't in previous analysis
+      const newIntents = currentIntents.filter(intent => !previousIntents.includes(intent))
+
+      if (newIntents.length > 0) {
+        console.log(`NEW intents detected: ${newIntents.join(', ')}`)
+        await sendAdminNotification(chatbotId, sessionId, cleanPhoneNumber, analysis, newIntents)
+      } else if (currentIntents.length > 0) {
+        console.log(`Intents already notified previously - skipping duplicate notification`)
       }
     }
 

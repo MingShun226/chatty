@@ -597,3 +597,158 @@ export function formatTimeAgo(dateString?: string): string {
 
   return date.toLocaleDateString()
 }
+
+// =====================================================
+// NOTIFICATION RULES (Dynamic Intent Detection)
+// =====================================================
+
+export interface NotificationRule {
+  id: string
+  chatbot_id: string
+  user_id: string
+  rule_key: string
+  display_name: string
+  description?: string
+  keywords: string[]
+  is_enabled: boolean
+  is_system: boolean
+  priority: number
+  emoji: string
+  alert_message?: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Get all notification rules for a chatbot
+ */
+export async function getNotificationRules(chatbotId: string): Promise<NotificationRule[]> {
+  const { data, error } = await supabase
+    .from('notification_rules')
+    .select('*')
+    .eq('chatbot_id', chatbotId)
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching notification rules:', error)
+    return []
+  }
+
+  return data || []
+}
+
+/**
+ * Initialize default system rules for a chatbot
+ */
+export async function initializeNotificationRules(chatbotId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('initialize_notification_rules', {
+    p_chatbot_id: chatbotId,
+    p_user_id: userId
+  })
+
+  if (error) {
+    console.error('Error initializing notification rules:', error)
+    // Don't throw - this might fail if rules already exist
+  }
+}
+
+/**
+ * Create a new custom notification rule
+ */
+export async function createNotificationRule(
+  chatbotId: string,
+  userId: string,
+  rule: {
+    rule_key: string
+    display_name: string
+    description?: string
+    keywords: string[]
+    emoji?: string
+    priority?: number
+  }
+): Promise<NotificationRule | null> {
+  const { data, error } = await supabase
+    .from('notification_rules')
+    .insert({
+      chatbot_id: chatbotId,
+      user_id: userId,
+      rule_key: rule.rule_key.toLowerCase().replace(/\s+/g, '_'),
+      display_name: rule.display_name,
+      description: rule.description,
+      keywords: rule.keywords,
+      emoji: rule.emoji || '🔔',
+      priority: rule.priority || 50,
+      is_system: false,
+      is_enabled: true
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating notification rule:', error)
+    throw new Error(error.message || 'Failed to create notification rule')
+  }
+
+  return data
+}
+
+/**
+ * Update a notification rule
+ */
+export async function updateNotificationRule(
+  ruleId: string,
+  updates: Partial<{
+    display_name: string
+    description: string
+    keywords: string[]
+    is_enabled: boolean
+    emoji: string
+    priority: number
+  }>
+): Promise<NotificationRule | null> {
+  const { data, error } = await supabase
+    .from('notification_rules')
+    .update(updates)
+    .eq('id', ruleId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating notification rule:', error)
+    throw new Error(error.message || 'Failed to update notification rule')
+  }
+
+  return data
+}
+
+/**
+ * Delete a custom notification rule (only non-system rules)
+ */
+export async function deleteNotificationRule(ruleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('notification_rules')
+    .delete()
+    .eq('id', ruleId)
+    .eq('is_system', false) // Safety: Can't delete system rules
+
+  if (error) {
+    console.error('Error deleting notification rule:', error)
+    throw new Error(error.message || 'Failed to delete notification rule')
+  }
+}
+
+/**
+ * Toggle a notification rule on/off
+ */
+export async function toggleNotificationRule(ruleId: string, isEnabled: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('notification_rules')
+    .update({ is_enabled: isEnabled })
+    .eq('id', ruleId)
+
+  if (error) {
+    console.error('Error toggling notification rule:', error)
+    throw new Error(error.message || 'Failed to toggle notification rule')
+  }
+}

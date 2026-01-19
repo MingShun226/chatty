@@ -23,7 +23,18 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getSettings, upsertSettings, FollowupSettings } from '@/services/followupService';
+import {
+  getSettings,
+  upsertSettings,
+  FollowupSettings,
+  getNotificationRules,
+  initializeNotificationRules,
+  createNotificationRule,
+  updateNotificationRule,
+  deleteNotificationRule,
+  toggleNotificationRule,
+  NotificationRule
+} from '@/services/followupService';
 
 interface ChatbotSettingsProps {
   chatbot: any;
@@ -57,6 +68,19 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
   const [phoneError, setPhoneError] = useState('');
   const [savingNotification, setSavingNotification] = useState(false);
 
+  // Notification rules state (dynamic rules system)
+  const [notificationRules, setNotificationRules] = useState<NotificationRule[]>([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+  const [showAddRule, setShowAddRule] = useState(false);
+  const [newRule, setNewRule] = useState({
+    display_name: '',
+    keywords: '',
+    emoji: '🔔',
+    description: ''
+  });
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingRule, setEditingRule] = useState<{ display_name: string; keywords: string; emoji: string; description: string } | null>(null);
+
   // Initialize form with chatbot data
   useEffect(() => {
     if (chatbot) {
@@ -86,9 +110,29 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
     }
   }, [chatbot?.id]);
 
+  // Fetch notification rules
+  const fetchNotificationRules = useCallback(async () => {
+    if (!chatbot?.id || !chatbot?.user_id) return;
+
+    setLoadingRules(true);
+    try {
+      // First, initialize default system rules if they don't exist
+      await initializeNotificationRules(chatbot.id, chatbot.user_id);
+
+      // Then fetch all rules
+      const rules = await getNotificationRules(chatbot.id);
+      setNotificationRules(rules);
+    } catch (error) {
+      console.error('Error fetching notification rules:', error);
+    } finally {
+      setLoadingRules(false);
+    }
+  }, [chatbot?.id, chatbot?.user_id]);
+
   useEffect(() => {
     fetchNotificationSettings();
-  }, [fetchNotificationSettings]);
+    fetchNotificationRules();
+  }, [fetchNotificationSettings, fetchNotificationRules]);
 
   const handleSave = async () => {
     try {
@@ -260,6 +304,141 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
       });
     } finally {
       setSavingNotification(false);
+    }
+  };
+
+  // Handle toggling a notification rule
+  const handleToggleRule = async (ruleId: string, isEnabled: boolean) => {
+    try {
+      await toggleNotificationRule(ruleId, isEnabled);
+      setNotificationRules(prev =>
+        prev.map(rule =>
+          rule.id === ruleId ? { ...rule, is_enabled: isEnabled } : rule
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling rule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to toggle notification rule",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle adding a new custom rule
+  const handleAddRule = async () => {
+    if (!chatbot?.id || !chatbot?.user_id || !newRule.display_name || !newRule.keywords) {
+      toast({
+        title: "Error",
+        description: "Please provide a name and at least one keyword",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const keywords = newRule.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      if (keywords.length === 0) {
+        toast({
+          title: "Error",
+          description: "Please provide at least one keyword",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const rule = await createNotificationRule(chatbot.id, chatbot.user_id, {
+        rule_key: newRule.display_name.toLowerCase().replace(/\s+/g, '_'),
+        display_name: newRule.display_name,
+        description: newRule.description || `Triggered by: ${keywords.join(', ')}`,
+        keywords,
+        emoji: newRule.emoji || '🔔'
+      });
+
+      if (rule) {
+        setNotificationRules(prev => [...prev, rule]);
+        setNewRule({ display_name: '', keywords: '', emoji: '🔔', description: '' });
+        setShowAddRule(false);
+        toast({
+          title: "Success",
+          description: "Custom notification rule created"
+        });
+      }
+    } catch (error: any) {
+      console.error('Error creating rule:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create notification rule",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle editing a rule
+  const handleStartEdit = (rule: NotificationRule) => {
+    setEditingRuleId(rule.id);
+    setEditingRule({
+      display_name: rule.display_name,
+      keywords: rule.keywords.join(', '),
+      emoji: rule.emoji,
+      description: rule.description || ''
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRuleId || !editingRule) return;
+
+    try {
+      const keywords = editingRule.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      await updateNotificationRule(editingRuleId, {
+        display_name: editingRule.display_name,
+        keywords,
+        emoji: editingRule.emoji,
+        description: editingRule.description || `Triggered by: ${keywords.join(', ')}`
+      });
+
+      setNotificationRules(prev =>
+        prev.map(rule =>
+          rule.id === editingRuleId
+            ? { ...rule, display_name: editingRule.display_name, keywords, emoji: editingRule.emoji, description: editingRule.description }
+            : rule
+        )
+      );
+      setEditingRuleId(null);
+      setEditingRule(null);
+      toast({
+        title: "Success",
+        description: "Notification rule updated"
+      });
+    } catch (error) {
+      console.error('Error updating rule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update notification rule",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle deleting a custom rule
+  const handleDeleteRule = async (ruleId: string) => {
+    if (!confirm('Are you sure you want to delete this notification rule?')) return;
+
+    try {
+      await deleteNotificationRule(ruleId);
+      setNotificationRules(prev => prev.filter(rule => rule.id !== ruleId));
+      toast({
+        title: "Success",
+        description: "Notification rule deleted"
+      });
+    } catch (error) {
+      console.error('Error deleting rule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete notification rule",
+        variant: "destructive"
+      });
     }
   };
 
@@ -602,65 +781,164 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
                 )}
               </div>
 
-              {/* Notification Triggers */}
+              {/* Notification Rules - Dynamic */}
               <div className="space-y-3">
-                <Label className="text-sm font-medium">Notify me when:</Label>
-
                 <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm">Customer wants to buy</span>
-                    <p className="text-xs text-muted-foreground">
-                      "I want to buy", "how to order", "ready to purchase"
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notificationSettings?.notify_on_purchase_intent ?? true}
-                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_purchase_intent', checked)}
-                    disabled={savingNotification}
-                  />
+                  <Label className="text-sm font-medium">Notify me when:</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddRule(true)}
+                    className="h-7 text-xs"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Custom Rule
+                  </Button>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm">Customer wants human agent</span>
-                    <p className="text-xs text-muted-foreground">
-                      "speak to human", "talk to agent", "real person"
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notificationSettings?.notify_on_wants_human ?? true}
-                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_wants_human', checked)}
-                    disabled={savingNotification}
-                  />
-                </div>
+                {loadingRules ? (
+                  <p className="text-sm text-muted-foreground">Loading rules...</p>
+                ) : (
+                  <div className="space-y-2">
+                    {/* System Rules */}
+                    {notificationRules.filter(r => r.is_system).map(rule => (
+                      <div key={rule.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{rule.emoji}</span>
+                            <span className="text-sm font-medium">{rule.display_name}</span>
+                            <Badge variant="secondary" className="text-xs">System</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {rule.keywords.length > 0 ? `"${rule.keywords.slice(0, 3).join('", "')}"${rule.keywords.length > 3 ? '...' : ''}` : rule.description}
+                          </p>
+                        </div>
+                        <Switch
+                          checked={rule.is_enabled}
+                          onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
+                        />
+                      </div>
+                    ))}
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm">Customer asks about price</span>
-                    <p className="text-xs text-muted-foreground">
-                      When prices are hidden and customer inquires about pricing
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notificationSettings?.notify_on_price_inquiry ?? true}
-                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_price_inquiry', checked)}
-                    disabled={savingNotification}
-                  />
-                </div>
+                    {/* Custom Rules */}
+                    {notificationRules.filter(r => !r.is_system).length > 0 && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground mb-2">Custom Rules</p>
+                        {notificationRules.filter(r => !r.is_system).map(rule => (
+                          <div key={rule.id} className="flex items-center justify-between p-2 rounded-md bg-muted/30 mb-2">
+                            {editingRuleId === rule.id && editingRule ? (
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    value={editingRule.emoji}
+                                    onChange={(e) => setEditingRule({ ...editingRule, emoji: e.target.value })}
+                                    className="w-12 h-8 text-center"
+                                    maxLength={2}
+                                  />
+                                  <Input
+                                    value={editingRule.display_name}
+                                    onChange={(e) => setEditingRule({ ...editingRule, display_name: e.target.value })}
+                                    placeholder="Rule name"
+                                    className="h-8"
+                                  />
+                                </div>
+                                <Input
+                                  value={editingRule.keywords}
+                                  onChange={(e) => setEditingRule({ ...editingRule, keywords: e.target.value })}
+                                  placeholder="Keywords (comma-separated)"
+                                  className="h-8 text-sm"
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" className="h-7" onClick={handleSaveEdit}>Save</Button>
+                                  <Button size="sm" variant="outline" className="h-7" onClick={() => { setEditingRuleId(null); setEditingRule(null); }}>Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-base">{rule.emoji}</span>
+                                    <span className="text-sm font-medium">{rule.display_name}</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    "{rule.keywords.slice(0, 3).join('", "')}"
+                                    {rule.keywords.length > 3 ? '...' : ''}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => handleStartEdit(rule)}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                    onClick={() => handleDeleteRule(rule.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                  <Switch
+                                    checked={rule.is_enabled}
+                                    onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm">AI is unsure how to respond</span>
-                    <p className="text-xs text-muted-foreground">
-                      When chatbot encounters questions it cannot answer confidently
-                    </p>
+                    {/* Add Custom Rule Form */}
+                    {showAddRule && (
+                      <div className="p-3 border rounded-md space-y-3 bg-muted/20">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">New Custom Rule</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => { setShowAddRule(false); setNewRule({ display_name: '', keywords: '', emoji: '🔔', description: '' }); }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newRule.emoji}
+                            onChange={(e) => setNewRule({ ...newRule, emoji: e.target.value })}
+                            placeholder="🔔"
+                            className="w-12 h-8 text-center"
+                            maxLength={2}
+                          />
+                          <Input
+                            value={newRule.display_name}
+                            onChange={(e) => setNewRule({ ...newRule, display_name: e.target.value })}
+                            placeholder="Rule name (e.g., Urgent complaint)"
+                            className="h-8"
+                          />
+                        </div>
+                        <Input
+                          value={newRule.keywords}
+                          onChange={(e) => setNewRule({ ...newRule, keywords: e.target.value })}
+                          placeholder="Keywords (comma-separated, e.g., refund, cancel, angry)"
+                          className="h-8"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter keywords that should trigger this notification. AI will detect these in customer messages.
+                        </p>
+                        <Button size="sm" onClick={handleAddRule} className="w-full">
+                          Create Rule
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <Switch
-                    checked={notificationSettings?.notify_on_ai_unsure ?? true}
-                    onCheckedChange={(checked) => handleNotificationSettingChange('notify_on_ai_unsure', checked)}
-                    disabled={savingNotification}
-                  />
-                </div>
+                )}
               </div>
 
               {/* Auto-pause AI on Notification */}
