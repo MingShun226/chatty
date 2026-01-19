@@ -19,7 +19,9 @@ import {
   Plus,
   Trash2,
   DollarSign,
-  Bell
+  Bell,
+  FileSpreadsheet,
+  ExternalLink
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -55,6 +57,7 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
     response_guidelines: [] as string[],
     supported_languages: [] as string[],
     default_language: 'en',
+    orders_sheet_url: '',
   });
 
   // Price visibility state
@@ -92,6 +95,7 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
         response_guidelines: Array.isArray(chatbot.response_guidelines) ? chatbot.response_guidelines : [],
         supported_languages: Array.isArray(chatbot.supported_languages) ? chatbot.supported_languages : ['en'],
         default_language: chatbot.default_language || 'en',
+        orders_sheet_url: chatbot.orders_sheet_url || '',
       });
       // Initialize price visibility
       setPriceVisible(chatbot.price_visible ?? true);
@@ -144,6 +148,7 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
           response_guidelines: formData.response_guidelines,
           supported_languages: formData.supported_languages,
           default_language: formData.default_language,
+          orders_sheet_url: formData.orders_sheet_url || null,
         })
         .eq('id', chatbot.id);
 
@@ -177,6 +182,7 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
       business_context: chatbot.business_context || '',
       compliance_rules: Array.isArray(chatbot.compliance_rules) ? chatbot.compliance_rules : [],
       response_guidelines: Array.isArray(chatbot.response_guidelines) ? chatbot.response_guidelines : [],
+      orders_sheet_url: chatbot.orders_sheet_url || '',
       supported_languages: Array.isArray(chatbot.supported_languages) ? chatbot.supported_languages : ['en'],
       default_language: chatbot.default_language || 'en',
     });
@@ -721,6 +727,47 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
               onCheckedChange={handlePriceVisibilityChange}
               disabled={savingPrice}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Orders Google Sheet */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Orders Sheet
+          </CardTitle>
+          <CardDescription>
+            Google Sheets link where customer orders are recorded
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {isEditing ? (
+              <Input
+                type="url"
+                value={formData.orders_sheet_url}
+                onChange={(e) => setFormData({ ...formData, orders_sheet_url: e.target.value })}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                {chatbot.orders_sheet_url ? (
+                  <a
+                    href={chatbot.orders_sheet_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Orders Sheet
+                  </a>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No orders sheet URL set</p>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
