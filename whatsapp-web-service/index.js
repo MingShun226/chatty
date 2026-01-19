@@ -1038,8 +1038,9 @@ async function processMessageWithChatbot(sessionId, chatbotId, fromNumber, messa
             // Use active prompt version's system_prompt, fallback to avatar's default
             system_prompt: activePromptVersion?.system_prompt || chatbot.system_prompt,
             business_context: activePromptVersion?.business_context || chatbot.business_context,
-            compliance_rules: activePromptVersion?.compliance_rules || chatbot.compliance_rules,
-            response_guidelines: activePromptVersion?.response_guidelines || chatbot.response_guidelines,
+            // Always use chatbot settings for these (user-editable in ChatbotSettings)
+            compliance_rules: chatbot.compliance_rules,
+            response_guidelines: chatbot.response_guidelines,
             // Include additional prompt version fields if available
             personality_traits: activePromptVersion?.personality_traits || chatbot.personality_traits,
             behavior_rules: activePromptVersion?.behavior_rules || null,
