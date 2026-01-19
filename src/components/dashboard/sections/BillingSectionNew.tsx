@@ -24,10 +24,6 @@ const defaultFeatures: TierFeatures = {
     follow_ups: false,
     prompt_engineer: false,
   },
-  advertising: {
-    images_studio: false,
-    video_studio: false,
-  },
 };
 
 // Feature display info
@@ -38,8 +34,6 @@ const featureLabels: Record<string, { label: string; beta?: boolean }> = {
   'contacts_management': { label: 'Contacts Management' },
   'follow_ups': { label: 'Smart Follow-ups' },
   'prompt_engineer': { label: 'Prompt Engineer' },
-  'images_studio': { label: 'Images Studio', beta: true },
-  'video_studio': { label: 'Video Studio', beta: true },
 };
 
 const BillingSectionNew = () => {
@@ -140,7 +134,6 @@ const BillingSectionNew = () => {
   const mergeFeatures = (features: any): TierFeatures => {
     return {
       chatbot: { ...defaultFeatures.chatbot, ...(features?.chatbot || {}) },
-      advertising: { ...defaultFeatures.advertising, ...(features?.advertising || {}) },
     };
   };
 
@@ -300,28 +293,6 @@ const BillingSectionNew = () => {
                   </p>
                   <div className="space-y-1.5">
                     {Object.entries(features.chatbot).map(([key, enabled]) => (
-                      <div key={key} className={`flex items-center gap-2 text-sm ${!enabled ? 'text-muted-foreground' : ''}`}>
-                        {enabled ? (
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <X className="h-4 w-4 text-gray-300 flex-shrink-0" />
-                        )}
-                        <span>{featureLabels[key]?.label || key}</span>
-                        {enabled && featureLabels[key]?.beta && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">BETA</Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Advertising Features */}
-                <div className="text-left space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Advertising
-                  </p>
-                  <div className="space-y-1.5">
-                    {Object.entries(features.advertising).map(([key, enabled]) => (
                       <div key={key} className={`flex items-center gap-2 text-sm ${!enabled ? 'text-muted-foreground' : ''}`}>
                         {enabled ? (
                           <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
