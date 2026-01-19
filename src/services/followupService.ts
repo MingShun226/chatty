@@ -621,8 +621,19 @@ export interface NotificationRule {
 
 /**
  * Get all notification rules for a chatbot
+ * Uses RPC function with SECURITY DEFINER to bypass RLS issues
  */
 export async function getNotificationRules(chatbotId: string): Promise<NotificationRule[]> {
+  // Try RPC function first (SECURITY DEFINER - bypasses RLS)
+  const { data: rpcData, error: rpcError } = await supabase.rpc('get_notification_rules', {
+    p_chatbot_id: chatbotId
+  })
+
+  if (!rpcError && rpcData && rpcData.length > 0) {
+    return rpcData as NotificationRule[]
+  }
+
+  // Fallback to direct SELECT if RPC fails
   const { data, error } = await supabase
     .from('notification_rules')
     .select('*')
