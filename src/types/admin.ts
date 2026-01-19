@@ -39,10 +39,6 @@ export interface TierFeatures {
     follow_ups: boolean;
     prompt_engineer: boolean;
   };
-  advertising: {
-    images_studio: boolean;
-    video_studio: boolean;
-  };
 }
 
 export interface SubscriptionTier {

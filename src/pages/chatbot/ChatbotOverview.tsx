@@ -103,6 +103,13 @@ interface OverviewStats {
   }>;
   whatsappConnected: boolean;
   whatsappPhone: string;
+  messageUsage: {
+    current_count: number;
+    monthly_limit: number;
+    is_over_limit: boolean;
+    usage_percentage: number;
+    reset_date: string;
+  } | null;
 }
 
 // Chatbot type icons
@@ -426,13 +433,14 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
   const fetchStats = async (chatbotId: string) => {
     setLoading(true);
     try {
-      const [contactsRes, productsRes, promotionsRes, documentsRes, whatsappRes, historyRes] = await Promise.all([
+      const [contactsRes, productsRes, promotionsRes, documentsRes, whatsappRes, historyRes, messageUsageRes] = await Promise.all([
         supabase.from('contact_profiles').select('*').eq('chatbot_id', chatbotId),
         supabase.from('chatbot_products').select('id').eq('chatbot_id', chatbotId),
         supabase.from('chatbot_promotions').select('id').eq('chatbot_id', chatbotId),
         supabase.from('avatar_knowledge_files').select('id').eq('avatar_id', chatbotId),
         supabase.from('whatsapp_web_sessions').select('status, phone_number').eq('chatbot_id', chatbotId).maybeSingle(),
-        supabase.from('followup_history').select('*, contact:contact_profiles(contact_name, phone_number)').eq('chatbot_id', chatbotId).order('sent_at', { ascending: false }).limit(10)
+        supabase.from('followup_history').select('*, contact:contact_profiles(contact_name, phone_number)').eq('chatbot_id', chatbotId).order('sent_at', { ascending: false }).limit(10),
+        supabase.rpc('get_chatbot_message_usage', { p_chatbot_id: chatbotId })
       ]);
 
       const contacts = contactsRes.data || [];
@@ -535,7 +543,8 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
         },
         followupHistory,
         whatsappConnected: whatsappRes.data?.status === 'connected',
-        whatsappPhone: whatsappRes.data?.phone_number || ''
+        whatsappPhone: whatsappRes.data?.phone_number || '',
+        messageUsage: messageUsageRes.data?.[0] || null
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -694,6 +703,59 @@ const OverviewDashboard = ({ chatbot, onRefresh }: { chatbot: any; onRefresh?: (
           />
         </div>
       </div>
+
+      {/* Monthly Message Usage */}
+      {stats.messageUsage && (
+        <Card className={stats.messageUsage.is_over_limit ? 'border-red-500' : ''}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Monthly AI Messages
+              {stats.messageUsage.is_over_limit && (
+                <Badge variant="destructive" className="ml-2">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Limit Reached
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-3xl font-bold">{stats.messageUsage.current_count.toLocaleString()}</span>
+                <span className="text-muted-foreground">
+                  / {stats.messageUsage.monthly_limit >= 999999999
+                    ? 'Unlimited'
+                    : stats.messageUsage.monthly_limit.toLocaleString()}
+                </span>
+              </div>
+              {stats.messageUsage.monthly_limit < 999999999 && (
+                <>
+                  <Progress
+                    value={Math.min(stats.messageUsage.usage_percentage, 100)}
+                    className={`h-2 ${
+                      stats.messageUsage.usage_percentage >= 100
+                        ? '[&>div]:bg-red-500'
+                        : stats.messageUsage.usage_percentage >= 80
+                          ? '[&>div]:bg-yellow-500'
+                          : ''
+                    }`}
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{stats.messageUsage.usage_percentage.toFixed(1)}% used</span>
+                    <span>Resets {new Date(stats.messageUsage.reset_date).toLocaleDateString()}</span>
+                  </div>
+                </>
+              )}
+              {stats.messageUsage.is_over_limit && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  Upgrade your plan to continue using AI responses
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Mood Distribution & Alerts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

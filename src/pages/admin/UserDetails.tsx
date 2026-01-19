@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -115,6 +116,10 @@ interface ChatbotContent {
   whatsapp_connected: boolean;
   contacts_count: number;
   messages_count: number;
+  // Monthly AI message usage
+  monthly_message_count: number;
+  monthly_message_limit: number;
+  message_usage_percentage: number;
 }
 
 interface AdminApiKey {
@@ -403,15 +408,19 @@ export const UserDetails = () => {
 
   const fetchChatbotContent = async (chatbotId: string) => {
     try {
-      const [productsRes, promosRes, docsRes, promptRes, whatsappRes, contactsRes, messagesRes] = await Promise.all([
+      const [productsRes, promosRes, docsRes, promptRes, whatsappRes, contactsRes, messagesRes, usageRes] = await Promise.all([
         supabase.from('chatbot_products').select('id', { count: 'exact', head: true }).eq('chatbot_id', chatbotId),
         supabase.from('chatbot_promotions').select('id', { count: 'exact', head: true }).eq('chatbot_id', chatbotId).eq('is_active', true),
         supabase.from('avatar_knowledge_files').select('id', { count: 'exact', head: true }).eq('avatar_id', chatbotId),
         supabase.from('avatar_prompt_versions').select('version_name, system_prompt').eq('avatar_id', chatbotId).eq('is_active', true).maybeSingle(),
         supabase.from('whatsapp_web_sessions').select('id').eq('user_id', userId!).eq('status', 'connected').maybeSingle(),
         supabase.from('contact_profiles').select('id', { count: 'exact', head: true }).eq('chatbot_id', chatbotId),
-        supabase.from('whatsapp_messages').select('id', { count: 'exact', head: true }).eq('chatbot_id', chatbotId)
+        supabase.from('whatsapp_messages').select('id', { count: 'exact', head: true }).eq('chatbot_id', chatbotId),
+        supabase.rpc('get_chatbot_message_usage', { p_chatbot_id: chatbotId })
       ]);
+
+      // Parse message usage data
+      const usageData = usageRes.data?.[0] || { current_count: 0, monthly_limit: 100, usage_percentage: 0 };
 
       setChatbotContent({
         products_count: productsRes.count || 0,
@@ -422,7 +431,10 @@ export const UserDetails = () => {
         active_prompt_content: promptRes.data?.system_prompt,
         whatsapp_connected: !!whatsappRes.data,
         contacts_count: contactsRes.count || 0,
-        messages_count: messagesRes.count || 0
+        messages_count: messagesRes.count || 0,
+        monthly_message_count: usageData.current_count || 0,
+        monthly_message_limit: usageData.monthly_limit || 100,
+        message_usage_percentage: usageData.usage_percentage || 0
       });
     } catch (error) {
       console.error('Error fetching chatbot content:', error);
@@ -933,6 +945,25 @@ export const UserDetails = () => {
                             <MessageCircle className="h-4 w-4" />
                             <span>{chatbotContent.messages_count} messages</span>
                           </div>
+                        </div>
+
+                        {/* Monthly AI Message Usage */}
+                        <div className="mt-4 p-3 border rounded-lg bg-muted/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium">Monthly AI Messages</span>
+                            <span className="text-sm">
+                              {chatbotContent.monthly_message_count.toLocaleString()} / {chatbotContent.monthly_message_limit === 999999999 ? 'Unlimited' : chatbotContent.monthly_message_limit.toLocaleString()}
+                            </span>
+                          </div>
+                          <Progress
+                            value={chatbotContent.monthly_message_limit === 999999999 ? 0 : Math.min(chatbotContent.message_usage_percentage, 100)}
+                            className={`h-2 ${chatbotContent.message_usage_percentage >= 100 ? '[&>div]:bg-destructive' : chatbotContent.message_usage_percentage >= 80 ? '[&>div]:bg-amber-500' : ''}`}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {chatbotContent.monthly_message_limit === 999999999
+                              ? 'Unlimited plan'
+                              : `${chatbotContent.message_usage_percentage.toFixed(1)}% used this month`}
+                          </p>
                         </div>
                       </div>
                     )}

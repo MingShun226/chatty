@@ -90,10 +90,6 @@ const defaultFeatures: TierFeatures = {
     follow_ups: true,
     prompt_engineer: false,
   },
-  advertising: {
-    images_studio: false,
-    video_studio: false,
-  },
 };
 
 interface TierFormData {
@@ -133,10 +129,6 @@ const featureLabels = {
     contacts_management: { label: 'Contacts Management', description: 'Manage customer contacts' },
     follow_ups: { label: 'Smart Follow-ups', description: 'AI-powered follow-up system' },
     prompt_engineer: { label: 'Prompt Engineer', description: 'Advanced prompt optimization' },
-  },
-  advertising: {
-    images_studio: { label: 'Images Studio', description: 'AI product image generation', wip: true },
-    video_studio: { label: 'Video Studio', description: 'AI promotional videos', wip: true },
   },
 };
 
@@ -246,10 +238,6 @@ export const TiersManagementNew = () => {
             ...defaultFeatures.chatbot,
             ...(tier.features?.chatbot || {}),
           },
-          advertising: {
-            ...defaultFeatures.advertising,
-            ...(tier.features?.advertising || {}),
-          },
         },
       }));
 
@@ -357,10 +345,6 @@ export const TiersManagementNew = () => {
       chatbot: {
         ...defaultFeatures.chatbot,
         ...(tier.features?.chatbot || {}),
-      },
-      advertising: {
-        ...defaultFeatures.advertising,
-        ...(tier.features?.advertising || {}),
       },
     };
     // Calculate discount percentage from existing prices (if quarterly exists)
@@ -475,7 +459,7 @@ export const TiersManagementNew = () => {
     }
   };
 
-  const updateFeature = (category: 'chatbot' | 'advertising', feature: string, value: boolean) => {
+  const updateFeature = (category: 'chatbot', feature: string, value: boolean) => {
     setFormData(prev => ({
       ...prev,
       features: {
@@ -512,7 +496,6 @@ export const TiersManagementNew = () => {
   const countEnabledFeatures = (features: TierFeatures) => {
     let count = 0;
     Object.values(features.chatbot).forEach(v => v && count++);
-    Object.values(features.advertising).forEach(v => v && count++);
     return count;
   };
 
@@ -643,30 +626,6 @@ export const TiersManagementNew = () => {
                         </div>
                       </div>
 
-                      {/* Advertising Features */}
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                          Advertising Features
-                          <Badge variant="outline" className="text-xs gap-1">
-                            <Construction className="h-3 w-3" />
-                            BETA
-                          </Badge>
-                        </h4>
-                        <div className="space-y-1 text-sm">
-                          {Object.entries(tier.features?.advertising || {}).map(([key, enabled]) => (
-                            <div key={key} className="flex items-center gap-2">
-                              {enabled ? (
-                                <Check className="h-3.5 w-3.5 text-green-600" />
-                              ) : (
-                                <X className="h-3.5 w-3.5 text-gray-300" />
-                              )}
-                              <span className={!enabled ? 'text-muted-foreground' : ''}>
-                                {featureLabels.advertising[key as keyof typeof featureLabels.advertising]?.label || key}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -752,32 +711,6 @@ export const TiersManagementNew = () => {
                         </div>
                       </div>
 
-                      <Separator />
-
-                      <div>
-                        <div className="flex items-center gap-2 font-medium mb-3">
-                          <Sparkles className="h-4 w-4" />
-                          Advertising
-                          <Badge variant="outline" className="text-xs gap-1">
-                            <Construction className="h-3 w-3" />
-                            BETA Version
-                          </Badge>
-                        </div>
-                        <div className="space-y-2">
-                          {Object.entries(tier.features?.advertising || {}).map(([key, enabled]) => (
-                            <div key={key} className="flex items-center gap-2 text-sm">
-                              {enabled ? (
-                                <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
-                              ) : (
-                                <X className="h-4 w-4 text-gray-300 flex-shrink-0" />
-                              )}
-                              <span className={!enabled ? 'text-muted-foreground' : ''}>
-                                {featureLabels.advertising[key as keyof typeof featureLabels.advertising]?.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -1034,37 +967,6 @@ export const TiersManagementNew = () => {
                     <Switch
                       checked={formData.features?.chatbot?.[key as keyof typeof defaultFeatures.chatbot] ?? defaultFeatures.chatbot[key as keyof typeof defaultFeatures.chatbot]}
                       onCheckedChange={(checked) => updateFeature('chatbot', key, checked)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Advertising Features */}
-            <div className="space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                Advertising Features
-                <Badge variant="outline" className="gap-1">
-                  <Construction className="h-3 w-3" />
-                  BETA Version
-                </Badge>
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                {Object.entries(featureLabels.advertising).map(([key, { label, description }]) => (
-                  <div key={key} className="flex items-start justify-between p-3 border rounded-lg bg-amber-50/50 dark:bg-amber-900/10">
-                    <div>
-                      <Label className="font-medium flex items-center gap-2">
-                        {label}
-                        <Badge variant="secondary" className="text-xs">BETA</Badge>
-                      </Label>
-                      <p className="text-xs text-muted-foreground">{description}</p>
-                    </div>
-                    <Switch
-                      checked={formData.features?.advertising?.[key as keyof typeof defaultFeatures.advertising] ?? defaultFeatures.advertising[key as keyof typeof defaultFeatures.advertising]}
-                      onCheckedChange={(checked) => updateFeature('advertising', key, checked)}
                     />
                   </div>
                 ))}

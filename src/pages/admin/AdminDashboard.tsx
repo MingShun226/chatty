@@ -45,6 +45,9 @@ interface PlatformStats {
   total_contacts: number;
   new_users_today: number;
   new_users_week: number;
+  // Message stats
+  total_messages_this_month: number;
+  total_messages_all_time: number;
 }
 
 interface RecentUser {
@@ -119,6 +122,11 @@ export const AdminDashboard = () => {
       const { data: overviewData, error: overviewError } = await supabase.rpc('get_platform_overview');
 
       // Get extended stats with individual queries (using correct table names)
+      // Get current month start for message stats
+      const currentMonthStart = new Date();
+      currentMonthStart.setDate(1);
+      currentMonthStart.setHours(0, 0, 0, 0);
+
       const [
         { count: totalProducts },
         { count: totalPromotions },
@@ -127,7 +135,9 @@ export const AdminDashboard = () => {
         { count: totalKnowledgeFiles },
         { count: totalContacts },
         { count: newUsersToday },
-        { count: newUsersWeek }
+        { count: newUsersWeek },
+        { data: messagesThisMonth },
+        { data: messagesAllTime }
       ] = await Promise.all([
         supabase.from('chatbot_products').select('*', { count: 'exact', head: true }),
         supabase.from('chatbot_promotions').select('*', { count: 'exact', head: true }),
@@ -136,8 +146,14 @@ export const AdminDashboard = () => {
         supabase.from('avatar_knowledge_files').select('*', { count: 'exact', head: true }),
         supabase.from('contact_profiles').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString()),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from('chatbot_message_usage').select('message_count').gte('usage_month', currentMonthStart.toISOString().split('T')[0]),
+        supabase.from('chatbot_message_usage').select('message_count')
       ]);
+
+      // Sum up message counts
+      const totalMessagesThisMonth = messagesThisMonth?.reduce((sum, row) => sum + (row.message_count || 0), 0) || 0;
+      const totalMessagesAllTime = messagesAllTime?.reduce((sum, row) => sum + (row.message_count || 0), 0) || 0;
 
       const baseStats = overviewData?.[0] || {};
 
@@ -155,7 +171,9 @@ export const AdminDashboard = () => {
         total_knowledge_files: totalKnowledgeFiles || 0,
         total_contacts: totalContacts || 0,
         new_users_today: newUsersToday || 0,
-        new_users_week: newUsersWeek || 0
+        new_users_week: newUsersWeek || 0,
+        total_messages_this_month: totalMessagesThisMonth,
+        total_messages_all_time: totalMessagesAllTime
       });
     } catch (error) {
       console.error('Error fetching platform stats:', error);
@@ -327,6 +345,14 @@ export const AdminDashboard = () => {
       bgColor: 'bg-purple-500/10',
     },
     {
+      title: 'AI Messages (Month)',
+      value: stats?.total_messages_this_month || 0,
+      description: `${(stats?.total_messages_all_time || 0).toLocaleString()} all time`,
+      icon: MessageSquare,
+      color: 'text-pink-500',
+      bgColor: 'bg-pink-500/10',
+    },
+    {
       title: 'WhatsApp Connected',
       value: stats?.total_whatsapp_sessions || 0,
       description: 'Active connections',
@@ -338,7 +364,7 @@ export const AdminDashboard = () => {
       title: 'Total Contacts',
       value: stats?.total_contacts || 0,
       description: 'WhatsApp contacts',
-      icon: MessageSquare,
+      icon: Users,
       color: 'text-orange-500',
       bgColor: 'bg-orange-500/10',
     },
@@ -350,20 +376,12 @@ export const AdminDashboard = () => {
       color: 'text-cyan-500',
       bgColor: 'bg-cyan-500/10',
     },
-    {
-      title: 'API Keys',
-      value: stats?.total_api_keys || 0,
-      description: 'Platform integrations',
-      icon: Key,
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-500/10',
-    },
   ];
 
   const secondaryStats = [
     { label: 'Active (7d)', value: stats?.active_users_7d || 0, icon: Activity },
     { label: 'Active (30d)', value: stats?.active_users_30d || 0, icon: TrendingUp },
-    { label: 'Promotions', value: stats?.total_promotions || 0, icon: Tag },
+    { label: 'API Keys', value: stats?.total_api_keys || 0, icon: Key },
     { label: 'Knowledge Files', value: stats?.total_knowledge_files || 0, icon: FileText },
   ];
 
