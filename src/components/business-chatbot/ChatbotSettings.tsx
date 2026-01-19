@@ -783,20 +783,7 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
 
               {/* Notification Rules - Dynamic with Fallback */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Notify me when:</Label>
-                  {notificationRules.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddRule(true)}
-                      className="h-7 text-xs"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add Custom Rule
-                    </Button>
-                  )}
-                </div>
+                <Label className="text-sm font-medium">Notify me when:</Label>
 
                 {loadingRules ? (
                   <p className="text-sm text-muted-foreground">Loading rules...</p>
@@ -880,6 +867,19 @@ export function ChatbotSettings({ chatbot, onUpdate }: ChatbotSettingsProps) {
                         />
                       </div>
                     ))}
+
+                    {/* Add Custom Rule Button - Always visible in dynamic rules section */}
+                    <div className="pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddRule(true)}
+                        className="w-full h-8 text-xs border-dashed"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Custom Notification Rule
+                      </Button>
+                    </div>
 
                     {/* Custom Rules */}
                     {notificationRules.filter(r => !r.is_system).length > 0 && (
