@@ -100,6 +100,7 @@ interface UserChatbot {
   setup_started_at: string | null;
   setup_completed_at: string | null;
   admin_notes: string | null;
+  orders_sheet_url: string | null;
   created_at: string;
   status: string;
 }
@@ -170,6 +171,7 @@ export const UserDetails = () => {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [workflowName, setWorkflowName] = useState('');
   const [workflowUrl, setWorkflowUrl] = useState('');
+  const [ordersSheetUrl, setOrdersSheetUrl] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [activationStatus, setActivationStatus] = useState('pending');
   const [savingChatbot, setSavingChatbot] = useState(false);
@@ -281,7 +283,7 @@ export const UserDetails = () => {
           id, name, company_name, industry, chatbot_type,
           n8n_webhook_url, n8n_workflow_name, n8n_workflow_url, n8n_workflow_json, n8n_enabled,
           activation_status, activation_requested_at, setup_started_at, setup_completed_at,
-          admin_notes, created_at, status
+          admin_notes, orders_sheet_url, created_at, status
         `)
         .eq('user_id', uid)
         .is('deleted_at', null)
@@ -306,6 +308,7 @@ export const UserDetails = () => {
     setWebhookUrl(chatbot.n8n_webhook_url || '');
     setWorkflowName(chatbot.n8n_workflow_name || '');
     setWorkflowUrl(chatbot.n8n_workflow_url || '');
+    setOrdersSheetUrl(chatbot.orders_sheet_url || '');
     setAdminNotes(chatbot.admin_notes || '');
     setActivationStatus(chatbot.activation_status || 'pending');
     await fetchChatbotContent(chatbot.id);
@@ -468,6 +471,7 @@ export const UserDetails = () => {
         n8n_workflow_name: workflowName || null,
         n8n_workflow_url: workflowUrl || null,
         n8n_enabled: !!webhookUrl,
+        orders_sheet_url: ordersSheetUrl || null,
         admin_notes: adminNotes || null,
         activation_status: activationStatus,
       };
@@ -1128,6 +1132,18 @@ export const UserDetails = () => {
                         />
                         <p className="text-xs text-muted-foreground">
                           The webhook URL that receives WhatsApp messages
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Orders Google Sheet URL</Label>
+                        <Input
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          value={ordersSheetUrl}
+                          onChange={(e) => setOrdersSheetUrl(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Google Sheets link where customer orders are recorded
                         </p>
                       </div>
 
