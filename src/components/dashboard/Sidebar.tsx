@@ -52,15 +52,16 @@ const navigationItems = [
       { id: 'chatbot-settings', label: 'Settings', icon: SettingsIcon, path: '/chatbot/settings' },
     ]
   },
-  {
-    id: 'advertising',
-    label: 'Advertising',
-    icon: Sparkles,
-    children: [
-      { id: 'images', label: 'Product Images', icon: Image, path: '/images-studio' },
-      { id: 'videos', label: 'Promo Videos', icon: Film, path: '/video-studio' },
-    ]
-  },
+  // Advertising section temporarily disabled
+  // {
+  //   id: 'advertising',
+  //   label: 'Advertising',
+  //   icon: Sparkles,
+  //   children: [
+  //     { id: 'images', label: 'Product Images', icon: Image, path: '/images-studio' },
+  //     { id: 'videos', label: 'Promo Videos', icon: Film, path: '/video-studio' },
+  //   ]
+  // },
   // API Keys removed - now managed by admin through User Details page
   { id: 'billing', label: 'Billing & Plans', icon: CreditCard, path: '/billing' },
 ];
