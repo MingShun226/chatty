@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import Auth from './Auth';
+import LandingPage from './LandingPage';
 import Dashboard from './Dashboard';
 
 interface IndexProps {
@@ -19,13 +19,14 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     return null;
   }
 
-  // Always render either Auth or Dashboard - never a blank state
+  // Always render either LandingPage or Dashboard - never a blank state
   // Admin redirect is handled at App.tsx level
   if (isAuthenticated) {
     return <Dashboard onLogout={onLogout} />;
   }
 
-  return <Auth onLogin={onLogin} />;
+  // Show landing page for non-authenticated users
+  return <LandingPage />;
 };
 
 export default Index;
