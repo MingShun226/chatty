@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
+import AuthCallback from '@/pages/AuthCallback';
 import Dashboard from '@/pages/Dashboard';
 import NotFound from '@/pages/NotFound';
 import Terms from '@/pages/Terms';
@@ -135,6 +136,10 @@ function App() {
           <Route
             path="/auth"
             element={!user ? <Auth onLogin={handleLogin} /> : <Navigate to={isAdmin ? "/admin" : "/"} replace />}
+          />
+          <Route
+            path="/auth/callback"
+            element={<AuthCallback />}
           />
           <Route
             path="/terms"
