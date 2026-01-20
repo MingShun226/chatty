@@ -51,6 +51,7 @@ import {
   Clock,
   AlertCircle,
   Key,
+  Trash2,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -83,6 +84,8 @@ export const UsersManagement = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [loginAsDialog, setLoginAsDialog] = useState<{ open: boolean; user: UserRow | null }>({ open: false, user: null });
   const [loginAsLoading, setLoginAsLoading] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; user: UserRow | null }>({ open: false, user: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
@@ -263,6 +266,35 @@ export const UsersManagement = () => {
     } finally {
       setLoginAsLoading(false);
       setLoginAsDialog({ open: false, user: null });
+    }
+  };
+
+  const handleDeleteUser = async (user: UserRow) => {
+    setDeleteLoading(true);
+    try {
+      // Call edge function to delete user (handles auth.users and cascades)
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { targetUserId: user.id }
+      });
+
+      if (error) throw error;
+
+      // Remove user from local state
+      setUsers(prev => prev.filter(u => u.id !== user.id));
+
+      toast({
+        title: 'User Deleted',
+        description: `${user.name || user.email} has been permanently deleted.`
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete user',
+        variant: 'destructive'
+      });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteDialog({ open: false, user: null });
     }
   };
 
@@ -590,6 +622,23 @@ export const UsersManagement = () => {
                               {user.account_status === 'active' ? 'Suspend User' : 'Activate User'}
                             </TooltipContent>
                           </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteDialog({ open: true, user });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete User</TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -622,6 +671,45 @@ export const UsersManagement = () => {
                   <ExternalLink className="h-4 w-4 mr-2" />
                 )}
                 Open as User
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete User Dialog */}
+        <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ open, user: open ? deleteDialog.user : null })}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive">Delete User Permanently?</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>
+                  You are about to permanently delete <strong>{deleteDialog.user?.name || deleteDialog.user?.email}</strong>.
+                </p>
+                <p className="text-destructive font-medium">
+                  This action cannot be undone. All of the user's data will be permanently deleted, including:
+                </p>
+                <ul className="list-disc list-inside text-sm space-y-1 ml-2">
+                  <li>User account and profile</li>
+                  <li>All chatbots ({deleteDialog.user?.chatbots_count || 0})</li>
+                  <li>Products, promotions, and knowledge files</li>
+                  <li>Conversation history and contacts</li>
+                  <li>API keys and configurations</li>
+                </ul>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteDialog.user && handleDeleteUser(deleteDialog.user)}
+                disabled={deleteLoading}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Delete Permanently
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
